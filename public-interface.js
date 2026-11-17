@@ -55,8 +55,15 @@ const RESOURCES = Object.freeze([
     'coverage',        // 覆盖度（楼层缺口/未提取楼层）
     'scene',           // [v3.181] 场所图景（当前位置链/在场名单/到访读数/覆盖度/不变量）
     'evidence',        // [v3.214.0] 九账证据工作台（伏笔/约定/平行事实/秘密/回扣/回声/事实版本/事件完整性/修复）
+    'trace',           // [v3.473.0 · L23-X1~X9] 可回源追踪面（因果链/偏差/承诺/遗忘/冲突/排序/修订/水位/延续）
     'floor'            // 当前楼层号
 ]);
+
+/** [v3.473.0 · L23-X1~X9] 可回源追踪面的唯一装配点：按需 require，宿主无 require 时退回全局。 */
+function traceSurface() {
+    try { if (typeof require === 'function') return require('./memory-trace-surface.js'); } catch (_e) { /* 落到全局 */ }
+    return global.LonShaMemoryTraceSurface || null;
+}
 
 /** 取值的单一实现：从快照对象里按资源名取值。纯函数、不抛、缺项如实返回 undefined。 */
 function queryResource(snap, resource) {
@@ -75,6 +82,7 @@ function queryResource(snap, resource) {
         coverage: () => snap && snap.coverage,
         scene: () => snap && snap.scene,
         evidence: () => snap && snap.evidence,
+        trace: () => { const t = traceSurface(); return t ? t.buildTraceSurface(snap) : undefined; },
         floor: () => (snap ? snap.floor : undefined)
     };
     const fn = map[key];

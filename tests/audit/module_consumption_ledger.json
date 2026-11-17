@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-17T08:21:24.125Z",
-  "extra_js_count": 395,
+  "generated_at": "2026-11-17T11:31:45.336Z",
+  "extra_js_count": 405,
   "host_injected_count": 242,
-  "total_modules": 396,
+  "total_modules": 406,
   "zero_consumption_count": 1,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
-  "active_count": 384,
+  "active_count": 394,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -1001,6 +1001,25 @@
       ],
       "load_surface_callers": []
     },
+    "commitment-followthrough.js": {
+      "module": "commitment-followthrough.js",
+      "surface": [
+        "LonShaCommitmentFollowthrough"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "commitment-instance-lifecycle.js": {
       "module": "commitment-instance-lifecycle.js",
       "surface": [
@@ -1568,6 +1587,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "cross-session-continuation.js": {
+      "module": "cross-session-continuation.js",
+      "surface": [
+        "LonShaCrossSessionContinuation"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -3613,6 +3651,25 @@
       ],
       "load_surface_callers": []
     },
+    "forgetting-explanation.js": {
+      "module": "forgetting-explanation.js",
+      "surface": [
+        "LonShaForgettingExplanation"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "frozen-freshness.js": {
       "module": "frozen-freshness.js",
       "surface": [
@@ -5145,6 +5202,25 @@
       ],
       "load_surface_callers": []
     },
+    "memory-bias-surface.js": {
+      "module": "memory-bias-surface.js",
+      "surface": [
+        "LonShaMemoryBiasSurface"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-books.js": {
       "module": "memory-books.js",
       "surface": [
@@ -5188,6 +5264,25 @@
       ],
       "load_surface_callers": []
     },
+    "memory-capacity-watermark.js": {
+      "module": "memory-capacity-watermark.js",
+      "surface": [
+        "LonShaMemoryCapacityWatermark"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-capsule.js": {
       "module": "memory-capsule.js",
       "surface": [
@@ -5202,6 +5297,25 @@
         {
           "file": "index.js",
           "count": 4,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-causal-chain-replay.js": {
+      "module": "memory-causal-chain-replay.js",
+      "surface": [
+        "LonShaMemoryCausalChainReplay"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -5268,6 +5382,25 @@
       "callers": [
         {
           "file": "index.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-conflict-bench.js": {
+      "module": "memory-conflict-bench.js",
+      "surface": [
+        "LonShaMemoryConflictBench"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
         }
@@ -5657,6 +5790,25 @@
       ],
       "load_surface_callers": []
     },
+    "memory-revision-history.js": {
+      "module": "memory-revision-history.js",
+      "surface": [
+        "LonShaMemoryRevisionHistory"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-revisit-schedule.js": {
       "module": "memory-revisit-schedule.js",
       "surface": [
@@ -5908,6 +6060,25 @@
           "file": "index.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "memory-trace-surface.js": {
+      "module": "memory-trace-surface.js",
+      "surface": [
+        "LonShaMemoryTraceSurface"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "public-interface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -7412,6 +7583,25 @@
           "file": "memory-tools-api.js",
           "count": 1,
           "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "recall-ranking-explain.js": {
+      "module": "recall-ranking-explain.js",
+      "surface": [
+        "LonShaRecallRankingExplain"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-trace-surface.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []

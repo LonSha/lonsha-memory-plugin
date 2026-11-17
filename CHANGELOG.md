@@ -1,3 +1,25 @@
+## v3.473.0
+**第二十三期拓展九项（L23-X1~X9）可回源内核 + 唯一装配面 + 真实消费点。**
+
+- `memory-causal-chain-replay.js` 因果链回放（traceable / source-gone / incomparable，断在哪一环就报第几环）。
+- `memory-bias-surface.js` 角色记忆偏差面（只列分歧，输出面**无** winner/correct/preferred/verdict 字段）。
+- `commitment-followthrough.js` 承诺兑现（kept / pending / overdue + undated 单列；此刻读不出就不判过期）。
+- `forgetting-explanation.js` 遗忘解释（频率门 fail-closed：hits<3 一律 insufficient、零候选；措辞只许「可能/也许」）。
+- `memory-conflict-bench.js` 冲突裁决台（三种候选；**无 actor 一律不许落地**，autoDecided 恒 false）。
+- `recall-ranking-explain.js` 检索可解释排序（vector/recency/significance/graph 四项分项；缺项=unknown，**不按 0 计**）。
+- `memory-revision-history.js` 修订历史（chained / single / broken；断环不丢行）。
+- `memory-capacity-watermark.js` 容量水位（ok / near / over；executed 恒 false、需人确认、绝不改入参）。
+- `cross-session-continuation.js` 跨会话延续（anchored / unanchored / single-session；缺楼层锚不许当延续证据）。
+- `memory-trace-surface.js` 九桥唯一装配面 + `public-interface` 新增 `trace` 资源（`/lonsha-get trace`）：这是九个 X 项的**真实消费点**，也是下游按名读取的单一入口。
+
+**判据**（均走真 require/沙箱装载，不做字符串断言）：
+- `tests/l23_x1_causal_chain.test.mjs` 6 条 · `tests/l23_x2_bias_surface.test.mjs` 7 条 · `tests/l23_x3_commitment.test.mjs` 6 条 · `tests/l23_x4_forgetting.test.mjs` 6 条 · `tests/l23_x5_conflict_bench.test.mjs` 7 条 · `tests/l23_x6_recall_ranking.test.mjs` 7 条 · `tests/l23_x7_revision_history.test.mjs` 6 条 · `tests/l23_x8_capacity.test.mjs` 8 条 · `tests/l23_x9_cross_session.test.mjs` 6 条 · `tests/l23_x_surface.test.mjs` 6 条。
+- 每条都带负控制：把缺项按 0 顶替、把断环丢行、把无 actor 当已裁决、把缺锚补 0 楼、把 unknown 当 0 分 —— 五种「看起来对」的实现均被当场判红。
+
+**台账同步**：`manifest.extra_js` 395 → 405（十件全部登记）；`tests/audit/module_consumption_ledger.json` 重跑后 `zero_consumption_count` 仍为 **1**（新增十件全部为 active，没有把「新写的模块」变成新的零消费欠账）；`tests/audit/loading_surface_proof.json` 重跑覆盖 405 模块。
+
+**同轮修掉的真缺陷 1 处**：`memory-revision-history.js` 自检当场抓到「单版但父版本缺失」被判成 `single`（断环被『只有一版』抢先返回），已把断环判定提到 single 之前 —— 这正是自检存在的意义，不是装饰。
+
 ## v3.472.0
 **第二十二期 18 项优化与拓展：纯函数内核、真实生成路径消费、模块台账与负控制同批交付。**
 

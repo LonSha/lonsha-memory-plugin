@@ -44,7 +44,11 @@ const src = __hostSurface();
  *   一个文件里只能有一个真源：凡「从 index.js 抽 StorageManager 方法」的抽取点均改读 memory-organs.js。 */
 const orgSrc = readFileSync(new URL('../memory-organs.js', import.meta.url), 'utf8');
 /* 真源选择：StorageManager 的方法已不在 index.js，因此用「能在真 index.js 找到就用它、否则用模块」的取源器——而不是把整个抽取器改成只读模块（那会把本文件其余面的真源也换掉）。 */
-const pickSrc = (marker) => (src.includes(marker) ? src : orgSrc);
+/* [v3.473.0 · L22-O1 后果修正] compareVersion 等纯函数已外移到 index-helpers.js：
+ *   取源器必须认第三个真源，否则「函数搬了家」会被报成「函数不存在」（实测本文件 3 条假红）。
+ *   口径不变：**在哪个文件里真存在就读哪个**，不是放宽断言。 */
+const helperSrc = readFileSync(new URL('../index-helpers.js', import.meta.url), 'utf8');
+const pickSrc = (marker) => (src.includes(marker) ? src : (orgSrc.includes(marker) ? orgSrc : helperSrc));
 const ui = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf8');
 function extractBraced(marker) {
     const hj = pickSrc(marker);

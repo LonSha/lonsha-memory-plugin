@@ -537,3 +537,13 @@ v3472_r22_product_wiring.test.mjs		v3.472.0 补登：R22 产品接线（真实�
 l22_o1_index_split.test.mjs		L22-O1 补登：index.js 拆分判据门（36 条判据含 9 组镜像破坏负控制）
 l22_o4_evidence_binding.test.mjs		L22-O4 补登：替代证据链负控制门（此前漏登，P3 报红后补）
 l22_o7_declared_dormant.test.mjs		L22-O7 补登：休眠声明台账四关门禁（此前漏登）
+l23_x1_causal_chain.test.mjs		L23-X1 因果链回放判据（6 条含补 0 楼负控制）
+l23_x2_bias_surface.test.mjs		L23-X2 偏差面判据（7 条，只列不裁）
+l23_x3_commitment.test.mjs		L23-X3 承诺兑现判据（6 条，undated 单列）
+l23_x4_forgetting.test.mjs		L23-X4 遗忘解释判据（6 条，频率门 fail-closed）
+l23_x5_conflict_bench.test.mjs		L23-X5 冲突裁决台判据（7 条，无 actor 不许落地）
+l23_x6_recall_ranking.test.mjs		L23-X6 可解释排序判据（7 条，缺项 unknown 不是 0）
+l23_x7_revision_history.test.mjs		L23-X7 修订历史判据（6 条，断环不丢行）
+l23_x8_capacity.test.mjs		L23-X8 容量水位判据（8 条，只预告不执行）
+l23_x9_cross_session.test.mjs		L23-X9 跨会话延续判据（6 条，缺锚不许当延续）
+l23_x_surface.test.mjs		L23-X1~X9 装配面/真消费点判据（7 条含版本三源锚）

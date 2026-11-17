@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.472.0",
+  "version": "3.473.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -406,7 +406,17 @@
     "catalog-registration.js",
     "load-surface-disposition.js",
     "frozen-freshness.js",
-    "write-only-scan.js"
+    "write-only-scan.js",
+    "recall-ranking-explain.js",
+    "memory-causal-chain-replay.js",
+    "memory-bias-surface.js",
+    "commitment-followthrough.js",
+    "forgetting-explanation.js",
+    "memory-conflict-bench.js",
+    "memory-revision-history.js",
+    "memory-capacity-watermark.js",
+    "cross-session-continuation.js",
+    "memory-trace-surface.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

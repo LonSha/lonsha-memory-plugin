@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.472.0';
+    const VERSION = '3.473.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4671,6 +4671,9 @@ function relativeTimeLabel(eventTime, nowTime) {
                      *   在真实生成周期里顺手刷新一次，面板打开时就不必等。失败只入日志，
                      *   不阻塞注入 —— 它是诊断面，不是记忆本体。 */
                     try { this.r22LoadFileReadings(false).catch(() => {}); } catch (e) { errLog(e, 'L22.file-readings'); }
+                    /* [v3.473.0 · L23-X1~X9] 九桥自检随真实生成周期跑一次（纯函数，无副作用），
+                     *   读数存盘供面板/诊断读：这也是九桥在宿主侧的真消费点（不是登记名）。 */
+                    try { this._l23TraceSelfChecks = this.l23TraceSelfChecks(); } catch (e) { errLog(e, 'L23.trace-selfcheck'); }
                 if (_diaryChangeFloor != null) this._diaryInjectFloor = _diaryChangeFloor;
                 if (_timelineChangeFloor != null) this._timelineInjectFloor = _timelineChangeFloor;
                 const prequelInj = this.buildPrequelInjection(query);   // [v3.87] 前情资料注入（Prequel，吸收 MyriadKnots recall-prequel）
@@ -7938,6 +7941,32 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
             this._r22ProductReadout = out;
             return out;
         }
+        /* [v3.473.0 · L23-X1~X9] 可回源九桥的装配点自检（与 r22KernelSelfChecks 同形）。
+         *   为什么要有这一面：九桥是纯函数内核，若只在测试里被装载，宿主侧就是「写了没人读」。
+         *   这里逐个取真库、跑 selfCheck、如实记 absent / threw —— 三态不塌。 */
+        l23TraceSelfChecks() {
+            const map = [
+                ['memory-causal-chain-replay.js', () => window.LonShaMemoryCausalChainReplay, 'memory-causal-chain-replay.js'],
+                ['memory-bias-surface.js', () => window.LonShaMemoryBiasSurface, 'memory-bias-surface.js'],
+                ['commitment-followthrough.js', () => window.LonShaCommitmentFollowthrough, 'commitment-followthrough.js'],
+                ['forgetting-explanation.js', () => window.LonShaForgettingExplanation, 'forgetting-explanation.js'],
+                ['memory-conflict-bench.js', () => window.LonShaMemoryConflictBench, 'memory-conflict-bench.js'],
+                ['recall-ranking-explain.js', () => window.LonShaRecallRankingExplain, 'recall-ranking-explain.js'],
+                ['memory-revision-history.js', () => window.LonShaMemoryRevisionHistory, 'memory-revision-history.js'],
+                ['memory-capacity-watermark.js', () => window.LonShaMemoryCapacityWatermark, 'memory-capacity-watermark.js'],
+                ['cross-session-continuation.js', () => window.LonShaCrossSessionContinuation, 'cross-session-continuation.js'],
+                ['memory-trace-surface.js', () => window.LonShaMemoryTraceSurface, 'memory-trace-surface.js'],
+            ];
+            const out = [];
+            for (const [name, getGlobal, file] of map) {
+                const lib = _moduleLib(getGlobal, file);
+                if (!lib || typeof lib.selfCheck !== 'function') { out.push({ name, ok: false, absent: true }); continue; }
+                try { const r = lib.selfCheck(); out.push({ name, ok: r && r.ok === true, bad: (r && r.bad) || [] }); }
+                catch (e) { out.push({ name, ok: false, threw: String(e && e.message || e) }); }
+            }
+            return out;
+        }
+
         // [v3.367.0] 系统健康自检与全景诊断委托桩 (从 index.js 剥离至 engine-self-check.js)
         /* [v3.472.0 · L22] 第二十二期十八项纯函数内核的装配点自检。
          *   同既有 _moduleLib 挂法：extra_js 后加载，惰性取；坏了不影响记忆本体（全是增强面）。 */

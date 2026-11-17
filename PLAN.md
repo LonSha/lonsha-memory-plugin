@@ -13,6 +13,14 @@
 ## 第二十三期执行批次（双仓协同，共36项）
 ### 第一大部：LonSha 记忆插件账实对齐与可回源（18项：L23-O1~O9 优化 + L23-X1~X9 拓展）
 
+> **【L23-X1~X9 交付映射（2026-11-17 · v3.473.0）】** 拓展九项**已落地并带闸**，清单与读数：
+> · 九个纯函数桥：`memory-causal-chain-replay.js` / `memory-bias-surface.js` / `commitment-followthrough.js` / `forgetting-explanation.js` / `memory-conflict-bench.js` / `recall-ranking-explain.js` / `memory-revision-history.js` / `memory-capacity-watermark.js` / `cross-session-continuation.js`。
+> · 唯一装配面 `memory-trace-surface.js` + `public-interface.js` 新增 `trace` 资源（`/lonsha-get trace`）——**这是九项的真实消费点**，不是字符串登记：`zero_consumption_count` 在新增十件后仍为 **1**。
+> · 读数：`manifest.extra_js` 395 → **405**；`scan_module_wiring` 「已挂载未消费 1（账本 1）」且 B5 结构健康 ok；`loading_surface_proof` 覆盖 405 模块；`scan_cross_repo_binding` 参考基准 542/542。
+> · 判据：`tests/l23_x1..x9` + `l23_x_surface` 共 **65 条**，每条带负控制（缺项按 0 顶替 / 断环丢行 / 无 actor 当已裁决 / 缺锚补 0 楼 / unknown 当 0 分，均当场判红）。
+> · 同轮抓到并修掉的真缺陷：`memory-revision-history.js` 把「单版但父版本缺失」判成 `single`（断环判定被抢占），已前移。
+> · **优化九项 L23-O1~O9 仍未开工**，不得按「已交付」读取。
+
 #### 第 0 刀：v22 账实对账（不占本期名额，先于一切施工）
 把 L22-O1~O9 逐条按 **已做 / 部分 / 未做** 三态重登，每条附机器读数。
 **不许用一个「补登」抹平「没做」与「做了」**；发现不符先记账再修。
