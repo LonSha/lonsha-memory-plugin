@@ -1,3 +1,23 @@
+**第二十三期优化九项第二刀（L23-O3）：唯一零消费模块归档，计数真归 0。**
+
+- 对象：`floor-fingerprint-self-healer.js`（`business_call_sites` 0）。L21-O1 已判 `declared_dormant`，
+  并在理由里写死本仓纪律「不造假消费点」。本刀不再让它以「白名单例外」形式留在装载面：
+  **从 `manifest.extra_js` 撤出（408 → 407）**，文件与两层理由留盘（`l21_o1_triage.json` 新增 `archived` 桶）。
+- **为何不接线（实质理由，非口径问题）**：它的自愈判据不成立 —— `reanchorEvidence` 里
+  `|编辑后长度 - 原长度| <= 50` 单独就能返回 `healed:true / confidence:0.98`，正是本仓禁止的「判不了当判了」；
+  而楼层证据锚已有真源 `floor-identity` / `evidence-source-locator`，它是能力重复且口径更弱的一份。
+- 读数：`zero_consumption_count` **1 → 0**；`extra_js_seam_ledger` orphan **1 → 0**；`extra_js` **408 → 407**；
+  `loading_surface_proof` 覆盖 407（dormantExcluded 仍 11）。
+- 判据：`tests/l23_o3_zero_consumption.test.mjs` **8/8**，带 5 组负控制（计数回 1 / 出现 orphan /
+  偷塞回 manifest / 理由被改短 / 文件被删 —— 五种形态各自必须翻红）。
+- **连带修掉接线审计的两处假红（改读对的地方，不是放宽）**：
+  ① 载体清单按 `module_split_ledger` **自动扩面**：拆片后消费点随分片搬家，只认装配面会把
+  `LonShaWorldlineDraftAudit` 的真接线报成「已挂载零消费」；
+  ② 消费面新增第四种形态 `global.X`（同一全局面），但**只认读不认赋值** —— `global.X = api` 是提供者
+  自己的挂载语句，当消费就是假绿（实测：装配面 `global.LonShaDiagnosticLinesParts = Object.freeze(...)`
+  一度把自己的自报读数判成「已被消费」）。
+- 上述修正后`scan_module_wiring` B5 恢复 ok：已挂载未消费 **0**（账本 1 = `LonShaDiagnosticLinesParts`，
+  它是给判据读的「缺片可读」读数，产品侧无消费，如实建账而非造假接线）。
 ## v3.474.0
 **第二十三期优化九项第一刀（L23-O5）：`engine-diagnostic-lines.js` 5915 行单体拆分 + 本仓首次长文件上界门。**
 

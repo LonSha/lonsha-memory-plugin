@@ -11,7 +11,7 @@
   "human_index_version": "3.474.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 408,
+    "extra_js": 407,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -347,7 +347,6 @@
       "hierarchical-pyramid-attention-elastic.js",
       "entity-disambiguation-affinity-graph.js",
       "branch-diff-incremental-merger.js",
-      "floor-fingerprint-self-healer.js",
       "mind-barometer-dashboard-snapshot.js",
       "temporal-flashbulb-dilation-engine.js",
       "dissociative-persona-mask-matrix.js",
@@ -426,7 +425,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 543,
+    "test_files": 544,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -464,6 +463,7 @@
       "l22_o1_index_split.test.mjs",
       "l22_o4_evidence_binding.test.mjs",
       "l22_o7_declared_dormant.test.mjs",
+      "l23_o3_zero_consumption.test.mjs",
       "l23_o5_diag_split.test.mjs",
       "l23_x1_causal_chain.test.mjs",
       "l23_x2_bias_surface.test.mjs",
@@ -1031,14 +1031,14 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "6fefee87735d",
+      "manifest.json": "0fa6dd17ce4a",
       "package.json": "f8fe65b52029",
       "index.js": "e94581cccd11",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "db3ba4adfef2",
-      "CHANGELOG.md": "2736ff74c6e4",
-      "TODO.md": "8a1e0ac76377",
+      "PLAN.md": "add599a14e1f",
+      "CHANGELOG.md": "86caae2956d1",
+      "TODO.md": "739c99e1450d",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },

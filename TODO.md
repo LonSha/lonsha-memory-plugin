@@ -40,6 +40,13 @@
 > · 收口纪律已落成台账 `tests/audit/preexisting_red_ledger.json`：**每个刀只跑受影响面子集**（拿干净基线树 × 同一子集判存量红），
 >   **全量跑留到双计划收尾的最后一步**。
 >
+> **交付记录（2026-11-17 · v3.474.0）：L23-O3 已交付。**
+> 唯一零消费模块 `floor-fingerprint-self-healer.js` 归档：撤出 `extra_js`（408 → 407），文件与理由留盘
+> （`l21_o1_triage.json` 新增 `archived` 桶）；`zero_consumption_count` **1 → 0**、seam orphan **1 → 0**。
+> 不接线的实质理由：其自愈判据 `|长度差|<=50` 就能给 `healed:0.98`（判不了当判了），且楼层证据锚已有真源。
+> 判据 `tests/l23_o3_zero_consumption.test.mjs` **8/8**，5 组负控制（回 1 / orphan / 偷塞 manifest / 短理由 / 删文件）。
+> 连带：`scan_module_wiring` 载体清单按拆片台账自动扩面 + 新增 `global.X` 形态（只认读不认赋值），
+> 两处假红收敛为真读数（未消费 0，账本 1 = 自报读数）。
 > **【O 线剩余八项：已研判结论（下一轮直接接）】**
 > · `O5` 已交付并提交（`3088b17`）。
 > · `O3`（零消费归 0）**已研判、未落盘**：对象是 `floor-fingerprint-self-healer.js`（`business_call_sites` 0）。

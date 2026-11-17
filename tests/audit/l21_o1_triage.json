@@ -144,19 +144,35 @@
           "prod_call_sites": 2,
           "business_call_sites": 0,
           "why_in_ledger": "load_surface_only"
-        },
+        }
+      }
+    },
+    "archived": {
+      "desc": "已从装载面撤出（文件与理由留盘，不计入业务能力也不占 extra_js）。与 declared_dormant 的分界：休眠内核仍在装载面（每次装载多一份永不调用的代码），归档则彻底不装载。",
+      "modules": {
         "floor-fingerprint-self-healer.js": {
-          "verdict": "declared_dormant",
-          "reason": "楼层文本指纹自愈器（computeFingerprint / reanchorEvidence，零依赖纯函数）。【为什么会到这一步，如实记】它此前一直被当成「已接线的持久化模块」——因为 engine-persistence-ops.js 的 v21Engines 水合表里登记着它，而 scan_module_wiring 的「已挂载但零消费」审计对水合表登记项直接 continue 豁免。L21-O4 撤销那条**不成立**的登记（表里写的 hydrateFloorFingerprintState 在该模块导出面上根本不存在）之后，豁免消失，真实状态才暴露：全仓无任何调用点、无等价实现，也没有自然落点（本仓编辑/回滚路径走 factVersions 与 repairLog）。按本仓纪律不设假消费点（`do not add a consumer solely to satisfy the audit`），故定性为休眠内核：保留文件与注册表条目，不计入业务能力。",
+          "verdict": "archived",
+          "archived_in": "v3.474.0（L23-O3）",
+          "reason": "【为何不再留在装载面】L21-O1 已判它为 declared_dormant（全仓零引用、无自然落点），并按纪律拒绝为满足审计而造假消费点。 但「保留注册表条目」的代价是：每份宿主装载面都背着一个永不调用的模块，而零消费计数只能以「白名单例外」的形式存在 —— 这不是账实对齐，是给账留口子。L23-O3 把它升级为归档：撤出 extra_js，文件与两层理由留盘。 【为何不接线】它的自愈判据不成立：reanchorEvidence 里 |编辑后长度 - 原长度| <= 50 单独就能返回 healed:true / confidence:0.98，等于「判不了当判了」，与本仓三态纪律（判不了就说判不了）直接冲突；接线会把一个弱口径写进产品行为。 【为何不必接线】楼层证据锚已有真源：floor-identity（楼层身份）与 evidence-source-locator（证据来源定位）；本仓编辑/回滚路径走 factVersions 与 repairLog，不存在需要这份指纹自愈的自然落点。 【留盘位置】仓库根目录 floor-fingerprint-self-healer.js（未删除、未改字节）；保留作历史参考，不入 manifest。",
           "prod_call_sites": 0,
           "business_call_sites": 0,
-          "why_in_ledger": "zero_consumption",
-          "evidence": [
-            "floor-fingerprint-self-healer.js 能力面：computeFingerprint / reanchorEvidence（零依赖）",
-            "grep -rn \"floorFingerprint|reanchorEvidence|computeFingerprint\" --include=*.js . → 仅本文件自身",
-            "engine-persistence-ops.js 的 v21Engines 原登记项已于 v3.464.0（L21-O4）撤销并留标注",
-            "scan_module_wiring.mjs 的 UNCONSUMED_LEDGER 已如实登记该全局名并写明理由"
-          ]
+          "superseded_by": [
+            "floor-identity.js",
+            "evidence-source-locator.js"
+          ],
+          "prior_verdict": {
+            "verdict": "declared_dormant",
+            "reason": "楼层文本指纹自愈器（computeFingerprint / reanchorEvidence，零依赖纯函数）。【为什么会到这一步，如实记】它此前一直被当成「已接线的持久化模块」——因为 engine-persistence-ops.js 的 v21Engines 水合表里登记着它，而 scan_module_wiring 的「已挂载但零消费」审计对水合表登记项直接 continue 豁免。L21-O4 撤销那条**不成立**的登记（表里写的 hydrateFloorFingerprintState 在该模块导出面上根本不存在）之后，豁免消失，真实状态才暴露：全仓无任何调用点、无等价实现，也没有自然落点（本仓编辑/回滚路径走 factVersions 与 repairLog）。按本仓纪律不设假消费点（`do not add a consumer solely to satisfy the audit`），故定性为休眠内核：保留文件与注册表条目，不计入业务能力。",
+            "prod_call_sites": 0,
+            "business_call_sites": 0,
+            "why_in_ledger": "zero_consumption",
+            "evidence": [
+              "floor-fingerprint-self-healer.js 能力面：computeFingerprint / reanchorEvidence（零依赖）",
+              "grep -rn \"floorFingerprint|reanchorEvidence|computeFingerprint\" --include=*.js . → 仅本文件自身",
+              "engine-persistence-ops.js 的 v21Engines 原登记项已于 v3.464.0（L21-O4）撤销并留标注",
+              "scan_module_wiring.mjs 的 UNCONSUMED_LEDGER 已如实登记该全局名并写明理由"
+            ]
+          }
         }
       }
     }

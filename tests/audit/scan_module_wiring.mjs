@@ -254,9 +254,23 @@ const HOST_FACE_CONSUMERS = ['settings-ui.js'].filter((f) => loadOrder.includes(
  *   被 B4 当场报成「已挂载但零消费」。这与 v3.264（A1 刀口）、v3.301（_winModule 形态）、
  *   v3.439（宿主直挂面板）是同一家族：判据量错了对象。修法是让消费面认第三种形态，
  *   不是把符号塞进账本（记账会把真接线记成腐烂）。 */
+/* [v3.474.0 · L23-O5] 刀口拆分后的第四种形态：**消费点随分片搬家**。
+ *   `engine-diagnostic-lines.js` 拆为装配面 + 三片后，原本住在它里的「消费其他模块全局符号」
+ *   的代码也随之落入分片（例：`LonShaWorldlineDraftAudit` 的裸守卫三元式现住在 part-a）。
+ *   若载体清单只认装配面，这份**真接线**会被 B4 报成「已挂载但零消费」—— 与 v3.264/v3.301/
+ *   v3.439/v3.461 同族：判据量错了对象。
+ *   故载体清单**按拆片台账自动扩面**，不手抄文件名：新增片只需登记进 ledger，此处自动跟上。 */
+function splitPartsOf(name) {
+    try {
+        const led = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests', 'audit', 'module_split_ledger.json'), 'utf8'));
+        const e = led && led[name];
+        return (e && Array.isArray(e.parts)) ? e.parts.slice() : [];
+    } catch (_e) { return []; }
+}
 const A1_CARRIERS = Array.from(new Set([
     'memory-ledgers.js', 'memory-aux.js', 'narrative-generators.js', 'memory-books.js',
     'memory-organs.js', 'memory-core.js', 'memory-config.js', 'engine-diagnostic-lines.js',
+    ...splitPartsOf('engine-diagnostic-lines.js'),
     'engine-report.js', 'engine-recall.js', 'memory-symphony-orchestrator.js',
     ...HOST_MODULES, ...HOST_FACE_CONSUMERS
 ])).filter((f) => loadOrder.includes(f));
@@ -264,6 +278,15 @@ const consumptionCode = [entryCode].concat(
     A1_CARRIERS.map((f) => stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8')))).join(String.fromCharCode(10));
 const referenced = new Set();
 for (const m of consumptionCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g)) referenced.add(m[1]);
+/* [v3.474.0 · L23-O5] 第四种形态：同一全局面的别的写法。
+ *   拆片后装配面取分片用的是 `global.LonShaDiagParts`（UMD 工厂的 root 形参名），
+ *   而各模块挂载时也常写 `global.LonShaX = api`。既然 `window.X` 算消费，
+ *   `global.X` / `globalThis.X` 就是**同一个事实的另一种写法**（浏览器里 window === globalThis），
+ *   只认前者会把真接线误报成零消费。这不是放宽：仍然要求「被引用的那一侧」不是提供者自身。 */
+/* ★ 只认**读**，不认赋值：`global.LonShaX = api` 是提供者自己的挂载语句，把当消费就是假绿
+ *   （实测：装配面 `global.LonShaDiagnosticLinesParts = Object.freeze(...)` 曾把自己的自报读数
+ *   判成「已被消费」）。排除规则：后面紧跟 `=`（且不是 `==`）的不算。 */
+for (const m of consumptionCode.matchAll(/\b(?:global|globalThis|root|self)\s*\.\s*(LonSha[A-Za-z0-9_]*)\b(?!\s*=(?!=))/g)) referenced.add(m[1]);
 /* [v3.301.0 M-O2 第二刀] 消费面必须认**第二种取库形态**：`this._winModule('LonShaX','Y')`。
  *   本刀把七个「构造期直取 window」的点改为惰性取库（构造期读不到、重建期读得到），
  *   若消费面只认 `window.LonShaX` 文本，这三个**真接线**会被 B4 当场误报成「已挂载但零消费」
@@ -342,7 +365,14 @@ const UNCONSUMED_LEDGER = [
      *   「防静默腐烂」退化成「防不绿」，是假绿的另一张脸。
      * 故：如实记账（这条记录本身说明「已挂载、零消费、缺时机」），
      *   待真有编辑/回档锚点需求时再接，届时删掉本条即可（本条只是计数凭据，不是永久豁免）。 */
-    'LonShaFloorFingerprintSelfHealer',
+    /* [v3.474.0 · L23-O3] 已归档：该模块已从 manifest.extra_js 撤出，不再挂载，故本条一并出账
+     *   （归档台账见 tests/audit/l21_o1_triage.json 的 archived 桶与 tests/l23_o3_zero_consumption.test.mjs）。 */
+    /* [v3.474.0 · L23-O5] 新增 1 项：`LonShaDiagnosticLinesParts`（装配面挂出的「已装分片 id」冻结读数）。
+     *   它**产品侧无消费**，读它的是判据（tests/l23_o5 E1/E2/F1：缺片时读数必须少项）。
+     *   为何记账而不接线：这个符号存在的目的就是「让缺片可读」，把它接进业务路径等于
+     *   为满足审计而造假消费点（同 L21-O4 对 floor-fingerprint 的判定）；但它也不是死代码，
+     *   故如实记账：挂载、零业务消费、消费者是判据。 */
+    'LonShaDiagnosticLinesParts',
 ];
 // [v3.173] 清空必须是有凭据的清空：下列 7 个模块是**本版声明已接线**的，必须逐个确认
 //   index.js 里真有对它全局符号的引用。否则「删掉引用 + 删掉账本记录」也能让 B4 全绿 ——

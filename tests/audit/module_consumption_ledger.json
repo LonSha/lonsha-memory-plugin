@@ -1,10 +1,10 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-17T13:09:30.144Z",
-  "extra_js_count": 408,
+  "generated_at": "2026-11-17T13:53:28.381Z",
+  "extra_js_count": 407,
   "host_injected_count": 252,
-  "total_modules": 409,
-  "zero_consumption_count": 1,
+  "total_modules": 408,
+  "zero_consumption_count": 0,
   "load_surface_only_count": 11,
   "docs_probe_only_count": 0,
   "active_count": 397,
@@ -3643,19 +3643,6 @@
           "type": "file_binding"
         }
       ],
-      "load_surface_callers": []
-    },
-    "floor-fingerprint-self-healer.js": {
-      "module": "floor-fingerprint-self-healer.js",
-      "surface": [
-        "floor-fingerprint-self-healer"
-      ],
-      "prod_call_sites": 0,
-      "business_call_sites": 0,
-      "load_surface_only": false,
-      "allowed": 0,
-      "why": "zero_consumption",
-      "callers": [],
       "load_surface_callers": []
     },
     "floor-identity.js": {
