@@ -40,6 +40,20 @@
 > · 收口纪律已落成台账 `tests/audit/preexisting_red_ledger.json`：**每个刀只跑受影响面子集**（拿干净基线树 × 同一子集判存量红），
 >   **全量跑留到双计划收尾的最后一步**。
 >
+> **【O 线剩余八项：已研判结论（下一轮直接接）】**
+> · `O5` 已交付并提交（`3088b17`）。
+> · `O3`（零消费归 0）**已研判、未落盘**：对象是 `floor-fingerprint-self-healer.js`（`business_call_sites` 0）。
+>   L21-O1 已判 `declared_dormant`，理由里明写本仓纪律「不造假消费点」。因此本项只能走**归档**：
+>   ① 从 `manifest.extra_js` 撤出（408 → 407）；② 在 `tests/audit/l21_o1_triage.json` 新增 `archived` 桶并写理由
+>   （两层：它的成功判据不成立 —— `|长度差|<=50` 单独就能判 `healed:true, confidence:0.98`，正是本仓禁止的「判不了当判了」；
+>   且楼层证据锚已有真源 `floor-identity` / `evidence-source-locator`，它是能力重复且口径更弱的一份）；
+>   ③ 重跑五份台账 + `dead_code_budget`（行数减少，无需抬升）；④ 新判据带负控制：把该文件重新塞回 manifest ⇒ 零消费必须回到 1 并翻红。
+>   **不要**去改 `v21_o1` 的「允许 count>0」那一条 —— 那是 v3.465.1 的口径，本项是把它的前提（模块仍在装载面）拿掉。
+> · `O2`（11 个 `load_surface_only` 定性）：对象清单在 `l22_o7` 里钉着（`loadSurface.length === 11`），处置词表已存在 `scan_module_disposition.mjs`，
+>   可沿用同一套 `declared_dormant` + `why`（≥MIN_WHY_CHARS、禁灰标签）口径逐条定性。
+> · `O1`（拆 `index.js`）：顺手关掉存量红 `scan_index_split R2`（index.js 12992 > 天花板 12963；归属 O1，不要抬账）。
+> · 剩余 `O4`（realhost 两态不同形）/ `O6`（写了不读键级扫描、空清单自证）/ `O7`（注入回执全路径）/ `O8`（34 视图真调）/ `O9`（冻读取三态）均未开工。
+>
 > **仍未开工的是 L23-O1~O9 九项**（`index.js` 拆解 / `load_surface_only` 定性 / 零消费归零 / realhost 接门 / `engine-diagnostic-lines.js` 拆解 / 写了不读 / 回执覆盖 / 34 视图真调 / 冻读取新鲜度）。
 >
 > ---
