@@ -553,3 +553,4 @@ l23_o3_zero_consumption.test.mjs		L23-O3 零消费归零判据（唯一零消费
 l23_o1_index_layer_blocker.test.mjs		L23-O1 四层拆分前提核验 + 行数天花板重定基（ratchet，两向自证）
 l23_o4_realhost_two_shapes.test.mjs		L23-O4 realhost 读数接门（11 条：两态键面互斥 / 环境态成因面齐 / 跑过态过阈值 / 五组负控制）
 l23_o6_write_only_key_level.test.mjs		L23-O6 写了不读键级扫描 + 空清单自证（12 条：跨文件读 / 解构读 / 分母自证 / 台账双向 / 证据复验 / 两组负控制 / 单一真源）
+l23_o7_receipt_all_paths.test.mjs		L23-O7 注入回执覆盖全部路径（10 条：五态互斥 / 四档来源 / 账要平 / 三态不同形 / 跳过面 / 三组负控制）

@@ -2277,6 +2277,21 @@
                     residentOverflowChars: _roChars, residentOverflowOver: _roOver,
                     strategy: keepCount, tokens: estimateTextTokens(full),
                     tokenBudget: tokenBudget || null, ts: Date.now(),
+                    /* [L23-O7] 「回执从哪来」三态（**不同形**，不许塌成一个 null）：
+                     *   not-run        本轮没走到派生（下面 try 之前就早退了）；
+                     *   ok             真拿到回执；
+                     *   module-absent  装载面里没有 deriveReceipt；
+                     *   derive-failed  派生出错（异常消息进 why）。
+                     *   修前只有「有回执 / null」两态，且异常被 errLog 吞掉后 `receipt`
+                     *   保持**上一次的旧值** —— 「这次失败了」会被读成「上次的结果」。 */
+                    receiptStatus: { state: 'not-run', lib: 'injection-receipt.js', why: '' },
+                    /* [L23-O7] 「跳过面」：材料因会话/修订过期被整包丢掉时，注入回执必须说出来。
+                     *   修前它只在 `this._projectionDropped` 与 snap.meta 里，读回执的人看不到。 */
+                    skipped: this._projectionDropped
+                        ? { source: 'projection', reason: String(this._projectionDropped.reason || 'unknown'),
+                            from: (this._projectionDropped.from === undefined ? null : this._projectionDropped.from),
+                            to: (this._projectionDropped.to === undefined ? null : this._projectionDropped.to) }
+                        : { source: 'projection', reason: null, from: null, to: null },
                 };
                 // [v3.193.0] 成本账本：把「总量丢弃」拆成「谁的丢弃」。
                 //   常驻（每轮都在）与触发（命中才有）成本量级差十倍，混在一个数字里没法取舍；
@@ -2391,11 +2406,23 @@
                         });
                         this._lastBudgetStats.receipt = this._lastReceipt;
                         this._lastBudgetStats.receiptLine = (_RC2.receiptLine ? _RC2.receiptLine(this._lastReceipt) : '');
+                        this._lastBudgetStats.receiptStatus = { state: 'ok', lib: 'injection-receipt.js', why: '' };
                     } else {
+                        /* 第二态：库缺席 —— 不是「没有数据」，是「拿不到派生回执的那个库」 */
                         this._lastReceipt = null;
                         this._lastBudgetStats.receipt = null;
+                        this._lastBudgetStats.receiptLine = '';
+                        this._lastBudgetStats.receiptStatus = { state: 'module-absent', lib: 'injection-receipt.js', why: '装载面里没有 deriveReceipt' };
                     }
-                } catch (e) { errLog(e, 'buildInjection.回执派生'); }
+                } catch (e) {
+                    /* 第三态：派生出错。修前这里只 errLog 一句、`receipt` 保持旧值 ——
+                     *   下游把「这次没算出来」读成「上次算出来的那份」。现在显式置空并留成因。 */
+                    this._lastReceipt = null;
+                    this._lastBudgetStats.receipt = null;
+                    this._lastBudgetStats.receiptLine = '';
+                    this._lastBudgetStats.receiptStatus = { state: 'derive-failed', lib: 'injection-receipt.js', why: String((e && e.message) || e) };
+                    errLog(e, 'buildInjection.回执派生');
+                }
                 /* [L14-O3] 生成前计划与真实注入逐条对拍：只在调用方提供本轮
                  * generationMaterialPlan 时启用；实际块取自刚刚生成的 _lastInjectionDraft，
                  * 不复制预算/权限算法，不写 owner。缺 materialId 显式降级，不用文本猜身份。 */

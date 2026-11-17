@@ -1,5 +1,40 @@
 ## v3.474.0
 
+**第二十三期优化九项第七刀（L23-O7）：注入回执覆盖全部路径 —— 失败面与跳过面各自有了自己的形状。**
+
+- **修的是什么（两处都是「不同形」被压成同一形，不是措辞问题）**：
+  - **失败面被吞**：`engine-injection-pipeline.js` 里派生回执那段，`deriveReceipt` 抛错时
+    `catch (e) { errLog(...) }` 就完事 —— `_lastBudgetStats.receipt` **保持上一次的旧值**。
+    下游读它，会把「这次没算出来」读成「上次算出来的那份」，而两者在字段面上完全同形。
+  - **跳过面不可见**：材料因会话/修订过期被整包丢掉时（`_projectionDropped`，成因 `stale-conversation` /
+    `stale-revision`），这件事只落在 `this._projectionDropped` 与 snap.meta 里；**读注入回执的人看不到**
+    「这一轮有一批材料根本没进候选」——于是「没有条目」与「条目被跳过」在回执面上同形。
+- **真实交付 ①：`receiptStatus` 四态（不同形，且非 `ok` 一律把 `receipt` 置空）。**
+  `not-run`（本轮没走到派生，初值）/ `ok` / `module-absent`（装载面里没有 `deriveReceipt`）/
+  `derive-failed`（异常消息进 `why`，并**显式置空** `receipt` 与 `receiptLine`）。
+  修前只有「有回执 / `null`」两态，且 `null` 同时意味着「库缺席」「抛错了」「没跑到」三件事。
+  **宁可说「没有」，不许递旧账** —— 这是本刀对「陈旧读数」这一类风险的处理口径。
+- **真实交付 ②：`skipped` 跳过面具名。** `_lastBudgetStats.skipped = {source:'projection', reason, from, to}`：
+  没被丢时 `reason: null`，被丢时 `reason` 是成因码 —— **两态不同形**，不用空字符串把两者压平
+  （空串会让「没丢」与「丢了但没说清」变成同一个读数）。
+- **真实交付 ③：判据 `tests/l23_o7_receipt_all_paths.test.mjs` **10/10 全绿**。**
+  - 块级五态由 `injection-receipt.js::classifyBlocks` **真调**验证：A1 硬截断 + 块区间能同时造出
+    `kept`/`partial`/`dropped`/`empty`（且 `from === 'trace-span'`）/ A2 未裁剪路径只该有 `kept`/`empty`、
+    出现 `dropped` 就算错 / A3 内联回落时 `from === 'unknown'`、`why` 非空、**且不许倒推成 `kept`**；
+    B1 账要平（五态计数之和 === 候选块数，四档来源各测一遍）。
+  - 真码面：B2 三个状态值各**恰写 1 次**（多写=第二份真源，零写=面缺失）+ catch 必须同时置空与留成因；
+    B3 跳过面由 `_projectionDropped` 驱动、字段齐、`reason` 两态且不得是空串。
+  - 负控制三组：D1 把失败面改回静默（删掉那行）⇒ B2 必红；D2 把 `module-absent` 改成 `ok` ⇒
+    「三值互不相同」必红；D3 把跳过面的 `null` 压成空串 ⇒ B3 必红。
+    E1 词表单一真源（`'derive-failed'` / `'module-absent'` 全文件各 1 次）+ 数值数组出生锚。
+- **首跑 1 红，原因记在这里**：A1 首版给了 `keptIdxInAll`，于是 `classifyBlocks` 走的是 `trace` 档、
+  `from` 不是 `trace-span` —— **判据只测到自己搭的那条路**（这正是「假绿第一形」的翻版）。
+  去掉那个字段后 `trace-span` 档才真被走到；旁注写进夹具，免得下一个人再补回去。
+- **回归面**：`v3216` / `v3144` / `v3298` / `v3274` / `v3208` / `v21_o5` / `v3472` / `dead_code_budget --check`
+  全部仍绿（本次是**新增**键，旧键一字未动）。
+- **诚实边界**：本刀只证「面齐且不同形」，**不证明**真实 SillyTavern 会话里这三种失败都真的发生过；
+  `module-absent` / `derive-failed` 的端到端行为由源码面锚点持有，未在真机上把库摘掉跑一遍。
+
 **第二十三期优化九项第六刀（L23-O6）：「写了不读」扫描器自己的假绿被修掉 —— 同一盘面 4 个变成 73 个。**
 
 - **先说这一步到底修了什么**：计划要求「键/字段级扫描 + 空清单必须自证扫了什么」。动手先读真码，
