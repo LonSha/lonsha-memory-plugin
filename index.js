@@ -11893,6 +11893,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaHostCompatMatrix || (typeof LonShaHostCompatMatrix !== 'undefined' ? LonShaHostCompatMatrix : null);
                     if (api && typeof api.detect === 'function' && typeof api.matrix === 'function') this.engine.hostCompat = api;
                 }
+                // [v4.158.0 · R24-X1] 记忆交互台：时间线 / 图谱 / 检索三视图（共享一份投影）。
+                if (!this.engine.memoryViews) {
+                    const api = optEngines.LonShaMemoryViews || (typeof LonShaMemoryViews !== 'undefined' ? LonShaMemoryViews : null);
+                    if (api && typeof api.project === 'function' && typeof api.timelineView === 'function') this.engine.memoryViews = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
