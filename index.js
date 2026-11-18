@@ -11853,6 +11853,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaRecallKernel || (typeof LonShaRecallKernel !== 'undefined' ? LonShaRecallKernel : null);
                     if (api && typeof api.recall === 'function') this.engine.recallKernel = api;
                 }
+                // [v4.158.0 · R24-O8] 压缩与真删除：三级语义 + 级联四处 + 删后逐面自证。
+                if (!this.engine.forgetCascade) {
+                    const api = optEngines.LonShaForgetCascade || (typeof LonShaForgetCascade !== 'undefined' ? LonShaForgetCascade : null);
+                    if (api && typeof api.forget === 'function' && typeof api.createStore === 'function') this.engine.forgetCascade = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
