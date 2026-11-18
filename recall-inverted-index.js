@@ -65,6 +65,55 @@
         return { postings: {}, docLen: {}, tf: {}, seen: {}, size: 0, builtFrom: 0 };
     }
 
+    /* [v4.160.0 · R25-O8] 索引持久化：dump/load 带版本号与校验和。
+     *   为什么要校验和：落盘的东西可能被截断或被旧版本写过 —— 读回来必须能自证是同一份。
+     */
+    var DUMP_VERSION = 1;
+
+    function fnv(text) {
+        var h = 2166136261;
+        for (var i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = (h * 16777619) >>> 0; }
+        return h.toString(16);
+    }
+
+    function dump(index) {
+        var idx = index || emptyIndex();
+        var body = { postings: idx.postings, docLen: idx.docLen, tf: idx.tf, size: idx.size };
+        var text = JSON.stringify(body);
+        return { version: DUMP_VERSION, checksum: fnv(text), size: idx.size, body: body };
+    }
+
+    function load(dumped) {
+        var d = dumped && typeof dumped === "object" ? dumped : null;
+        if (!d) return { ok: false, bad: ["no-dump"], index: emptyIndex() };
+        if (Number(d.version) !== DUMP_VERSION) return { ok: false, bad: ["version-mismatch"], index: emptyIndex() };
+        var body = d.body && typeof d.body === "object" ? d.body : null;
+        if (!body) return { ok: false, bad: ["no-body"], index: emptyIndex() };
+        if (fnv(JSON.stringify(body)) !== String(d.checksum)) return { ok: false, bad: ["checksum-mismatch"], index: emptyIndex() };
+        var seen = {};
+        Object.keys(body.postings || {}).forEach(function (t) {
+            (body.postings[t] || []).forEach(function (id) { seen[id] = true; });
+        });
+        return {
+            ok: true,
+            index: { postings: body.postings || {}, docLen: body.docLen || {}, tf: body.tf || {}, seen: seen, size: Number(body.size) || 0, builtFrom: Number(body.size) || 0 },
+        };
+    }
+
+    /** 分段重建：超限就分段建再合并，避免一次性把整库塞进内存。 */
+    function rebuildInSegments(docs, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var list = Array.isArray(docs) ? docs : [];
+        var segSize = Number(o.segmentSize) > 0 ? Number(o.segmentSize) : 5000;
+        var segs = [];
+        for (var i = 0; i < list.length; i += segSize) segs.push(list.slice(i, i + segSize));
+        if (!segs.length) segs.push([]);
+        var idx = emptyIndex();
+        segs.forEach(function (part) { part.forEach(function (d) { addDoc(idx, d); }); });
+        idx.builtFrom = idx.size;
+        return { index: idx, segments: segs.length, segmentSize: segSize, size: idx.size };
+    }
+
     /** 全量建索引。 */
     function buildIndex(docs) {
         var idx = emptyIndex();
@@ -332,6 +381,7 @@
         addDoc: addDoc,
         appendDoc: appendDoc,
         rebuild: rebuild,
+        DUMP_VERSION: DUMP_VERSION, dump: dump, load: load, rebuildInSegments: rebuildInSegments,
         query: query,
         linearQuery: linearQuery,
         makeDocs: makeDocs,
