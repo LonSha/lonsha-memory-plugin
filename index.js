@@ -11908,6 +11908,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaCorrectionLoop || (typeof LonShaCorrectionLoop !== 'undefined' ? LonShaCorrectionLoop : null);
                     if (api && typeof api.applyCorrection === 'function' && typeof api.rollback === 'function') this.engine.correctionLoop = api;
                 }
+                // [v4.158.0 · R24-X5] 遗忘权与隐私面：清单/导出/四档删除/删除回执/脱敏导出。
+                if (!this.engine.forgettingProof) {
+                    const api = optEngines.LonShaForgettingProof || (typeof LonShaForgettingProof !== 'undefined' ? LonShaForgettingProof : null);
+                    if (api && typeof api.exportJSON === 'function' && typeof api.forget === 'function') this.engine.forgettingProof = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
