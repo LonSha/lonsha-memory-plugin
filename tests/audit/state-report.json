@@ -433,7 +433,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 593,
+    "test_files": 605,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -1027,7 +1027,19 @@
       "v4162_grouped_gate.test.mjs",
       "v4162_import_preview.test.mjs",
       "v4162_project_cache.test.mjs",
-      "v4162_time_point_bookmark.test.mjs"
+      "v4162_time_point_bookmark.test.mjs",
+      "v4163_advice_action.test.mjs",
+      "v4163_branch_merge.test.mjs",
+      "v4163_correction_audit_pack.test.mjs",
+      "v4163_forget_migration_guard.test.mjs",
+      "v4163_graph_diff_export.test.mjs",
+      "v4163_image_provenance.test.mjs",
+      "v4163_index_storage.test.mjs",
+      "v4163_injection_adaptive_budget.test.mjs",
+      "v4163_oldhost_regression.test.mjs",
+      "v4163_pack_delta_sync.test.mjs",
+      "v4163_voice_language_tags.test.mjs",
+      "v4163_weekly_correction_sources.test.mjs"
     ],
     "audit_dir_exists": true,
     "audit_gated": 76,
@@ -1093,7 +1105,7 @@
       "index.js": "a781ed0b4647",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "cf2354efb14f",
+      "PLAN.md": "946a2390f353",
       "CHANGELOG.md": "127f772ca43d",
       "TODO.md": "3b579ba14e11",
       "tests/audit/doc_readings.json": "d84bdd3312e7"

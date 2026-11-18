@@ -96,6 +96,7 @@
         }
         var revision = {
             key: key,
+            patch: clone(p),
             id: target,
             version: arr(next.revisions[target]).length + 1,
             at: String(o.at || ""),
@@ -141,6 +142,7 @@
         if (!Array.isArray(next.revisions[target])) next.revisions[target] = [];
         next.revisions[target].push({
             id: target, version: arr(next.revisions[target]).length + 1,
+            key: "rollback|to=" + v, patch: { rollback: v }, rollbackOf: v,
             action: "rollback", at: "", before: clone(rev.after || {}), after: clone(rev.before)
         });
         next.receipts.push({ kind: "correction", id: target, action: "rollback", version: v, at: "" });
@@ -175,6 +177,125 @@
         });
     }
 
+    /* ================= R26-O4 纠错审计包 =================
+     * 纠错有历史，但没法交出去。审计包只带「一条的修订链」：
+     *   带幂等键、带回滚痕迹、带校验和；别人拿到能校验、能重放，不需要全库。
+     */
+    var AUDIT_VERSION = 1;
+
+    /** 32 位 FNV-1a：只用来「改一个字就对不上」，不当密码学用。 */
+    function fnvOf(s) {
+        var str = String(s), h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        }
+        return ("0000000" + h.toString(16)).slice(-8);
+    }
+
+    /** 一条修订对应的可重放指令（老修订没存 patch 就按 before/after 差集推）。 */
+    function patchOfRevision(r) {
+        if (r && r.patch && typeof r.patch === "object") return clone(r.patch);
+        var b = (r && r.before) || {}, a = (r && r.after) || {}, p = {};
+        if (r && r.action === "rollback") { p.rollback = Number(r.rollbackOf); return p; }
+        if (a.voided === true && b.voided !== true) { p.void = true; return p; }
+        if (a.text !== b.text) p.text = a.text;
+        if (a.owner !== b.owner) p.owner = a.owner;
+        if (a.at !== b.at) p.at = a.at;
+        if (a.type !== b.type) p.type = a.type;
+        return p;
+    }
+
+    function chainOfRevisions(log) {
+        return arr(log).map(function (r) {
+            return {
+                version: Number(r.version),
+                action: String(r.action || ""),
+                at: String(r.at || ""),
+                key: String(r.key || ""),
+                rolledBack: r.rolledBack === true,
+                rollbackOf: r.rollbackOf === undefined ? null : Number(r.rollbackOf),
+                patch: patchOfRevision(r),
+                before: clone(r.before || null),
+                after: clone(r.after || null)
+            };
+        });
+    }
+
+    /** 校验和只能算「身份 + 版本 + 链」，因此有人改链里一个字符就对不上。 */
+    function auditChecksum(pack) {
+        var p = pack && typeof pack === "object" ? pack : {};
+        return fnvOf(JSON.stringify({ id: String(p.id), version: Number(p.version), chain: arr(p.chain) }));
+    }
+
+    /** 按条目导出修订链。查不到条目就明说 not-found，不造一条空链冒充「没改过」。 */
+    function auditPack(store, id) {
+        var s = emptyStore(store);
+        var target = String(id);
+        var mem = s.memories.filter(function (m) { return idOf(m) === target; })[0];
+        if (!mem) return { ok: false, bad: ["not-found"], version: AUDIT_VERSION, id: target, chain: [], count: 0, checksum: "", empty: true };
+        var chain = chainOfRevisions(arr(s.revisions[target]));
+        var pack = { ok: true, version: AUDIT_VERSION, id: target, chain: chain, count: chain.length };
+        pack.checksum = auditChecksum(pack);
+        pack.rolledBackVersions = chain.filter(function (r) { return r.rolledBack; }).map(function (r) { return r.version; });
+        pack.keys = chain.map(function (r) { return r.key; });
+        pack.empty = chain.length === 0;
+        return pack;
+    }
+
+    /** 版本与校验和任一不符即拒收。 */
+    function verifyAuditPack(pack) {
+        if (!pack || typeof pack !== "object" || !Array.isArray(pack.chain)) return { ok: false, bad: ["not-an-audit-pack"] };
+        if (Number(pack.version) !== AUDIT_VERSION) return { ok: false, bad: ["version-mismatch"] };
+        if (auditChecksum(pack) !== String(pack.checksum)) return { ok: false, bad: ["checksum-mismatch"] };
+        return { ok: true, id: String(pack.id), count: pack.chain.length };
+    }
+
+    /** 重放：从链头的 before 出发再走一遍，比对 (版本, 动作, 幂等键) 序列是否原样复现。
+     *  同一幂等键出现第二次不重复落（记 skipped）——引擎本身产不出这种包，出现就是有人手改过。
+     */
+    function replayAudit(pack) {
+        var v = verifyAuditPack(pack);
+        if (!v.ok) return { ok: false, bad: v.bad, chain: [], applied: 0, skipped: 0, duplicateKeys: [], final: null };
+        var chain = arr(pack.chain);
+        var id = String(pack.id);
+        if (!chain.length) return { ok: true, empty: true, chain: [], applied: 0, skipped: 0, duplicateKeys: [], final: null };
+        var seed = chain[0].before;
+        if (!seed || typeof seed !== "object") return { ok: false, bad: ["chain-head-before-missing"], chain: [], applied: 0, skipped: 0, duplicateKeys: [] };
+        var store = { memories: [clone(seed)], revisions: {}, receipts: [] };
+        var built = [], applied = 0, skipped = 0, dup = [], seen = {}, broken = null;
+        for (var i = 0; i < chain.length; i++) {
+            var row = chain[i];
+            var patch = patchOfRevision(row);
+            var key = String(row.key || correctionKey(id, patch));
+            if (seen[key]) { dup.push(key); skipped += 1; continue; }
+            seen[key] = true;
+            var res;
+            if (patch.rollback !== undefined && patch.rollback !== null) res = rollback(store, id, patch.rollback);
+            else res = applyCorrection(store, id, patch, { at: row.at });
+            if (!res.ok) { broken = ["replay-broke@" + row.version].concat(arr(res.bad)); break; }
+            if (res.status === "same") { skipped += 1; continue; }
+            store = res.store;
+            applied += 1;
+            built.push({ version: row.version, action: row.action, key: key });
+        }
+        var mismatches = broken ? [broken[0]] : [];
+        if (!broken) {
+            chain.forEach(function (row, idx) {
+                var got = built[idx];
+                if (!got) { mismatches.push("missing@" + row.version); return; }
+                if (got.version !== row.version) mismatches.push("version@" + row.version);
+                else if (got.action !== row.action) mismatches.push("action@" + row.version);
+                else if (String(row.key) !== got.key) mismatches.push("key@" + row.version);
+            });
+        }
+        return {
+            ok: mismatches.length === 0, bad: mismatches.slice(), broken: broken,
+            chain: built, applied: applied, skipped: skipped, duplicateKeys: dup,
+            final: store.memories.length ? clone(store.memories[0]) : null
+        };
+    }
+
     function correctionSelfCheck() {
         var bad = [];
         if (ACTIONS.length !== 4) bad.push("actions");
@@ -206,8 +327,9 @@
     }
 
     return {
-        ACTIONS: ACTIONS,
+        ACTIONS: ACTIONS, AUDIT_VERSION: AUDIT_VERSION,
         impact: impact, applyCorrection: applyCorrection, rollback: rollback, correctionKey: correctionKey,
+        auditPack: auditPack, verifyAuditPack: verifyAuditPack, replayAudit: replayAudit, auditChecksum: auditChecksum,
         recall: recall, history: history,
         correctionSelfCheck: correctionSelfCheck
     };

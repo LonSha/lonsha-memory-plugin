@@ -128,7 +128,13 @@
     /** [v4.161.0 · R25-X4] 每日体检读数：只留白名单里的数字，一个正文字符都不存。
      *   同一天重复上报是常态（一天体检多次），按日子覆盖，不叠加。
      */
-    var DAY_METRICS = Object.freeze(["recallHits", "newMemories", "deleted", "corrections", "hitRate"]);
+    /* [v4.163.0 · R26-X4] 纠错四类各自进日报：仍然只存数字，只是把 corrections 的总数拆开。
+     *   四类跟纠错闭环的 ACTIONS 同名（edit/owner/time/void），换算表只写在这里。 */
+    var CORRECTION_KINDS = Object.freeze(["edit", "owner", "time", "void"]);
+    var CORRECTION_METRICS = CORRECTION_KINDS.map(function (k) {
+        return "correction" + k.charAt(0).toUpperCase() + k.slice(1);
+    });
+    var DAY_METRICS = Object.freeze(["recallHits", "newMemories", "deleted", "corrections", "hitRate"].concat(CORRECTION_METRICS));
 
     function recordDay(ledger, day, metrics) {
         var l = ledger && Array.isArray(ledger.days) ? ledger : { days: [] };
@@ -168,6 +174,68 @@
         };
     }
 
+    /** [v4.163.0 · R26-X4] 上报当天纠错：传动作名数组或 {edit:n,...}；总数由四类相加得出，不由调用方另填。 */
+    function recordCorrections(ledger, day, actions) {
+        var counts = {};
+        CORRECTION_KINDS.forEach(function (k) { counts[k] = 0; });
+        if (Array.isArray(actions)) {
+            actions.forEach(function (a) {
+                var k = String(a);
+                if (CORRECTION_KINDS.indexOf(k) !== -1) counts[k] += 1;
+            });
+        } else if (actions && typeof actions === "object") {
+            CORRECTION_KINDS.forEach(function (k) {
+                var n = Number(actions[k]);
+                if (Number.isFinite(n) && n > 0) counts[k] = n;
+            });
+        }
+        var total = CORRECTION_KINDS.reduce(function (s, k) { return s + counts[k]; }, 0);
+        var metrics = { corrections: total };
+        CORRECTION_KINDS.forEach(function (k, i) { metrics[CORRECTION_METRICS[i]] = counts[k]; });
+        var r = recordDay(ledger, day, metrics);
+        return { ok: r.ok, bad: r.bad || [], ledger: r.ledger, day: r.day, overwritten: r.overwritten === true, counts: counts, total: total };
+    }
+
+    /** [v4.163.0 · R26-X4] 纠错来源明细：四类之和必等于总数；最大类唯一才点名，平票说平票。
+     *   options.day 只算那一天；不给就算整本账。share 一律可复算（count/total 保留四位）。
+     */
+    function correctionBreakdown(ledger, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var days = arr(ledger && ledger.days);
+        var sel = o.day ? days.filter(function (d) { return String(d.day) === String(o.day); }) : days;
+        var counts = {}, total = 0, declared = 0;
+        CORRECTION_KINDS.forEach(function (k, i) {
+            var sum = 0;
+            sel.forEach(function (d) {
+                var n = Number(d && d.metrics && d.metrics[CORRECTION_METRICS[i]]);
+                if (Number.isFinite(n)) sum += n;
+            });
+            counts[k] = sum;
+            total += sum;
+        });
+        sel.forEach(function (d) {
+            var n = Number(d && d.metrics && d.metrics.corrections);
+            if (Number.isFinite(n)) declared += n;
+        });
+        var share = {};
+        CORRECTION_KINDS.forEach(function (k) { share[k] = total > 0 ? Number((counts[k] / total).toFixed(4)) : 0; });
+        var max = 0;
+        CORRECTION_KINDS.forEach(function (k) { if (counts[k] > max) max = counts[k]; });
+        var leaders = CORRECTION_KINDS.filter(function (k) { return counts[k] === max && max > 0; });
+        var tie = leaders.length > 1;
+        return {
+            ok: true, days: sel.length, counts: counts, total: total, declaredTotal: declared,
+            consistent: total === declared,
+            top: tie || !leaders.length ? "" : leaders[0],
+            topCount: max, tie: tie, leaders: leaders,
+            share: share, kinds: CORRECTION_KINDS.slice(),
+            reason: total === 0
+                ? "这段时间没有纠错记录"
+                : (tie ? "最多的是并列 " + leaders.join(" / ") + " 各 " + max + " 次（平票不仲裁）"
+                       : "最多的是 " + leaders[0] + "，共 " + max + " 次（占 " + Math.round((max / total) * 1000) / 10 + "%）")
+        };
+    }
+
     /** 越阈值的指标点名：只报越线的，不越线就不吭声。 */
     function healthAlerts(report, thresholds) {
         var th = thresholds && typeof thresholds === "object" ? thresholds : {};
@@ -196,6 +264,102 @@
         candidate: ["换个说法再问一次", "放宽检索层级", "把当时的人或地点补进描述"],
         "no-match": ["先确认这件事真的被记下来了", "用当时的人或地点当关键词再问", "放宽到冷层与更早时间扫一次"]
     });
+
+    /* ================= R26-X7 问诊建议一键执行 =================
+     * 欠债：建议是文字，用户还得自己去找那个开关。
+     * 做法：每条建议挂一个动作 id（只在 ACTIONS 白名单内才附），runAction 真去改设置 / 条目，
+     *   回执里点名「改了哪一项、从什么变成什么」；query 类动作只给下一步提示，不改状态。
+     */
+    var ACTIONS = Object.freeze({
+        "recall.widen-cold": { id: "recall.widen-cold", label: "放宽到冷层", scope: "config", set: { "recall.tiers": "hot,warm,cold" } },
+        "recall.widen-tier": { id: "recall.widen-tier", label: "放宽检索层级", scope: "config", set: { "recall.tiers": "hot,warm,cold" } },
+        "correction.fix-time": { id: "correction.fix-time", label: "纠正它的时间", scope: "item", patch: { needsTimeFix: true } },
+        "memory.relax-retention": { id: "memory.relax-retention", label: "放宽保留期", scope: "config", set: { "memory.retentionDays": 0 } },
+        "memory.pin-longterm": { id: "memory.pin-longterm", label: "固定为长期记忆", scope: "item", patch: { pinned: true } },
+        "memory.mark-important": { id: "memory.mark-important", label: "标成重要", scope: "item", patch: { important: true } },
+        "memory.describe": { id: "memory.describe", label: "补一句描述", scope: "item", patch: { needsDescription: true } },
+        "recall.unexclude": { id: "recall.unexclude", label: "取消这条的排除", scope: "item", patch: { excluded: false } },
+        "recall.explicit-name": { id: "recall.explicit-name", label: "显式点名找回", scope: "query", hint: "直接说「上次那件关于 X 的事」把这条点出来" },
+        "recall.retry-entity": { id: "recall.retry-entity", label: "换当时的人或地点再问", scope: "query", hint: "用人物名或地点当关键词再问一次" }
+    });
+
+    /** 建议 → 动作 id 的对应表（与 ADVICE 同键、同序）。白名单外的 id 会在出口处变成 null。 */
+    var ADVICE_ACTIONS = Object.freeze({
+        "tier-cold": ["recall.widen-cold", "memory.describe", "memory.mark-important"],
+        "low-salience": ["memory.mark-important", "memory.describe", "recall.retry-entity"],
+        expired: ["correction.fix-time", "memory.relax-retention", "memory.pin-longterm"],
+        excluded: ["recall.unexclude", "recall.check-rule", "recall.explicit-name"],
+        candidate: ["recall.retry-entity", "recall.widen-tier", "memory.describe"],
+        "no-match": ["recall.widen-cold", "recall.retry-entity", ""],
+    });
+
+    /** 一条原因对应的三条建议，逐条带可执行动作（白名单内才附，否则 executable:false 并说清为什么）。 */
+    function adviceActions(key) {
+        var k = String(key || "");
+        var texts = arr(ADVICE[k]);
+        if (!texts.length) return { ok: false, bad: ["no-advice"], key: k, items: [] };
+        var ids = arr(ADVICE_ACTIONS[k]);
+        var items = texts.map(function (text, i) {
+            var want = String(ids[i] || "");
+            var a = want && ACTIONS[want] ? ACTIONS[want] : null;
+            return {
+                text: text,
+                action: a ? String(a.id) : null,
+                label: a ? String(a.label) : "",
+                scope: a ? String(a.scope) : "",
+                executable: !!a,
+                why: a ? "" : "这条建议没有可执行动作（不在白名单内）"
+            };
+        });
+        return { ok: true, key: k, items: items, executable: items.filter(function (x) { return x.executable; }).length };
+    }
+
+    /** 按层级预览召回（只用来证明「放宽到冷层」真的有差别，不替代真召回）。 */
+    function recallPreview(state, query) {
+        var s = state && typeof state === "object" ? state : {};
+        var tiers = String((s.settings && s.settings["recall.tiers"]) || "hot,warm").split(",");
+        var q = String(query || "");
+        var rows = arr(s.memories).filter(function (m) {
+            if (m && m.excluded === true) return false;
+            if (tiers.indexOf(String(m && m.tier || "hot")) === -1) return false;
+            return q.length === 0 || String(m && m.text || "").indexOf(q) !== -1;
+        });
+        return { ok: true, tiers: tiers, hits: rows.map(function (m) { return String(m.id); }), count: rows.length };
+    }
+
+    /** 执行一个动作：config 改设置、item 改条目、query 只给提示。回执里逐项点名改了什么。 */
+    function runAction(state, actionId, target) {
+        var id = String(actionId || "");
+        var a = ACTIONS[id];
+        if (!a) return { ok: false, bad: ["not-in-whitelist"], id: id, changed: [] };
+        var s = state && typeof state === "object" ? state : {};
+        var next = JSON.parse(JSON.stringify({ settings: s.settings || {}, memories: arr(s.memories) }));
+        if (a.scope === "query") {
+            return { ok: true, id: id, scope: "query", changed: [], hint: String(a.hint || ""), state: next, note: "这类动作不改状态，只给下一步怎么问" };
+        }
+        var changed = [];
+        if (a.scope === "config") {
+            Object.keys(a.set || {}).forEach(function (k) {
+                var from = next.settings[k] === undefined ? "(未设)" : next.settings[k];
+                var to = a.set[k];
+                next.settings[k] = to;
+                changed.push({ key: k, from: from, to: to });
+            });
+            return { ok: true, id: id, scope: "config", changed: changed, state: next };
+        }
+        var tid = String(target === undefined || target === null ? "" : target);
+        if (!tid) return { ok: false, bad: ["need-target"], id: id, changed: [] };
+        var hit = -1;
+        for (var i = 0; i < next.memories.length; i++) if (String(next.memories[i] && next.memories[i].id) === tid) { hit = i; break; }
+        if (hit === -1) return { ok: false, bad: ["no-such-memory"], id: id, changed: [] };
+        Object.keys(a.patch || {}).forEach(function (k) {
+            var from = next.memories[hit][k];
+            var to = a.patch[k];
+            next.memories[hit][k] = to;
+            changed.push({ key: "memories[" + tid + "]." + k, from: from === undefined ? "(未设)" : from, to: to });
+        });
+        return { ok: true, id: id, scope: "item", target: tid, changed: changed, state: next };
+    }
 
     function askWhy(memories, question, options) {
         var o = options && typeof options === "object" ? options : {};
@@ -297,6 +461,10 @@
         exportText: exportText,
         recordDay: recordDay, weeklyReport: weeklyReport, healthAlerts: healthAlerts,
         askWhy: askWhy, DAY_METRICS: DAY_METRICS, ADVICE: ADVICE,
+        ACTIONS: ACTIONS, ADVICE_ACTIONS: ADVICE_ACTIONS, adviceActions: adviceActions,
+        recallPreview: recallPreview, runAction: runAction,
+        CORRECTION_KINDS: CORRECTION_KINDS, CORRECTION_METRICS: CORRECTION_METRICS,
+        recordCorrections: recordCorrections, correctionBreakdown: correctionBreakdown,
         checkupSelfCheck: checkupSelfCheck
     };
 }));

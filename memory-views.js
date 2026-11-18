@@ -281,8 +281,8 @@
         arr(b.nodes).forEach(function (n) { nodes[n.key] = n; });
         arr(a.nodes).forEach(function (n) { if (!nodes[n.key]) nodes[n.key] = n; });
         /** 新增边的来源楼层：只从投影的 timeline 里查真楼层，查不到就空着（不编）。 */
-        function floorsOf(edge) {
-            var out = [];
+        function refsOf(edge) {
+            var out = [], ats = [];
             [edge.a, edge.b].forEach(function (k) {
                 var n = nodes[k];
                 if (!n) return;
@@ -290,13 +290,16 @@
                     var t = arr(projectB && projectB.timeline).filter(function (x) { return String(x.id) === String(id); })[0];
                     var f = t && t.sourceRef && t.sourceRef.floor;
                     if (f !== undefined && f !== null && out.indexOf(Number(f)) === -1) out.push(Number(f));
+                    var when = t && (t.at || t.createdAt);
+                    if (when) ats.push(String(when));
                 });
             });
             out.sort(function (x, y) { return x - y; });
-            return out;
+            ats.sort();
+            return { floors: out, at: ats.length ? ats[ats.length - 1] : "" };
         }
-        var rows = added.map(function (e) { return { kind: "added", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: floorsOf(e) }; })
-            .concat(removed.map(function (e) { return { kind: "removed", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: [] }; }));
+        var rows = added.map(function (e) { var r = refsOf(e); return { kind: "added", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: r.floors, at: r.at }; })
+            .concat(removed.map(function (e) { return { kind: "removed", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: [], at: "" }; }));
         rows.sort(function (x, y) { return x.edge < y.edge ? -1 : 1; });
         return {
             ok: true, rows: rows,
@@ -308,6 +311,70 @@
     }
 
     /** 投影缓存工场：调用方持有它，跨多次投影复用。 */
+    /* ================= R26-X5 图谱对比可导出 =================
+     * 欠债：差异只活在内存里——能看，不能发给人。
+     * 做法：导出成可贴进聊天的定长文本（每行一条边，带方向/两端/权重/楼层/时间），
+     *   并给 parseGraphDiff 读回来：条数与边集合必须与对比结果逐条一致（可回查，不是一次性文案）。
+     */
+    var DIFF_MARK = "[edge]";
+
+    function exportGraphDiff(diff, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var d = diff && typeof diff === "object" ? diff : {};
+        var rows = arr(d.rows);
+        var c = d.counts || { added: 0, removed: 0, same: 0, drawn: 0 };
+        var head = [
+            "# 图谱对比" + (o.title ? "：" + String(o.title) : ""),
+            "新增 " + Number(c.added || 0) + " 条 / 消失 " + Number(c.removed || 0) + " 条 / 未变 " + Number(c.same || 0) + " 条",
+            o.fromAt || o.toAt ? "时点：" + String(o.fromAt || "?") + " → " + String(o.toAt || "?") : ""
+        ].filter(function (x) { return x.length > 0; });
+        var body = rows.map(function (r) {
+            var dir = r.kind === "added" ? "+" : "-";
+            var floors = arr(r.floors);
+            var floorTxt = floors.length ? floors.join(",") : "?";
+            return DIFF_MARK + " " + dir + " " + String(r.a) + " || " + String(r.b)
+                + " | w=" + Number(r.weight || 0) + " | floor=" + floorTxt + " | at=" + (String(r.at || "") || "?");
+        });
+        var text = head.concat(body).join(String.fromCharCode(10));
+        return {
+            ok: true, text: text, count: rows.length,
+            edges: rows.map(function (r) { return String(r.edge); }),
+            headLines: head.length, lineCount: head.length + body.length
+        };
+    }
+
+    /** 把导出文本读回来：只认带标记的行，条数与边要能逐条对得上。 */
+    function parseGraphDiff(text) {
+        var lines = String(text || "").split(String.fromCharCode(10));
+        var rows = [];
+        lines.forEach(function (line) {
+            var s = line.trim();
+            if (s.indexOf(DIFF_MARK) !== 0) return;
+            var parts = s.slice(DIFF_MARK.length + 1).split(" | ");
+            var head = parts[0] || "";
+            var dir = head.charAt(0);
+            var pair = head.slice(2).split(" || ");
+            var weight = 0, floor = "", at = "";
+            parts.slice(1).forEach(function (kv) {
+                var eq = kv.indexOf("=");
+                if (eq < 0) return;
+                var k = kv.slice(0, eq), v = kv.slice(eq + 1);
+                if (k === "w") weight = Number(v) || 0;
+                else if (k === "floor") floor = v;
+                else if (k === "at") at = v;
+            });
+            var a = String(pair[0] || ""), b = String(pair[1] || "");
+            rows.push({
+                kind: dir === "+" ? "added" : "removed",
+                edge: a < b ? a + "||" + b : b + "||" + a,
+                a: a, b: b, weight: weight,
+                floors: floor === "?" || floor === "" ? [] : floor.split(",").map(Number),
+                at: at === "?" ? "" : at
+            });
+        });
+        return { ok: true, rows: rows, count: rows.length, edges: rows.map(function (r) { return r.edge; }) };
+    }
+
     function makeProjectCache() { return { entries: {}, hits: 0, misses: 0 }; }
 
     function viewsSelfCheck() {
@@ -349,6 +416,7 @@
 
     return {
         project: project, graphDiff: graphDiff, makeProjectCache: makeProjectCache,
+        exportGraphDiff: exportGraphDiff, parseGraphDiff: parseGraphDiff, DIFF_MARK: DIFF_MARK,
         timelineView: timelineView, graphView: graphView, searchView: searchView,
         diffView: diffView,
         makeStore: makeStore,

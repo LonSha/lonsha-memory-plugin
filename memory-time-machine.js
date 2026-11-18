@@ -145,6 +145,97 @@
         return { ok: true, kinds: want, ids: ids, count: ids.length };
     }
 
+    /* ================= R26-X6 分支对照接合并 =================
+     * 欠债：只能看差异，不能把「B 独有的三条」并回 A。
+     * 做法：pickOnly 选出的 id 交给 mergeStore：
+     *   1. 来源没有的 id ⇒ missing 具名（不编一条空壳）；
+     *   2. 目标已有同 id 且内容不同 ⇒ 冲突，按固定字段序算的幂等键去重（同一改法只落一次）；
+     *   3. 每次落库都留痕（add / overwrite + before），undoMerge 可逐条撤回去。
+     */
+    function conflictKey(id, theirs) {
+        return [String(id), "merge", "text=" + String(theirs && theirs.text || ""), "at=" + String(theirs && theirs.at || "")].join("|");
+    }
+
+    function mergeStore(target, source, ids, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var next = arr(target && target.memories).map(clone);
+        var src = {};
+        arr(source && source.memories).forEach(function (m) { src[idOf(m)] = m; });
+        var want = arr(ids).map(String);
+        var trace = [], applied = [], conflicts = [], missing = [], sameIds = [];
+        want.forEach(function (id) {
+            var s = src[id];
+            if (!s) { missing.push(id); trace.push({ id: id, action: "missing" }); return; }
+            var idx = -1;
+            for (var i = 0; i < next.length; i++) if (idOf(next[i]) === id) { idx = i; break; }
+            if (idx === -1) {
+                next.push(clone(s));
+                applied.push(id);
+                trace.push({ id: id, action: "add" });
+                return;
+            }
+            if (JSON.stringify(next[idx]) === JSON.stringify(s)) {
+                sameIds.push(id);
+                trace.push({ id: id, action: "same" });
+                return;
+            }
+            var key = conflictKey(id, s);
+            var dup = conflicts.filter(function (c) { return c.key === key; })[0];
+            if (dup) { trace.push({ id: id, action: "skip-duplicate", key: key }); return; }
+            var before = clone(next[idx]);
+            next[idx] = clone(s);
+            applied.push(id);
+            conflicts.push({ id: id, key: key, outcome: "merged", before: before, after: clone(s) });
+            trace.push({ id: id, action: "overwrite", key: key });
+        });
+        var receipt = {
+            kind: "merge", ids: want.slice(), at: String(o.at || ""),
+            applied: applied.slice(), same: sameIds.slice(), missing: missing.slice(),
+            conflicts: clone(conflicts), trace: trace.map(function (x) { return clone(x); }),
+            counts: {
+                want: want.length, applied: applied.length, same: sameIds.length,
+                missing: missing.length, overwritten: conflicts.length
+            }
+        };
+        return {
+            ok: true, store: { memories: next },
+            applied: applied.length, appliedIds: applied.slice(), sameIds: sameIds.slice(),
+            missing: missing.slice(), conflicts: conflicts, trace: trace,
+            count: next.length, receipt: receipt
+        };
+    }
+
+    /** 撤销一次合并：add 的删掉、overwrite 的还原 before；缺数据的逐条报出来，不静默少撤。 */
+    function undoMerge(store, receipt) {
+        var r = receipt && typeof receipt === "object" ? receipt : {};
+        var next = arr(store && store.memories).map(clone);
+        var undone = [], failed = [];
+        var byId = {};
+        arr(r.conflicts).forEach(function (c) { if (c && c.outcome === "merged") byId[String(c.id)] = c; });
+        arr(r.trace).forEach(function (x) {
+            var id = String(x && x.id);
+            if (x && x.action === "add") {
+                var before = next.length;
+                next = next.filter(function (m) { return idOf(m) !== id; });
+                if (next.length < before) undone.push(id); else failed.push(id);
+                return;
+            }
+            if (x && x.action === "overwrite") {
+                var c = byId[id];
+                if (!c) { failed.push(id); return; }
+                var idx = -1;
+                for (var i = 0; i < next.length; i++) if (idOf(next[i]) === id) { idx = i; break; }
+                if (idx === -1) { failed.push(id); return; }
+                next[idx] = clone(c.before);
+                undone.push(id);
+            }
+        });
+        return {
+            ok: failed.length === 0, store: { memories: next },
+            undone: undone.slice(), failed: failed.slice(), count: next.length
+        };
+    }
+
     /** [v4.161.0 · R26-X1] 时点书签：给时点起名，按名取回。重名一律拒，不覆盖旧名。 */
     function setName(machine, round, name, options) {
         var o = options && typeof options === "object" ? options : {};
@@ -203,6 +294,7 @@
         diff: diff, checkout: checkout, firstSeen: firstSeen,
         browse: browse, locate: locate, branchDiff: branchDiff, pickOnly: pickOnly,
         setName: setName, findByName: findByName,
+        conflictKey: conflictKey, mergeStore: mergeStore, undoMerge: undoMerge,
         machineSelfCheck: machineSelfCheck
     };
 }));

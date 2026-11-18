@@ -598,3 +598,15 @@ v4162_describe_closed_loop.test.mjs	r26
 v4162_import_preview.test.mjs	r26
 v4162_time_point_bookmark.test.mjs	r26
 v4162_consensus_votes.test.mjs	r26
+v4163_advice_action.test.mjs	r26
+v4163_branch_merge.test.mjs	r26
+v4163_correction_audit_pack.test.mjs	r26
+v4163_forget_migration_guard.test.mjs	r26
+v4163_graph_diff_export.test.mjs	r26
+v4163_image_provenance.test.mjs	r26
+v4163_index_storage.test.mjs	r26
+v4163_injection_adaptive_budget.test.mjs	r26
+v4163_oldhost_regression.test.mjs	r26
+v4163_pack_delta_sync.test.mjs	r26
+v4163_voice_language_tags.test.mjs	r26
+v4163_weekly_correction_sources.test.mjs	r26

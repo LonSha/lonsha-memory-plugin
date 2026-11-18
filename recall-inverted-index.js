@@ -100,6 +100,67 @@
         };
     }
 
+    /* ================= R26-O8 索引持久化接真实落盘 =================
+     * 欠债：dump/load 只在内存里往返——没有「写到哪、读回来算不算同一份」。
+     * 做法：storage 由调用方注入（get/set 两个函数，同步），本模只负责：
+     *   1. 写入带 存档版本 + 库版本 + 校验和；
+     *   2. 读回逐项对账（存档版本 / 校验和 / 库版本）；
+     *   3. 任一不符 ⇒ 拒收并具名；调用方给了 docs 就当场重建（rebuiltAfter 点名原因）。
+     */
+    var ARCHIVE_KEY = "lonsha.recall.index";
+
+    function saveTo(index, storage, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var key = String(o.key || ARCHIVE_KEY);
+        if (!storage || typeof storage.set !== "function") return { ok: false, bad: ["no-storage"], wrote: false, key: key };
+        var d = dump(index);
+        var rec = {
+            version: d.version, checksum: d.checksum, size: d.size,
+            storeVersion: String(o.storeVersion === undefined || o.storeVersion === null ? "" : o.storeVersion),
+            savedAt: String(o.at || ""),
+            body: d.body
+        };
+        var text = JSON.stringify(rec);
+        storage.set(key, text);
+        return {
+            ok: true, wrote: true, key: key, bytes: text.length,
+            version: d.version, checksum: d.checksum, size: d.size, storeVersion: rec.storeVersion
+        };
+    }
+
+    function loadFrom(storage, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var key = String(o.key || ARCHIVE_KEY);
+        function fallback(bad) {
+            var docs = Array.isArray(o.docs) ? o.docs : null;
+            var idx = docs ? buildIndex(docs) : emptyIndex();
+            return {
+                ok: false, bad: bad, key: key, index: idx,
+                rebuilt: !!docs, rebuiltAfter: bad.slice(), reason: bad.join("+"),
+                size: idx.size
+            };
+        }
+        if (!storage || typeof storage.get !== "function") return fallback(["no-storage"]);
+        var raw = null;
+        try { raw = storage.get(key); } catch (err) { return fallback(["storage-read-error"]); }
+        if (raw === null || raw === undefined || raw === "") return fallback(["no-archive"]);
+        var rec = null;
+        try { rec = JSON.parse(String(raw)); } catch (err) { return fallback(["bad-json"]); }
+        if (!rec || typeof rec !== "object") return fallback(["bad-archive"]);
+        if (Number(rec.version) !== DUMP_VERSION) return fallback(["archive-version-mismatch"]);
+        var back = load({ version: rec.version, checksum: rec.checksum, size: rec.size, body: rec.body });
+        if (!back.ok) return fallback(back.bad);
+        // 库版本对账：存档记了库版本就必须与当前库一致，否则这份索引可能少条 / 多条
+        var want = String(o.storeVersion === undefined || o.storeVersion === null ? "" : o.storeVersion);
+        var have = String(rec.storeVersion || "");
+        if (have && want && have !== want) return fallback(["stale-archive"]);
+        return {
+            ok: true, bad: [], key: key, index: back.index, rebuilt: false,
+            version: DUMP_VERSION, checksum: String(rec.checksum), size: back.index.size,
+            storeVersion: have, savedAt: String(rec.savedAt || "")
+        };
+    }
+
     /** 分段重建：超限就分段建再合并，避免一次性把整库塞进内存。 */
     function rebuildInSegments(docs, options) {
         var o = options && typeof options === "object" ? options : {};
@@ -382,6 +443,7 @@
         appendDoc: appendDoc,
         rebuild: rebuild,
         DUMP_VERSION: DUMP_VERSION, dump: dump, load: load, rebuildInSegments: rebuildInSegments,
+        ARCHIVE_KEY: ARCHIVE_KEY, saveTo: saveTo, loadFrom: loadFrom,
         query: query,
         linearQuery: linearQuery,
         makeDocs: makeDocs,

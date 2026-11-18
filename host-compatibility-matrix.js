@@ -21,6 +21,7 @@
     'use strict';
 
     function g() { return typeof globalThis !== "undefined" ? globalThis : {}; }
+    function arr(v) { return Array.isArray(v) ? v : []; }
 
     /** 8 项关键 API，每项带「缺了会怎样」的人话。 */
     var CAPS = [
@@ -127,7 +128,8 @@
     }
 
     /** 主链路：装载 → 写 → 召回 → 注入（在给定环境下真跑一遍）。 */
-    function runMainChain(env) {
+    function runMainChain(env, opts) {
+        var gateOpts = opts && typeof opts === "object" ? opts : {};
         var m = matrix(env);
         var clone = cloneFor(env);
         var view = viewFor(env);
@@ -165,6 +167,10 @@
             liveView: hasProxy, requiresRefetch: !hasProxy
         });
 
+        // 门禁自检用：人为断一档主链，用来证明「任一档断即红」不是嘴上说
+        if (gateOpts.breakStep) {
+            steps.forEach(function (s) { if (s.step === String(gateOpts.breakStep)) s.ok = false; });
+        }
         return {
             ok: steps.every(function (s) { return s.ok; }),
             steps: steps,
@@ -187,6 +193,7 @@
         var e = {
             Object: base.Object, Array: base.Array, JSON: base.JSON, Math: base.Math, Date: base.Date,
             Intl: base.Intl, Proxy: base.Proxy, structuredClone: base.structuredClone,
+            WeakRef: base.WeakRef, crypto: base.crypto,
             queueMicrotask: base.queueMicrotask || function (f) { setTimeout(f, 0); }
         };
         if (name === "noProxy") e.Proxy = undefined;
@@ -196,11 +203,19 @@
     }
 
     /** 跑一档：主链四步全绿 + 降级清单具名（不许静默等价）。 */
-    function runProfile(name) {
+    function runProfile(name, options) {
         var n = String(name);
+        var o = options && typeof options === "object" ? options : {};
         if (PROFILES.indexOf(n) === -1) return { ok: false, bad: ["unknown-profile"], profile: n, steps: [] };
         var env = profileEnv(n);
-        var chain = runMainChain(env);
+        arr(o.drop).forEach(function (k) {
+            var key = String(k);
+            if (key === "Intl.Segmenter") env.Intl = {};
+            else if (key === "crypto.randomUUID") env.crypto = {};
+            else if (key === "WeakRef") env.WeakRef = undefined;
+            else env[key] = undefined;
+        });
+        var chain = runMainChain(env, o);
         var m = matrix(env);
         return {
             ok: chain.ok === true,
@@ -229,6 +244,79 @@
         return e;
     }
 
+    /* ================= R26-O7 三档进回归门禁 =================
+     * 欠债：三档要手动跑，跑完也只能人眼看。
+     * 做法：一条门禁 regressionGate()：三档全跑 + 每档主链必绿 + 降级矩阵与档位对账。
+     *   对账是本期的重点：说好"每档只缺一项"，就必須恰好缺那一项——缺多了、缺的不是它，都得红。
+     */
+    var EXPECT = Object.freeze({
+        noProxy: "Proxy",
+        noClone: "structuredClone",
+        noSegmenter: "Intl.Segmenter"
+    });
+
+    /** 档位签名：只有主链结果与降级面参与，供「另两档签名不变」可比。 */
+    function signatureOf(name) {
+        var r = runProfile(name);
+        return {
+            profile: String(name), ok: r.ok === true,
+            missing: arr(r.missing).map(String).sort(),
+            requiresRefetch: r.requiresRefetch === true,
+            steps: arr(r.steps).length
+        };
+    }
+
+    /** 降级矩阵与档位对账：每档恰缺它自己那一项，PROFILES 与 EXPECT 不得有一方缺人。 */
+    function reconcile(options) {
+        var o = options && typeof options === "object" ? options : {};
+        var inj = o.inject && typeof o.inject === "object" ? o.inject : null;
+        var rows = [], bad = [];
+        PROFILES.forEach(function (n) {
+            var r = runProfile(n, inj && String(inj.profile) === n ? Object.assign({}, inj, { breakStep: "" }) : null);
+            var want = EXPECT[n];
+            var got = arr(r.missing).map(String).sort();
+            if (!want) { bad.push("profile-not-expected:" + n); return; }
+            if (got.length !== 1 || got[0] !== want) {
+                bad.push("profile-drift:" + n + " got=" + got.join("+") + " want=" + want);
+            }
+            if (!r.degradedRows || r.degradedRows.length !== got.length) {
+                bad.push("matrix-mismatch:" + n + " width=" + arr(r.degradedRows).length + " missing=" + got.length);
+            }
+            rows.push({ profile: n, want: want, got: got, ok: r.ok, degradedRows: arr(r.degradedRows) });
+        });
+        Object.keys(EXPECT).forEach(function (k) { if (PROFILES.indexOf(k) === -1) bad.push("profile-missing:" + k); });
+        return { ok: bad.length === 0, bad: bad, rows: rows };
+    }
+
+    /** 一条门禁：三档全跑、主链任一断即红、对账不一致即红。
+     *   options.inject = { profile, drop, breakStep } 只用于门禁自检（证明它会红）。
+     */
+    function regressionGate(options) {
+        var o = options && typeof options === "object" ? options : {};
+        var inj = o.inject && typeof o.inject === "object" ? o.inject : null;
+        var rows = PROFILES.map(function (n) {
+            return runProfile(n, inj && String(inj.profile) === n ? inj : null);
+        });
+        var failures = [];
+        rows.forEach(function (r) {
+            if (r.ok !== true) {
+                var broken = arr(r.steps).filter(function (s) { return s.ok !== true; }).map(function (s) { return String(s.step); });
+                failures.push("chain-broken:" + r.profile + ":" + (broken.join("+") || "unknown"));
+            }
+            if (r.named !== true) failures.push("silent-degrade:" + r.profile);
+        });
+        var rec = reconcile({ inject: inj });
+        failures = failures.concat(rec.bad);
+        return {
+            ok: failures.length === 0,
+            rows: rows, reconcile: rec, failures: failures,
+            profiles: rows.length, expectedProfiles: Object.keys(EXPECT).length,
+            reading: failures.length === 0
+                ? "host-profiles: " + rows.length + "/" + rows.length + " ok, drift=0"
+                : "host-profiles-broken: " + failures.length + " 项（" + failures.join("; ") + "）"
+        };
+    }
+
     function hostCompatSelfCheck() {
         var bad = [];
         if (CAPS.length !== 8) bad.push("caps!=8");
@@ -254,6 +342,7 @@
         detect: detect, matrix: matrix,
         runMainChain: runMainChain, oldHost: oldHost,
         PROFILES: PROFILES, profileEnv: profileEnv, runProfile: runProfile, runProfiles: runProfiles,
+        EXPECT: EXPECT, signatureOf: signatureOf, reconcile: reconcile, regressionGate: regressionGate,
         tokenizeFor: tokenizeFor, viewFor: viewFor, cloneFor: cloneFor,
         hostCompatSelfCheck: hostCompatSelfCheck
     };

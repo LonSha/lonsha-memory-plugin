@@ -127,6 +127,138 @@
         return { ok: true, panel: p };
     }
 
+    /* ================= R26-O5 预算按上下文窗口自适应 =================
+     * 欠债：token 口径有了，预算还是用户手填字符数。窗口一小就可能超窗——
+     * 而超窗时引擎只能硬裁，裁在哪一级没人说得清。
+     * 做法：给窗口 ⇒ 算建议条数与可用字符；真超了就按 条数→长度→只留高分 逐级降，
+     *   每一级都具名（level + why + detail），回执给 gradeCount 告你降了几级。
+     */
+    var DEGRADE_STEPS = Object.freeze(["count", "length", "score"]);
+    var STEP_WHY = Object.freeze({
+        count: "按窗口容量只取前若干条",
+        length: "单条过长，逐条截断到本节可容长度",
+        score: "仍超窗，只留高优先级条目"
+    });
+
+    /** 条目优先级（用于 score 级）：置顶 > 被引用 > 共享事件；同分保持原序。 */
+    function scoreOf(m) {
+        var s = 0;
+        if (m && m.pinned === true) s += 3;
+        var r = Number(m && m.refCount);
+        if (r > 0) s += r;
+        if (m && m.shared === true) s += 1;
+        return s;
+    }
+
+    /** 给上下文窗口 ⇒ 建议条数与可用字符。只算读数，不改任何东西。 */
+    function suggest(candidates, options) {
+        var list = arr(candidates);
+        var o = options && typeof options === "object" ? options : {};
+        var window = Number(o.window) > 0 ? Number(o.window) : 8000;
+        var reserve = o.reserve === undefined ? Math.round(window * 0.25) : Math.max(0, Number(o.reserve) || 0);
+        var overhead = Number(o.overhead) > 0 ? Number(o.overhead) : 0;
+        var maxTopK = Number(o.maxTopK) > 0 ? Number(o.maxTopK) : 8;
+        var available = Math.max(0, window - reserve - overhead);
+        var usable = list.filter(function (m) { return !(m && (m.future === true && o.allowFuture !== true)) && !(m && m.voided === true); });
+        var sumTok = 0, sumCh = 0;
+        usable.forEach(function (m) { var x = textOf(m); sumTok += tokenEstimate(x); sumCh += x.length; });
+        var avgTokens = usable.length ? Math.ceil(sumTok / usable.length) : 0;
+        // 字符/拍 用本批实测比率（不拍常数）：中文多时接近 1，英文多时更大
+        var charsPerToken = sumTok > 0 ? Number((sumCh / sumTok).toFixed(4)) : 1.5;
+        var byTokens = avgTokens > 0 ? Math.floor(available / avgTokens) : 0;
+        var suggestCount = Math.max(0, Math.min(byTokens, usable.length, maxTopK));
+        // 用户手填条数时以手填为准（但窗口仍是兜底：超窗还得降）
+        if (o.suggestCount !== undefined && Number(o.suggestCount) >= 0) {
+            suggestCount = Math.max(0, Math.min(Number(o.suggestCount), usable.length, maxTopK));
+        }
+        var charBudget = Math.floor(available * charsPerToken);
+        return {
+            ok: true, window: window, reserve: reserve, overhead: overhead, available: available,
+            candidates: list.length, usable: usable.length,
+            avgTokens: avgTokens, charsPerToken: charsPerToken,
+            suggestCount: suggestCount, charBudget: charBudget, maxTopK: maxTopK
+        };
+    }
+
+    /** 自适应一轮注入：先在「理想预算」下算，超了才逐级降，每一级都留名。 */
+    function adaptiveRound(candidates, options) {
+        var list = arr(candidates);
+        var o = options && typeof options === "object" ? options : {};
+        var plan = suggest(list, o);
+        var hardBudget = Number(o.budget) > 0 ? Number(o.budget) : 0;
+        // 用户手填的 budget 当上限用（两者取小）：窗口算出来的才是主口径，手填不能超窗
+        var budget = hardBudget > 0 ? Math.min(hardBudget, plan.charBudget || hardBudget) : (plan.charBudget || 600);
+        if (budget <= 0) budget = 1;
+
+        // 硬排除（作废 / 未来）先摘出去并具名：这两类不算「因预算降级」，不能混进 gradeCount
+        var preBlocked = [];
+        var working = list.filter(function (m) {
+            if (m && m.voided === true) { preBlocked.push({ id: idOf(m), kind: "voided", why: "已作废，不注入" }); return false; }
+            if (m && m.future === true && o.allowFuture !== true) { preBlocked.push({ id: idOf(m), kind: "future", why: DROP_KINDS.future + "，默认不注入（防剧透）" }); return false; }
+            return true;
+        }).map(function (m) { return clone(m); });
+        var degraded = [], trimmed = [];
+        var levels = { count: false, length: false, score: false };
+
+        if (working.length > plan.suggestCount) {
+            var kept = working.slice(0, plan.suggestCount);
+            degraded.push({ level: "count", why: STEP_WHY.count, detail: working.length + " → " + kept.length + " 条" });
+            levels.count = true;
+            working = kept;
+        }
+
+        var totalChars = working.reduce(function (s, m) { return s + textOf(m).length; }, 0);
+        if (working.length > 0 && totalChars > budget) {
+            var perRow = Math.max(20, Math.floor(budget / working.length));
+            var before = totalChars;
+            working = working.map(function (m) {
+                var x = textOf(m);
+                if (x.length <= perRow) return m;
+                var cut = { id: idOf(m), from: x.length, to: perRow };
+                trimmed.push(cut);
+                var next = clone(m);
+                next.text = x.slice(0, perRow);
+                next.trimmedFrom = x.length;
+                return next;
+            });
+            totalChars = working.reduce(function (s, m) { return s + textOf(m).length; }, 0);
+            degraded.push({ level: "length", why: STEP_WHY.length, detail: "单条上限 " + perRow + " 字（本节共 " + before + " → " + totalChars + " 字）" });
+            levels.length = true;
+        }
+
+        if (working.length > 0 && totalChars > budget) {
+            var avgCh = totalChars / working.length;
+            var topK = Math.max(1, Math.floor(budget / Math.max(1, avgCh)));
+            var ranked = working.map(function (m, i) { return { m: m, i: i, s: scoreOf(m) }; });
+            ranked.sort(function (a, b) { if (b.s !== a.s) return b.s - a.s; return a.i - b.i; });
+            var droppedByScore = ranked.slice(topK).map(function (x) { return { id: idOf(x.m), kind: "score", score: x.s, why: "优先级偏低（" + x.s + " 分），窗口只够 " + topK + " 条" }; });
+            working = ranked.slice(0, topK).map(function (x) { return x.m; });
+            degraded.push({ level: "score", why: STEP_WHY.score, detail: "留 " + working.length + " 条（按优先级）" });
+            levels.score = true;
+            var graded = buildRound(working, { budget: budget, tempExclude: o.tempExclude, allowFuture: o.allowFuture });
+            return {
+                ok: true, plan: plan, window: plan.window, available: plan.available,
+                level: "score", gradeCount: degraded.length, degraded: degraded, levels: levels,
+                trimmed: trimmed, entries: graded.entries,
+                dropped: graded.dropped.concat(droppedByScore),
+                blocked: preBlocked.concat(graded.blocked), tempBlocked: graded.tempBlocked,
+                usedChars: graded.usedChars, renderedChars: graded.renderedChars, usedTokens: graded.usedTokens,
+                budget: budget, remaining: graded.remaining, allowFuture: graded.allowFuture
+            };
+        }
+
+        var round = buildRound(working, { budget: budget, tempExclude: o.tempExclude, allowFuture: o.allowFuture });
+        var lastLevel = levels.score ? "score" : levels.length ? "length" : levels.count ? "count" : "none";
+        return {
+            ok: true, plan: plan, window: plan.window, available: plan.available,
+            level: lastLevel, gradeCount: degraded.length, degraded: degraded, levels: levels,
+            trimmed: trimmed,
+            entries: round.entries, dropped: round.dropped, blocked: preBlocked.concat(round.blocked), tempBlocked: round.tempBlocked,
+            usedChars: round.usedChars, renderedChars: round.renderedChars, usedTokens: round.usedTokens,
+            budget: budget, remaining: round.remaining, allowFuture: round.allowFuture
+        };
+    }
+
     function makeCandidates(n) {
         var out = [];
         for (var i = 0; i < (Number(n) || 8); i++) {
@@ -167,6 +299,8 @@
 
     return {
         REASONS: REASONS, DROP_KINDS: DROP_KINDS, tokenEstimate: tokenEstimate,
+        DEGRADE_STEPS: DEGRADE_STEPS, STEP_WHY: STEP_WHY, scoreOf: scoreOf,
+        suggest: suggest, adaptiveRound: adaptiveRound,
         buildRound: buildRound, render: render, tempDisable: tempDisable,
         makeCandidates: makeCandidates,
         panelSelfCheck: panelSelfCheck

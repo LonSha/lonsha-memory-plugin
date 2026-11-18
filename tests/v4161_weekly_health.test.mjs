@@ -17,8 +17,11 @@ function twoDays() {
     return l;
 }
 
-test('X4-1 指标白名单固定，只存数字（正文一个字都不落盘）', () => {
-    assert.deepEqual(C.DAY_METRICS, ['recallHits', 'newMemories', 'deleted', 'corrections', 'hitRate']);
+test('X4-1 指标白名单只存数字（基础五项 + R26-X4 新增的四类纠错计数）', () => {
+    // R26-X4 把 corrections 拆成四类：白名单变宽，但「只存数字」这条铁律不变
+    assert.deepEqual(C.DAY_METRICS.slice(0, 5), ['recallHits', 'newMemories', 'deleted', 'corrections', 'hitRate']);
+    assert.deepEqual(C.DAY_METRICS.slice(5), ['correctionEdit', 'correctionOwner', 'correctionTime', 'correctionVoid']);
+    assert.equal(C.DAY_METRICS.length, 9);
     const l = C.recordDay({ days: [] }, '2026-11-10', { recallHits: 3, text: '林夏的秘密', note: '别存我' }).ledger;
     assert.deepEqual(Object.keys(l.days[0].metrics), ['recallHits']);
     const text = JSON.stringify(l);

@@ -87,6 +87,9 @@
             transcript: trans,
             capturedAt: str(o.capturedAt),
             people: arr(o.people).map(str),
+            lang: str(o.lang),
+            translation: str(o.translation),
+            sender: str(o.sender),
             durationMs: o.durationMs === undefined ? null : Number(o.durationMs),
             state: hasText ? "ok" : "undescribed",
             danglingReason: ""
@@ -305,6 +308,87 @@
         return (str(e && e.description) + str(e && e.transcript)).replace(/\s+/g, "").length;
     }
 
+    /* ================= R26-X2 图片人物溯源 =================
+     * 欠债：互查给了楼层与人物，但「这张图是谁发的」没有专门出口。
+     * 做法：按条目反查 sender / floor / 人物（带主次）；没有 sender 就 senderKnown:false，不生造。
+     *   主次口径：登记时 people 的顺序就是主次（第一个人是主角），不在这里重排——重排等于编。
+     */
+    function peopleOf(e) {
+        var list = arr(e && e.people).map(str).filter(function (p) { return p.length > 0; });
+        return list.map(function (p, i) { return { name: p, order: i + 1, primary: i === 0 }; });
+    }
+
+    function provenance(store, id) {
+        var target = str(id);
+        var e = arr(store && store.entries).filter(function (x) { return str(x.id) === target; })[0] || null;
+        if (!e) return { ok: false, bad: ["no-such-entry"], id: target, people: [], primary: null, sender: null, senderKnown: false, floor: null };
+        var people = peopleOf(e);
+        var sender = str(e.sender);
+        return {
+            ok: true, id: str(e.id), modality: str(e.modality), label: label(e), state: str(e.state),
+            floor: e.floor === undefined || e.floor === null ? null : Number(e.floor),
+            srcId: str(e.srcId),
+            sender: sender.length ? sender : null, senderKnown: sender.length > 0,
+            people: people, primary: people.length ? people[0].name : null,
+            peopleCount: people.length
+        };
+    }
+
+    /** 图片总账：逐张列出楼层 / 发送者 / 人物 / 主次；没人物的一并计入 unnamed，不互补。 */
+    function imageIndex(store) {
+        var rows = arr(store && store.entries).filter(function (e) { return str(e.modality) === "image"; }).map(function (e) {
+            var pv = provenance(store, e.id);
+            return {
+                id: pv.id, floor: pv.floor, sender: pv.sender, senderKnown: pv.senderKnown,
+                people: pv.people, primary: pv.primary, state: pv.state
+            };
+        });
+        return {
+            ok: true, rows: rows, count: rows.length,
+            unnamed: rows.filter(function (r) { return r.people.length === 0; }).length,
+            noSender: rows.filter(function (r) { return r.senderKnown === false; }).length
+        };
+    }
+
+    /* ================= R26-X3 语音跳语言标注 =================
+     * 欠债：转写是原文，翻译后与原文混在一起分不清。
+     * 做法：转写带语言标；译文单列一栏；**召回只用原文**（searchableText 不拼译文）——
+     *   译文只作展示，不参与检索，两套文本不得混用。
+     */
+    function bilingual(store, id) {
+        var target = str(id);
+        var e = arr(store && store.entries).filter(function (x) { return str(x.id) === target; })[0] || null;
+        if (!e) return { ok: false, bad: ["no-such-entry"], id: target, original: "", translated: "" };
+        var lang = str(e.lang);
+        var original = str(e.transcript) || str(e.description);
+        var translated = str(e.translation);
+        return {
+            ok: true, id: target, modality: str(e.modality), state: str(e.state),
+            lang: lang.length ? lang : "und", langKnown: lang.length > 0,
+            original: original, translated: translated,
+            hasTranslation: translated.length > 0,
+            searchable: searchableText(e),
+            note: "召回只读 searchable（原文），译文只作展示"
+        };
+    }
+
+    /** 标注译文：只动 translation / lang，不碰 transcript 与 description。 */
+    function translate(store, id, text, lang) {
+        var target = str(id);
+        var hit = false;
+        var next = arr(store && store.entries).map(function (e) {
+            if (str(e.id) !== target) return e;
+            hit = true;
+            var c = JSON.parse(JSON.stringify(e));
+            c.translation = str(text).trim();
+            if (str(lang).length) c.lang = str(lang);
+            return c;
+        });
+        if (!hit) return { ok: false, bad: ["no-such-entry"], store: store, entry: null };
+        var entry = next.filter(function (e) { return str(e.id) === target; })[0] || null;
+        return { ok: true, store: { seq: store.seq, entries: next }, entry: entry, searchable: searchableText(entry) };
+    }
+
     function mmSelfCheck() {
         var bad = [];
         if (MODALITIES.length !== 3) bad.push("modalities");
@@ -334,6 +418,8 @@
         createStore: createStore, register: register, describe: describe,
         recall: recall, injectText: injectText, removeSource: removeSource, list: list,
         describeClosed: describeClosed, substanceLength: substanceLength, recallGrouped: recallGrouped, splitSentences: splitSentences, timeline: timeline, locateSentence: locateSentence,
+        provenance: provenance, imageIndex: imageIndex, peopleOf: peopleOf,
+        bilingual: bilingual, translate: translate,
         mmSelfCheck: mmSelfCheck
     };
 }));

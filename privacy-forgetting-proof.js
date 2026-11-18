@@ -134,13 +134,17 @@
         var t = target && typeof target === "object" ? target : {};
         var keep = [];
         var gone = [];
+        var gonePeople = {};
         s.memories.forEach(function (m) {
             var del = false;
             if (sc === "all") del = true;
             else if (sc === "one") del = idOf(m) === String(t.id);
-            else if (sc === "person") del = arr(m.persons).map(String).indexOf(String(t.person)) !== -1 || String(m.owner || "") === String(t.person);
+            else if (sc === "person") del = arr(m.persons).map(String).indexOf(String(t.person)) !== -1 || String(m.owner || "") === String(t.person) || arr(m.people).map(String).indexOf(String(t.person)) !== -1;
             else if (sc === "range") del = tsOf(m) >= Date.parse(t.from || 0) && tsOf(m) <= Date.parse(t.to || 0);
-            if (del) gone.push(idOf(m)); else keep.push(m);
+            if (del) {
+                gone.push(idOf(m));
+                peopleOf(m).forEach(function (p) { if (p) gonePeople[String(p)] = true; });
+            } else keep.push(m);
         });
         var next = { memories: keep, receipts: s.receipts.slice() };
         var receipt = {
@@ -151,9 +155,10 @@
             surfaces: ["body", "index", "summary", "receipt"],
             digest: digest(gone),
             what: scopeExplain(sc, t),
+            people: Object.keys(gonePeople).sort(),
             at: String(o.at || "")
         };
-        next.receipts.push({ kind: "forget", scope: sc, deleted: gone.length, digest: receipt.digest });
+        next.receipts.push({ kind: "forget", scope: sc, deleted: gone.length, digest: receipt.digest, people: receipt.people.slice(), at: receipt.at });
         return { ok: true, store: next, receipt: receipt };
     }
 
@@ -192,19 +197,35 @@
         return String(m && m.id) + "|" + fnvOf(String(m && m.text || ""));
     }
 
+    /** 一条记忆牵扯到的人（people / persons / owner 归一份口径，导出与拦截共用）。 */
+    function peopleOf(m) {
+        var out = arr(m && m.people).map(String);
+        arr(m && m.persons).forEach(function (p) { if (p && out.indexOf(String(p)) === -1) out.push(String(p)); });
+        if (m && m.owner && out.indexOf(String(m.owner)) === -1) out.push(String(m.owner));
+        return out;
+    }
+
     function pickFields(m) {
         return {
             id: String(m.id), text: String(m.text || ""),
             at: String(m.at || ""), floor: m.floor === undefined || m.floor === null ? null : Number(m.floor),
             type: String(m.type || ""), modality: String(m.modality || "text"),
-            people: arr(m.people).map(String)
+            people: peopleOf(m)
         };
     }
 
     function exportPack(storeIn, selector) {
         var sel = selector && typeof selector === "object" ? selector : {};
+        var denied = denyList(storeIn);
+        var excluded = [];
         var list = arr(store(storeIn).memories).filter(function (m) {
-            if (sel.person && arr(m.people).map(String).indexOf(String(sel.person)) === -1) return false;
+            var pp = peopleOf(m);
+            var hit = pp.filter(function (p) { return denied.indexOf(p) !== -1; });
+            if (hit.length) {
+                excluded.push({ id: String(m.id), people: hit.sort(), why: "denied-person（已执行遗忘权，不得随包回流）" });
+                return false;
+            }
+            if (sel.person && pp.indexOf(String(sel.person)) === -1) return false;
             if (sel.modality && String(m.modality || "text") !== String(sel.modality)) return false;
             if (sel.from && String(m.at || "") < String(sel.from)) return false;
             if (sel.to && String(m.at || "") > String(sel.to)) return false;
@@ -213,6 +234,8 @@
         var body = JSON.stringify(list);
         return {
             ok: true,
+            denied: denied,
+            excluded: excluded,
             pack: {
                 kind: "lonsha-memory-migration", version: 1,
                 selector: { person: String(sel.person || ""), modality: String(sel.modality || ""), from: String(sel.from || ""), to: String(sel.to || "") },
@@ -233,21 +256,87 @@
 
     function importPack(storeIn, pack) {
         var v = verifyPack(pack);
-        if (!v.ok) return { ok: false, bad: v.bad, store: store(storeIn), added: 0, skipped: 0 };
+        if (!v.ok) return { ok: false, bad: v.bad, store: store(storeIn), added: 0, skipped: 0, blocked: [], blockedCount: 0 };
         var base = store(storeIn);
+        var denied = denyList(base);
         var have = {};
         arr(base.memories).forEach(function (m) { have[packKey(m)] = true; });
-        var added = 0, skipped = 0, next = arr(base.memories).slice();
+        var added = 0, skipped = 0, blocked = [], next = arr(base.memories).slice();
         arr(v.entries).forEach(function (e) {
+            // 二次拦截：目标库已经为这些人执行过遗忘权，旧包不得把他们带回来
+            var hit = peopleOf(e).filter(function (p) { return denied.indexOf(p) !== -1; });
+            if (hit.length) { blocked.push({ id: String(e.id), people: hit.sort(), why: "denied-person（目标库已执行遗忘权，拒收）" }); return; }
             var k = packKey(e);
             if (have[k]) { skipped += 1; return; }
             have[k] = true; added += 1; next.push(e);
         });
         return {
-            ok: true, added: added, skipped: skipped,
+            ok: true, added: added, skipped: skipped, blocked: blocked, blockedCount: blocked.length, denied: denied,
             store: { memories: next, receipts: arr(base.receipts) },
             total: next.length, checksum: String(pack.checksum)
         };
+    }
+
+    /* ================= R26-X8 迁移包增量同步 =================
+     * 欠债：每次都要整包搬，几百条里可能只改了一条。
+     * 做法：上次同步回执里记「每条的正文指纹」与整包校验和；下次导出只带指纹变了的（新增 + 改过）。
+     *   一条没变就交空增量，并明说「没有改动」——不拿空包充数。
+     */
+    function snapshotOf(pack) {
+        var p = pack && typeof pack === "object" ? pack : {};
+        var map = {};
+        arr(p.entries).forEach(function (e) { map[String(e.id)] = packKey(e); });
+        return { checksum: String(p.checksum || ""), entries: map };
+    }
+
+    function exportDelta(storeIn, selector, lastSync) {
+        var full = exportPack(storeIn, selector);
+        var prev = lastSync && typeof lastSync === "object" ? lastSync : {};
+        var seen = prev.entries && typeof prev.entries === "object" ? prev.entries : {};
+        var entries = [], added = [], changed = [];
+        full.pack.entries.forEach(function (e) {
+            var id = String(e.id);
+            var now = packKey(e);
+            if (seen[id] === undefined) { added.push(id); entries.push(e); return; }
+            if (String(seen[id]) !== now) { changed.push(id); entries.push(e); }
+        });
+        var empty = entries.length === 0;
+        var pack = {
+            kind: "lonsha-memory-migration", version: 1,
+            selector: full.pack.selector,
+            count: entries.length,
+            checksum: "k-" + entries.length + "-" + fnvOf(JSON.stringify(entries)),
+            entries: entries,
+            base: String(prev.checksum || "")
+        };
+        return {
+            ok: true, pack: pack, base: String(prev.checksum || ""), empty: empty,
+            added: added.slice(), changed: changed.slice(),
+            unchanged: full.pack.count - entries.length,
+            total: full.pack.count,
+            denied: full.denied, excluded: full.excluded,
+            sync: snapshotOf(pack),
+            reason: empty
+                ? "自上次同步（" + (String(prev.checksum || "(无记录)") + "）以来没有任何改动，这次是空增量（不带任何条目）")
+                : "新增 " + added.length + " 条 / 改过 " + changed.length + " 条（未变的 " + (full.pack.count - entries.length) + " 条不带）"
+        };
+    }
+
+    /* ================= R26-O6 遗忘权接迁移包 =================
+     * 欠债：删掉的人仍可能被旧迁移包带回来。删除回执只记了条数与摘要，不记「是谁」。
+     * 做法：回执里记人名 ⇒ 派生禁入名单 ⇒ 导出过滤（具名 excluded）⇒ 导入二次拦截（具名 blocked）。
+     */
+    function denyList(storeIn) {
+        var s = store(storeIn), set = {};
+        arr(s.receipts).forEach(function (r) {
+            if (!r || r.kind !== "forget") return;
+            arr(r.people).forEach(function (p) { if (p) set[String(p)] = true; });
+        });
+        return Object.keys(set).sort();
+    }
+
+    function isDenied(storeIn, person) {
+        return denyList(storeIn).indexOf(String(person)) !== -1;
     }
 
     function privacySelfCheck() {
@@ -286,6 +375,8 @@
         list: list, exportJSON: exportJSON, forget: forget,
         forgetAndRebuild: forgetAndRebuild, auditExport: auditExport,
         exportPack: exportPack, verifyPack: verifyPack, importPack: importPack, packKey: packKey,
+        peopleOf: peopleOf, denyList: denyList, isDenied: isDenied,
+        snapshotOf: snapshotOf, exportDelta: exportDelta,
         makeStore: makeStore,
         privacySelfCheck: privacySelfCheck
     };
