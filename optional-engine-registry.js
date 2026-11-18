@@ -75,6 +75,7 @@
     ['LonShaWriteIdempotent', 'memory-write-idempotent.js'],
     ['LonShaRecallInvertedIndex', 'recall-inverted-index.js'],
     ['LonShaAssemblyLayering', 'assembly-layering.js'],
+    ['LonShaTieredMemoryPlane', 'tiered-memory-plane.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],

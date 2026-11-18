@@ -11873,6 +11873,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaAssemblyLayering || (typeof LonShaAssemblyLayering !== 'undefined' ? LonShaAssemblyLayering : null);
                     if (api && typeof api.createRegistry === 'function' && typeof api.coldStart === 'function') this.engine.assembly = api;
                 }
+                // [v4.158.0 · R24-O4] 记忆规模治理：热/温/冷分层 + 会话分片 + 迁移确定性 + 规模-精度曲线。
+                if (!this.engine.tieredPlane) {
+                    const api = optEngines.LonShaTieredMemoryPlane || (typeof LonShaTieredMemoryPlane !== 'undefined' ? LonShaTieredMemoryPlane : null);
+                    if (api && typeof api.classify === 'function' && typeof api.recallTiered === 'function') this.engine.tieredPlane = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();

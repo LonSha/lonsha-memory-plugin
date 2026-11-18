@@ -12,6 +12,7 @@
   "auto_update": false,
   "minimum_client_version": "1.12.0",
   "extra_js": [
+    "tiered-memory-plane.js",
     "assembly-layering.js",
     "recall-inverted-index.js",
     "memory-write-idempotent.js",
