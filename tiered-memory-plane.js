@@ -58,10 +58,24 @@
     function textOf(m) { return String(m.text || m.content || ""); }
     function shardOf(m) { return String(m.sessionId || m.epoch || m.shard || "default"); }
 
+    /** [v4.160.0 · R25-O3] 条目「实质长度」：图片靠描述、语音靠转写、文本靠正文。
+     *   多模态条目没有正文，若仍用文本长度会永远判成冷层 —— 用它做显著度代理。
+     */
+    function substanceOf(m) {
+        var mod = String(m && m.modality || "text");
+        if (mod === "image") return String(m && m.description || "");
+        if (mod === "audio") return (String(m && m.description || "") + " " + String(m && m.transcript || "")).trim();
+        return String(m && m.text || "");
+    }
+
     /** 分层分：只用可复算三项，绝不用「当前时间随机性」之外的东西。 */
     function tierScore(m, nowMs) {
         var sal = Number(m.salience);
-        if (!Number.isFinite(sal)) sal = 0.5;
+        if (!Number.isFinite(sal)) {
+            var mod = String(m && m.modality || "text");
+            // 文本条目保持既有口径（0.5 中性）；多模态条目按实质长度给代理显著度（上限 1）。
+            sal = mod === "text" ? 0.5 : Math.min(1, substanceOf(m).length / 60);
+        }
         var at = Date.parse(m.at || m.createdAt || "") || 0;
         var ageDays = nowMs && at ? Math.max(0, (nowMs - at) / 86400000) : 0;
         var rec = 1 / (1 + ageDays / 7);                       // 7 天半衰
@@ -96,12 +110,18 @@
             if (!shards[sh]) shards[sh] = { hot: [], warm: [], cold: [] };
             shards[sh][t].push(idOf(m));
             if (prev !== t) migrated.push({ id: idOf(m), from: prev, to: t, score: s });
+            // [R25-O3] 悬空条目只报一次：转 dangling 的那一轮报警，之后每轮不再重复。
+            if (m && m.state === "dangling" && m.danglingReported !== true) {
+                migrated.push({ id: idOf(m), from: prev, to: t, score: s, reason: "dangling", note: String(m.danglingReason || "源已删除") });
+            }
         });
         return {
             ok: true,
             store: { memories: list.map(function (m) {
                 var s = tierScore(m, nowMs);
-                return Object.assign({}, m, { tier: tierOfScore(s), tierScore: s });
+                var next = Object.assign({}, m, { tier: tierOfScore(s), tierScore: s });
+                if (m && m.state === "dangling" && m.danglingReported !== true) next.danglingReported = true;
+                return next;
             }) },
             tiers: tiers,
             shards: shards,
@@ -112,7 +132,10 @@
 
     /** 打分：与查询词重叠度（确定性，同分按 id 字典序）。 */
     function qScore(m, terms) {
-        var toks = tokenize(textOf(m));
+        // [R25-O3] 图片/语音没有正文：检索走描述/转写；文本条目口径不变（不重复拼接）。
+        var body = textOf(m);
+        if (!body) body = substanceOf(m);
+        var toks = tokenize(body);
         var hit = 0;
         terms.forEach(function (t) { if (toks.indexOf(t) !== -1) hit += 1; });
         // 长度归一用密度（hit/len）：短回声与原文同密度时，靠 id 字典序分先后，
@@ -143,7 +166,10 @@
         var k = Number(o.k) > 0 ? Number(o.k) : 10;
         var list = Array.isArray(store && store.memories) ? store.memories : [];
         var terms = tokenize(q);
-        return { results: scan(list, terms).slice(0, k), scanned: list.length, degraded: false };
+        // [R25-O3] 悬空（源已删除）条目不再可被召回：不静默，计数单独报出。
+        var dang = list.filter(function (m) { return m && m.state === "dangling"; }).length;
+        var live = list.filter(function (m) { return !(m && m.state === "dangling"); });
+        return { results: scan(live, terms).slice(0, k), scanned: live.length, degraded: false, skippedDangling: dang };
     }
 
     /**
@@ -158,9 +184,11 @@
         var mode = o.includeCold === "always" || o.includeCold === "never" ? o.includeCold : "auto";
         var list = Array.isArray(store && store.memories) ? store.memories : [];
         var terms = tokenize(q);
-        var hot = list.filter(function (m) { return m.tier === "hot"; });
-        var warm = list.filter(function (m) { return m.tier === "warm"; });
-        var cold = list.filter(function (m) { return m.tier === "cold"; });
+        var dang = list.filter(function (m) { return m && m.state === "dangling"; }).length;
+        var live = list.filter(function (m) { return !(m && m.state === "dangling"); });
+        var hot = live.filter(function (m) { return m.tier === "hot"; });
+        var warm = live.filter(function (m) { return m.tier === "warm"; });
+        var cold = live.filter(function (m) { return m.tier === "cold"; });
         var hits = scan(hot, terms).concat(scan(warm, terms));
         var scanned = hot.length + warm.length;
         var fellBack = false;
@@ -175,7 +203,7 @@
         }
         var merged = rankList(hits).slice(0, k);
         return {
-            ok: true, results: merged, scanned: scanned, total: list.length,
+            ok: true, results: merged, scanned: scanned, total: list.length, skippedDangling: dang,
             mode: mode,
             tiersScanned: fellBack ? ["hot", "warm", "cold"] : ["hot", "warm"],
             fellBackToCold: fellBack,
@@ -310,7 +338,7 @@
     }
 
     return {
-        TIERS: TIERS,
+        TIERS: TIERS, substanceOf: substanceOf,
         tokenize: tokenize,
         tierScore: tierScore,
         tierOfScore: tierOfScore,
