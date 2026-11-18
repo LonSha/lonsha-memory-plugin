@@ -12,6 +12,8 @@
   "auto_update": false,
   "minimum_client_version": "1.12.0",
   "extra_js": [
+    "shared-event-memory.js",
+    "perspective-memory.js",
     "injection-panel.js",
     "privacy-forgetting-proof.js",
     "memory-correction-loop.js",

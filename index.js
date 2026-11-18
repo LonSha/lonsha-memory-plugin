@@ -11918,6 +11918,16 @@ function _collectNewFace() {
                     const api = optEngines.LonShaInjectionPanel || (typeof LonShaInjectionPanel !== 'undefined' ? LonShaInjectionPanel : null);
                     if (api && typeof api.buildRound === 'function' && typeof api.render === 'function') this.engine.injectionPanel = api;
                 }
+                // [v4.158.0 · R24-X7] 多视角记忆：见证态三态 + holder 过滤 + 听说必须带来源。
+                if (!this.engine.perspective) {
+                    const api = optEngines.LonShaPerspectiveMemory || (typeof LonShaPerspectiveMemory !== 'undefined' ? LonShaPerspectiveMemory : null);
+                    if (api && typeof api.recallFor === 'function' && typeof api.visibleTo === 'function') this.engine.perspective = api;
+                }
+                // [v4.158.0 · R24-X6] 世界共享记忆：事件本体一份 + 共识三态 + 分歧不仲裁。
+                if (!this.engine.sharedEvents) {
+                    const api = optEngines.LonShaSharedEventMemory || (typeof LonShaSharedEventMemory !== 'undefined' ? LonShaSharedEventMemory : null);
+                    if (api && typeof api.summarize === 'function' && typeof api.recallFor === 'function') this.engine.sharedEvents = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
