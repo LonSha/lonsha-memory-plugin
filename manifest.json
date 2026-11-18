@@ -12,6 +12,8 @@
   "auto_update": false,
   "minimum_client_version": "1.12.0",
   "extra_js": [
+    "assembly-layering.js",
+    "recall-inverted-index.js",
     "memory-write-idempotent.js",
     "memory-forget-cascade.js",
     "recall-kernel-v3.js",

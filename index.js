@@ -11863,6 +11863,16 @@ function _collectNewFace() {
                     const api = optEngines.LonShaWriteIdempotent || (typeof LonShaWriteIdempotent !== 'undefined' ? LonShaWriteIdempotent : null);
                     if (api && typeof api.write === 'function' && typeof api.idempotencyKey === 'function') this.engine.writeIdempotent = api;
                 }
+                // [v4.158.0 · R24-O2] 召回性能：倒排索引（缩候选）+ 增量 + 降级可见 + 与线性对拍。
+                if (!this.engine.recallIndex) {
+                    const api = optEngines.LonShaRecallInvertedIndex || (typeof LonShaRecallInvertedIndex !== 'undefined' ? LonShaRecallInvertedIndex : null);
+                    if (api && typeof api.query === 'function' && typeof api.buildIndex === 'function') this.engine.recallIndex = api;
+                }
+                // [v4.158.0 · R24-O3] 加载期性能：装配分层（只注册 + 懒 getter）+ 冷启动预算读数。
+                if (!this.engine.assembly) {
+                    const api = optEngines.LonShaAssemblyLayering || (typeof LonShaAssemblyLayering !== 'undefined' ? LonShaAssemblyLayering : null);
+                    if (api && typeof api.createRegistry === 'function' && typeof api.coldStart === 'function') this.engine.assembly = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
