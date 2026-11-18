@@ -11928,6 +11928,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaSharedEventMemory || (typeof LonShaSharedEventMemory !== 'undefined' ? LonShaSharedEventMemory : null);
                     if (api && typeof api.summarize === 'function' && typeof api.recallFor === 'function') this.engine.sharedEvents = api;
                 }
+                // [v4.158.0 · R24-X8] 记忆时间机器：回到某一轮看差异，历史不可变。
+                if (!this.engine.timeMachine) {
+                    const api = optEngines.LonShaTimeMachine || (typeof LonShaTimeMachine !== 'undefined' ? LonShaTimeMachine : null);
+                    if (api && typeof api.mark === 'function' && typeof api.diff === 'function' && typeof api.checkout === 'function') this.engine.timeMachine = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
