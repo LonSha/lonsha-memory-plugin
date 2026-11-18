@@ -40,7 +40,25 @@
      * 唯一投影。store 形状：
      *   { memories:[{id,text,at,sessionId,floor,persons:[],places:[],type}] }
      */
-    function project(store) {
+    function project(store, options) {
+        var o = options && typeof options === "object" ? options : {};
+        /* [v4.160.0 · R25-O2] 时点投影：给了 atRound 就从时间机器取那一份**不可变快照**作投影源，
+         *   而不是拿现库重画。取不到就具名降级（degraded），不许静默退回现库冒充历史。 */
+        var meta = { atRound: null, at: "", source: "live", degraded: "" };
+        if (o.atRound !== undefined && o.atRound !== null) {
+            var api = o.timeMachine && typeof o.timeMachine === "object" ? o.timeMachine : null;
+            var state = o.machineState && typeof o.machineState === "object" ? o.machineState : null;
+            var mark = api && state && typeof api.findMark === "function" ? api.findMark(state, o.atRound) : null;
+            meta.atRound = Number(o.atRound);
+            if (mark && mark.store) {
+                store = mark.store;
+                meta.source = "mark";
+                meta.at = String(mark.at || "");
+            } else {
+                meta.source = "missing";
+                meta.degraded = "no-such-round: " + String(o.atRound);
+            }
+        }
         var list = arr(store && store.memories);
         var nodes = {};
         var edges = {};
@@ -90,6 +108,7 @@
             timeline: timeline,
             nodes: nodeList, edges: edgeList,
             nodeByKey: nodes, byPerson: byPerson, byPlace: byPlace, byType: byType,
+            meta: meta,
             empty: timeline.length === 0
         };
     }
@@ -103,7 +122,7 @@
     /** 时间线视图：可按人物 / 地点 / 类型筛。 */
     function timelineView(proj, filter) {
         var p = proj || project({});
-        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.timeline, items: [] };
+        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.timeline, items: [], meta: p.meta || null };
         var f = filter && typeof filter === "object" ? filter : {};
         var items = p.timeline.filter(function (t) {
             if (f.person && t.persons.indexOf(String(f.person)) === -1) return false;
@@ -112,7 +131,7 @@
             return true;
         });
         return {
-            ok: true, empty: false, items: items,
+            ok: true, empty: false, items: items, meta: p.meta || null,
             total: p.count, filtered: items.length,
             facets: { persons: Object.keys(p.byPerson).sort(), places: Object.keys(p.byPlace).sort(), types: Object.keys(p.byType).sort() },
             detail: function (id) {
@@ -129,7 +148,7 @@
     /** 图谱视图：三色节点 + 边权=共现强度；可聚焦某人。 */
     function graphView(proj, options) {
         var p = proj || project({});
-        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.graph, nodes: [], edges: [] };
+        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.graph, nodes: [], edges: [], meta: p.meta || null };
         var o = options && typeof options === "object" ? options : {};
         var nodes = p.nodes, edges = p.edges;
         if (o.focus) {
@@ -143,7 +162,7 @@
             edges = edges.filter(function (e) { return keep[e.a] && keep[e.b]; });
         }
         return {
-            ok: true, empty: false,
+            ok: true, empty: false, meta: p.meta || null,
             nodes: nodes.map(function (n) { return { key: n.key, kind: n.kind, label: n.label, degree: n.mems.length, sourceRef: { mems: n.mems.slice() } }; }),
             edges: edges.map(function (e) { return { a: e.a, b: e.b, weight: e.weight }; }),
             trailBack: function (memId) {
@@ -156,7 +175,7 @@
     /** 检索视图：三路候选与各自贡献（与 O1 同源口径），点开看命中片段。 */
     function searchView(proj, query, options) {
         var p = proj || project({});
-        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.search, results: [] };
+        if (p.empty) return { ok: true, empty: true, message: EMPTY_MSG.search, results: [], meta: p.meta || null };
         var o = options && typeof options === "object" ? options : {};
         var k = Number(o.k) > 0 ? Number(o.k) : 10;
         var terms = tokenize(query);
@@ -177,7 +196,7 @@
             });
         });
         out.sort(function (x, y) { if (y.score !== x.score) return y.score - x.score; return x.id < y.id ? -1 : 1; });
-        return { ok: true, empty: false, query: String(query || ""), terms: terms, results: out.slice(0, k), candidates: out.length };
+        return { ok: true, empty: false, query: String(query || ""), terms: terms, results: out.slice(0, k), candidates: out.length, meta: p.meta || null };
     }
 
     function makeStore(n, seed) {
@@ -202,6 +221,19 @@
             });
         }
         return out;
+    }
+
+    /** [v4.160.0 · R25-O2] 两时点差异的视图化：行与时间机器的五类差异**逐条同源**，不另算一套。 */
+    function diffView(roundA, roundB, timeMachine, machineState) {
+        var api = timeMachine && typeof timeMachine === "object" ? timeMachine : null;
+        var st = machineState && typeof machineState === "object" ? machineState : null;
+        if (!api || !st || typeof api.diff !== "function") return { ok: false, bad: ["no-time-machine"], rows: [], counts: {} };
+        var d = api.diff(st, roundA, roundB);
+        if (!d || d.ok !== true) return { ok: false, bad: (d && d.bad) || ["diff-failed"], rows: [], counts: {} };
+        var rows = arr(d.changes).map(function (c) {
+            return { kind: String(c.kind), id: String(c.id), before: c.before === undefined ? "" : String(c.before), after: c.after === undefined ? "" : String(c.after) };
+        });
+        return { ok: true, from: d.from, to: d.to, rows: rows, counts: d.counts };
     }
 
     function viewsSelfCheck() {
@@ -244,6 +276,7 @@
     return {
         project: project,
         timelineView: timelineView, graphView: graphView, searchView: searchView,
+        diffView: diffView,
         makeStore: makeStore,
         viewsSelfCheck: viewsSelfCheck
     };
