@@ -556,3 +556,21 @@ l23_o6_write_only_key_level.test.mjs		L23-O6 写了不读键级扫描 + 空清�
 l23_o7_receipt_all_paths.test.mjs		L23-O7 注入回执覆盖全部路径（10 条：五态互斥 / 四档来源 / 账要平 / 三态不同形 / 跳过面 / 三组负控制）
 l23_o8_view_drive_all.test.mjs		L23-O8 视图分支逐个真调（11 条：枚举 31 vs 计划 34 差异留档 / 四 viz 视图真调 / 三态不同形 / 入口事实 / 两组负控制）
 l23_o9_frozen_freshness_all.test.mjs		L23-O9 冻结读数新鲜度三态全量覆盖（11 条：10 份登记 / snake 键名 / 版本戳解析 / 缺时间戳 fail-closed / 台账同源 / 两组负控制）
+v4158_assembly_layering.test.mjs	r24
+v4158_checkup_page.test.mjs	r24
+v4158_correction_loop.test.mjs	r24
+v4158_forget_cascade.test.mjs	r24
+v4158_forgetting_proof.test.mjs	r24
+v4158_host_compat.test.mjs	r24
+v4158_injection_panel.test.mjs	r24
+v4158_memory_views.test.mjs	r24
+v4158_multimodal.test.mjs	r24
+v4158_perspective.test.mjs	r24
+v4158_quality_bench.test.mjs	r24
+v4158_recall_index.test.mjs	r24
+v4158_recall_kernel_v3.test.mjs	r24
+v4158_settings_console.test.mjs	r24
+v4158_shared_events.test.mjs	r24
+v4158_tiered_plane.test.mjs	r24
+v4158_time_machine.test.mjs	r24
+v4158_write_idempotent.test.mjs	r24
