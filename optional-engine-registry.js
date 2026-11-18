@@ -83,6 +83,7 @@
     ['LonShaRecallQualityBench', 'recall-quality-bench.js'],
     ['LonShaCorrectionLoop', 'memory-correction-loop.js'],
     ['LonShaForgettingProof', 'privacy-forgetting-proof.js'],
+    ['LonShaInjectionPanel', 'injection-panel.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],

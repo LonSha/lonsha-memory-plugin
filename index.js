@@ -11913,6 +11913,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaForgettingProof || (typeof LonShaForgettingProof !== 'undefined' ? LonShaForgettingProof : null);
                     if (api && typeof api.exportJSON === 'function' && typeof api.forget === 'function') this.engine.forgettingProof = api;
                 }
+                // [v4.158.0 · R24-X9] 注入面透明化：本轮注入面板 + 临时禁 + 预算可见 + 剧透防护。
+                if (!this.engine.injectionPanel) {
+                    const api = optEngines.LonShaInjectionPanel || (typeof LonShaInjectionPanel !== 'undefined' ? LonShaInjectionPanel : null);
+                    if (api && typeof api.buildRound === 'function' && typeof api.render === 'function') this.engine.injectionPanel = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
