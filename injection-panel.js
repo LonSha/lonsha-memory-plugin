@@ -42,6 +42,25 @@
      * 一轮注入决策。candidates 按优先级排好序；budget 是字符上限。
      * 选项：tempExclude（本轮禁用）、allowFuture（强制开启剧透）。
      */
+    /* [v4.160.0 · R25-O5] 裁掉原因枚举：面板与预算侧共用一张表，不许两套字符串。
+     *   kind 是机器读数（稳定），why 是人读文本（由 kind 派生，不手写两份）。 */
+    var DROP_KINDS = Object.freeze({
+        budget: "超预算",
+        future: "未来事件",
+        tempExclude: "本轮手动排除"
+    });
+
+    /** token 估算：CJK 一字一拍，ASCII 四字符一拍（口径写在这里，渲染与预算同一份）。 */
+    function tokenEstimate(text) {
+        var t = String(text || "");
+        var cjk = 0, other = 0;
+        for (var i = 0; i < t.length; i++) {
+            var c = t.charCodeAt(i);
+            if (c >= 0x3400 && c <= 0x9FFF) cjk += 1; else other += 1;
+        }
+        return cjk + Math.ceil(other / 4);
+    }
+
     function buildRound(candidates, options) {
         var list = arr(candidates);
         var o = options && typeof options === "object" ? options : {};
@@ -56,25 +75,28 @@
 
         list.forEach(function (m) {
             var id = idOf(m);
-            if (tempExclude.indexOf(id) !== -1) { tempBlocked.push({ id: id, why: "用户本轮手动排除" }); return; }
-            if (m && m.future === true && !allowFuture) { blocked.push({ id: id, why: "未来事件，默认不注入（防剧透）" }); return; }
+            if (tempExclude.indexOf(id) !== -1) { tempBlocked.push({ id: id, kind: "tempExclude", why: DROP_KINDS.tempExclude }); return; }
+            if (m && m.future === true && !allowFuture) { blocked.push({ id: id, kind: "future", why: DROP_KINDS.future + "，默认不注入（防剧透）" }); return; }
             var t = textOf(m);
             if (used + t.length > budget) {
-                dropped.push({ id: id, chars: t.length, why: "超预算（已用 " + used + "/" + budget + "）" });
+                dropped.push({ id: id, kind: "budget", chars: t.length, tokens: tokenEstimate(t), why: DROP_KINDS.budget + "（已用 " + used + "/" + budget + "）" });
                 return;
             }
             used += t.length;
             entries.push({
-                id: id, text: t, chars: t.length,
+                id: id, text: t, chars: t.length, tokens: tokenEstimate(t),
                 source: String(m.sessionId || "") + (m.floor === undefined ? "" : "#" + m.floor),
                 why: whyOf(m)
             });
         });
 
+        // usedChars / usedTokens 都从**同一份渲染结果**读（不另算一套）
+        var rendered = render({ entries: entries });
         return {
             ok: true,
             entries: entries, dropped: dropped, blocked: blocked, tempBlocked: tempBlocked,
-            usedChars: used, budget: budget, remaining: budget - used,
+            usedChars: used, renderedChars: rendered.chars, usedTokens: rendered.tokens,
+            budget: budget, remaining: budget - used,
             allowFuture: allowFuture
         };
     }
@@ -87,7 +109,8 @@
             ok: true,
             text: lines.join("\n"),
             lineCount: lines.length,
-            chars: lines.join("\n").length
+            chars: lines.join("\n").length,
+            tokens: tokenEstimate(lines.join("\n"))
         };
     }
 
@@ -143,7 +166,7 @@
     }
 
     return {
-        REASONS: REASONS,
+        REASONS: REASONS, DROP_KINDS: DROP_KINDS, tokenEstimate: tokenEstimate,
         buildRound: buildRound, render: render, tempDisable: tempDisable,
         makeCandidates: makeCandidates,
         panelSelfCheck: panelSelfCheck
