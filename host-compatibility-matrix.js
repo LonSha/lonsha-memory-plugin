@@ -176,6 +176,49 @@
 
     function envStructured(env) { return env && typeof env === "object" ? env : g(); }
 
+    /** [v4.160.0 · R25-O7] 三档「真老宿主」：每档只缺一项能力，其余照常。
+     *   为什么要三档而不是一个 oldHost()：一档全缺时，一个能力替另一个兜底也能蒙混过关（假绿）。
+     *   分开之后，降级清单必须逐档点名「缺了谁」，并且都能把主链跑完。
+     */
+    var PROFILES = Object.freeze(["noProxy", "noClone", "noSegmenter"]);
+
+    function profileEnv(name) {
+        var base = g();
+        var e = {
+            Object: base.Object, Array: base.Array, JSON: base.JSON, Math: base.Math, Date: base.Date,
+            Intl: base.Intl, Proxy: base.Proxy, structuredClone: base.structuredClone,
+            queueMicrotask: base.queueMicrotask || function (f) { setTimeout(f, 0); }
+        };
+        if (name === "noProxy") e.Proxy = undefined;
+        if (name === "noClone") e.structuredClone = undefined;
+        if (name === "noSegmenter") e.Intl = {};
+        return e;
+    }
+
+    /** 跑一档：主链四步全绿 + 降级清单具名（不许静默等价）。 */
+    function runProfile(name) {
+        var n = String(name);
+        if (PROFILES.indexOf(n) === -1) return { ok: false, bad: ["unknown-profile"], profile: n, steps: [] };
+        var env = profileEnv(n);
+        var chain = runMainChain(env);
+        var m = matrix(env);
+        return {
+            ok: chain.ok === true,
+            profile: n,
+            steps: chain.steps,
+            degraded: chain.degraded === true,
+            degradedRows: m.degradedRows.map(function (r) { return String(r.cap) + ' → ' + String(r.degradedTo); }),
+            missing: chain.missing,
+            requiresRefetch: chain.steps.some(function (x) { return x.step === "view-read" && x.requiresRefetch === true; }),
+            named: m.missing.length > 0 && m.degradedRows.length > 0
+        };
+    }
+
+    function runProfiles() {
+        var rows = PROFILES.map(runProfile);
+        return { ok: rows.every(function (r) { return r.ok === true; }), rows: rows };
+    }
+
     /** 老宿主模拟：无 Proxy / 无 structuredClone / 无 Intl.Segmenter。 */
     function oldHost() {
         var e = {
@@ -210,6 +253,7 @@
         CAPS: CAPS,
         detect: detect, matrix: matrix,
         runMainChain: runMainChain, oldHost: oldHost,
+        PROFILES: PROFILES, profileEnv: profileEnv, runProfile: runProfile, runProfiles: runProfiles,
         tokenizeFor: tokenizeFor, viewFor: viewFor, cloneFor: cloneFor,
         hostCompatSelfCheck: hostCompatSelfCheck
     };
