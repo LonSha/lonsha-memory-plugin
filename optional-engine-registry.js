@@ -78,6 +78,7 @@
     ['LonShaTieredMemoryPlane', 'tiered-memory-plane.js'],
     ['LonShaSettingsConsole', 'settings-console.js'],
     ['LonShaMemoryCheckupPage', 'memory-checkup-page.js'],
+    ['LonShaHostCompatMatrix', 'host-compatibility-matrix.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],

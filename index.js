@@ -11888,6 +11888,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaMemoryCheckupPage || (typeof LonShaMemoryCheckupPage !== 'undefined' ? LonShaMemoryCheckupPage : null);
                     if (api && typeof api.buildPage === 'function' && typeof api.exportText === 'function') this.engine.checkupPage = api;
                 }
+                // [v4.158.0 · R24-O9] 宿主兼容矩阵：8 项能力探测 + 降级可见 + 老宿主主链路。
+                if (!this.engine.hostCompat) {
+                    const api = optEngines.LonShaHostCompatMatrix || (typeof LonShaHostCompatMatrix !== 'undefined' ? LonShaHostCompatMatrix : null);
+                    if (api && typeof api.detect === 'function' && typeof api.matrix === 'function') this.engine.hostCompat = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
