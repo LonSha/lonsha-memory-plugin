@@ -11898,6 +11898,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaMemoryViews || (typeof LonShaMemoryViews !== 'undefined' ? LonShaMemoryViews : null);
                     if (api && typeof api.project === 'function' && typeof api.timelineView === 'function') this.engine.memoryViews = api;
                 }
+                // [v4.158.0 · R24-X2] 记忆质量基准台：金标集（数据）+ Recall@k / MRR / 误召回率。
+                if (!this.engine.qualityBench) {
+                    const api = optEngines.LonShaRecallQualityBench || (typeof LonShaRecallQualityBench !== 'undefined' ? LonShaRecallQualityBench : null);
+                    if (api && typeof api.runSet === 'function' && typeof api.compare === 'function') this.engine.qualityBench = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
