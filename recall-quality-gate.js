@@ -102,6 +102,67 @@
         return JSON.stringify(x) === JSON.stringify(y);
     }
 
+    /** [v4.162.0 · R26-O1] 分组化：金标集自带 category，类别阈值各管各的。
+     *   某类掉线单独点名 —— 不让「总数还行」遮住「某一类全崩」。
+     */
+    var CLASSES = Object.freeze(["single", "temporal", "persona", "negation", "cross"]);
+    var CATEGORY_CLASS = Object.freeze({
+        "直述": "single", "同义改述": "single", "时间指代": "temporal",
+        "人物指代": "persona", "否定": "negation", "跨会话": "cross"
+    });
+
+    function classOfCategory(cat) { return CATEGORY_CLASS[String(cat)] || "single"; }
+
+    /** 按金标集给快照盖类印章（类从数据来，不在判据里写死分组名单）。 */
+    function tagClasses(snap, setItems) {
+        var out = JSON.parse(JSON.stringify(snap || {}));
+        var classes = {};
+        arr(setItems).forEach(function (it) { classes[String(it.id)] = classOfCategory(it.category); });
+        out.classes = classes;
+        return out;
+    }
+
+    function classStats(snap) {
+        var g = snap && snap.groups && typeof snap.groups === "object" ? snap.groups : {};
+        var cls = snap && snap.classes && typeof snap.classes === "object" ? snap.classes : {};
+        var out = {};
+        CLASSES.forEach(function (c) { out[c] = { count: 0, hits: 0, hitRate: 0 }; });
+        Object.keys(g).forEach(function (id) {
+            var c = String(cls[id] || "single");
+            if (!out[c]) out[c] = { count: 0, hits: 0, hitRate: 0 };
+            out[c].count += 1;
+            if (g[id].hit === true) out[c].hits += 1;
+        });
+        Object.keys(out).forEach(function (c) {
+            out[c].hitRate = out[c].count ? Number((out[c].hits / out[c].count).toFixed(4)) : 0;
+        });
+        return out;
+    }
+
+    /** 分类判据：主线仍走 judge()，再看每类比基准是否掉过该类的容许量。 */
+    function judgeByClass(actual, baseline, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var th = o.thresholds && typeof o.thresholds === "object" ? o.thresholds : {};
+        var bad = [];
+        var b = baseline && typeof baseline === "object" ? baseline : null;
+        if (!b || !b.classes) return { ok: false, bad: ["no-classes-in-baseline"], base: null, classes: {} };
+        var base = judge(actual, b, o);
+        bad = base.bad.slice();
+        var before = classStats(b), after = classStats(actual || {});
+        var rows = {};
+        Object.keys(before).forEach(function (c) {
+            var was = before[c], now = after[c] || { count: 0, hits: 0, hitRate: 0 };
+            var lim = isFinite(Number(th[c])) ? Math.abs(Number(th[c])) : 0;
+            var delta = Number((now.hitRate - was.hitRate).toFixed(4));
+            var verdict = "same";
+            if (was.count !== now.count) { bad.push("class-count-changed: " + c + " " + was.count + " -> " + now.count); verdict = "count"; }
+            else if (delta < -lim - 1e-9) { bad.push("class-down: " + c + " " + was.hitRate + " -> " + now.hitRate); verdict = "down"; }
+            else if (delta > lim + 1e-9) verdict = "up";
+            rows[c] = { baseline: was.hitRate, actual: now.hitRate, delta: delta, count: now.count, verdict: verdict };
+        });
+        return { ok: bad.length === 0, bad: bad, base: base, classes: rows };
+    }
+
     function gateSelfCheck() {
         var bad = [];
         if (METRIC_KEYS.length !== 3) bad.push("metrics");
@@ -132,6 +193,7 @@
     return {
         VERSION: VERSION, METRIC_KEYS: METRIC_KEYS,
         snapshot: snapshot, judge: judge, sameSnapshot: sameSnapshot,
+        CLASSES: CLASSES, classOfCategory: classOfCategory, tagClasses: tagClasses, classStats: classStats, judgeByClass: judgeByClass,
         gateSelfCheck: gateSelfCheck
     };
 }));

@@ -42,6 +42,30 @@
      */
     function project(store, options) {
         var o = options && typeof options === "object" ? options : {};
+        /* [v4.162.0 · R26-O2] 投影缓存：同一（时点 / 库版本）只算一次。
+         *   版本由调用方给（versionOf）；缺省用「条目 id + 正文长度」的粗指纹 ——
+         *   粗指纹抓不住「同长度改写」，要精确就让调用方注入 versionOf。 */
+        var cache = o.cache && typeof o.cache === "object" ? o.cache : null;
+        if (cache) {
+            if (!cache.entries || typeof cache.entries !== "object") cache.entries = {};
+            if (!Number.isFinite(Number(cache.hits))) cache.hits = 0;
+            if (!Number.isFinite(Number(cache.misses))) cache.misses = 0;
+            var ver = typeof o.versionOf === "function"
+                ? String(o.versionOf(store, o.machineState))
+                : arr(store && store.memories).map(function (m) { return String(m && m.id) + ":" + String(m && m.text || "").length; }).join(",");
+            var ckey = String(o.atRound === undefined || o.atRound === null ? "live" : "r" + Number(o.atRound)) + "@" + ver;
+            if (cache.entries[ckey]) {
+                cache.hits += 1;
+                var hitProj = JSON.parse(JSON.stringify(cache.entries[ckey]));
+                hitProj.meta = Object.assign({}, hitProj.meta, { cache: "hit" });
+                return hitProj;
+            }
+            cache.misses += 1;
+            var freshProj = project(store, Object.assign({}, o, { cache: null }));
+            freshProj.meta = Object.assign({}, freshProj.meta, { cache: "miss" });
+            cache.entries[ckey] = JSON.parse(JSON.stringify(freshProj));
+            return freshProj;
+        }
         /* [v4.160.0 · R25-O2] 时点投影：给了 atRound 就从时间机器取那一份**不可变快照**作投影源，
          *   而不是拿现库重画。取不到就具名降级（degraded），不许静默退回现库冒充历史。 */
         var meta = { atRound: null, at: "", source: "live", degraded: "" };
@@ -283,6 +307,9 @@
         };
     }
 
+    /** 投影缓存工场：调用方持有它，跨多次投影复用。 */
+    function makeProjectCache() { return { entries: {}, hits: 0, misses: 0 }; }
+
     function viewsSelfCheck() {
         var bad = [];
         var store = { memories: makeStore(120, 5) };
@@ -321,7 +348,7 @@
     }
 
     return {
-        project: project, graphDiff: graphDiff,
+        project: project, graphDiff: graphDiff, makeProjectCache: makeProjectCache,
         timelineView: timelineView, graphView: graphView, searchView: searchView,
         diffView: diffView,
         makeStore: makeStore,

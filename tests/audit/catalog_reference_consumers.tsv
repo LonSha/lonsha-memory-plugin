@@ -592,3 +592,5 @@ v4161_branch_compare.test.mjs	r25x
 v4161_ask_why.test.mjs	r25x
 v4161_migration_pack.test.mjs	r25x
 v4161_consensus_review.test.mjs	r25x
+v4162_grouped_gate.test.mjs	r26
+v4162_project_cache.test.mjs	r26
