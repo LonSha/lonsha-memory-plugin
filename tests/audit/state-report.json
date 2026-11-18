@@ -11,7 +11,7 @@
   "human_index_version": "3.474.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 414,
+    "extra_js": 415,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -426,13 +426,14 @@
       "perspective-memory.js",
       "shared-event-memory.js",
       "memory-time-machine.js",
-      "multimodal-memory.js"
+      "multimodal-memory.js",
+      "recall-quality-gate.js"
     ],
-    "root_js": 427,
+    "root_js": 428,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 569,
+    "test_files": 578,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -1002,7 +1003,16 @@
       "v4158_shared_events.test.mjs",
       "v4158_tiered_plane.test.mjs",
       "v4158_time_machine.test.mjs",
-      "v4158_write_idempotent.test.mjs"
+      "v4158_write_idempotent.test.mjs",
+      "v4160_atround_views.test.mjs",
+      "v4160_correction_idempotent.test.mjs",
+      "v4160_forget_export_same_source.test.mjs",
+      "v4160_index_persistence.test.mjs",
+      "v4160_injection_budget.test.mjs",
+      "v4160_multimodal_tiers.test.mjs",
+      "v4160_oldhost_chain.test.mjs",
+      "v4160_recall_quality_gate.test.mjs",
+      "v4160_settings_diagnostics.test.mjs"
     ],
     "audit_dir_exists": true,
     "audit_gated": 76,
@@ -1063,9 +1073,9 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "8acbde54c192",
+      "manifest.json": "8920ed1feac1",
       "package.json": "f8fe65b52029",
-      "index.js": "8af994d58509",
+      "index.js": "a781ed0b4647",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
       "PLAN.md": "470a535b2ce6",

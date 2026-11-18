@@ -105,6 +105,54 @@
         };
     }
 
+    /** [v4.160.0 · R25-O9] 诊断包：只带配置与可复算读数，**不带任何记忆正文**。
+     *   报障时用户能一键交出「与默认差在哪」，而不是截图让人猜。
+     */
+    function diagnostics(values, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var v = view(values);
+        var rows = v.rows.filter(function (r) { return r.deviated; }).map(function (r) {
+            return { id: r.id, group: r.group, current: r.current, def: r.def, impact: r.impact };
+        });
+        var pack = {
+            kind: "lonsha-settings-diagnostics",
+            version: 1,
+            at: String(o.at || ""),
+            appVersion: String(o.appVersion || ""),
+            deviatedCount: rows.length,
+            deviations: rows,
+            readings: budgetReading(v.values),
+            host: String(o.host || ""),
+        };
+        var scan = scanSensitive(pack, o.needles);
+        pack.sensitiveScan = { ok: scan.ok, hits: scan.hits.length };
+        return { ok: scan.ok, pack: pack, hits: scan.hits };
+    }
+
+    /** 敏感扫描：诊断包里不得出现记忆正文/人名类命中词。 */
+    function scanSensitive(pack, needles) {
+        var text = JSON.stringify(pack);
+        var list = Array.isArray(needles) ? needles.map(String) : [];
+        var hits = list.filter(function (n) { return n && text.indexOf(n) !== -1; });
+        return { ok: hits.length === 0, hits: hits };
+    }
+
+    /** 导入一份诊断包：只回填被点名的控制项（其余保持默认，不偷偷继承）。 */
+    function importDiagnostics(pack) {
+        var p = pack && typeof pack === "object" ? pack : null;
+        if (!p || p.kind !== "lonsha-settings-diagnostics") return { ok: false, bad: ["not-a-diagnostics-pack"], values: defaults() };
+        if (Number(p.version) !== 1) return { ok: false, bad: ["version-mismatch"], values: defaults() };
+        var v = defaults();
+        var applied = [], unknown = [];
+        (Array.isArray(p.deviations) ? p.deviations : []).forEach(function (row) {
+            var id = String(row && row.id || "");
+            if (!REGISTRY.some(function (it) { return it.id === id; })) { unknown.push(id); return; }
+            v[id] = row.current;
+            applied.push(id);
+        });
+        return { ok: true, values: v, applied: applied, unknown: unknown };
+    }
+
     function settingsSelfCheck() {
         var bad = [];
         if (REGISTRY.length < 10) bad.push("registry-thin");
@@ -130,6 +178,7 @@
         defaults: defaults, view: view, itemsOfGroup: itemsOfGroup,
         budgetReading: budgetReading,
         resetGroup: resetGroup, resetAll: resetAll, audit: audit,
+        diagnostics: diagnostics, scanSensitive: scanSensitive, importDiagnostics: importDiagnostics,
         settingsSelfCheck: settingsSelfCheck
     };
 }));

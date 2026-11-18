@@ -413,3 +413,4 @@ perspective-memory.js	yes	yes	optional-engine-registry.js	host-seam
 shared-event-memory.js	yes	yes	optional-engine-registry.js	host-seam
 memory-time-machine.js	yes	yes	optional-engine-registry.js	host-seam
 multimodal-memory.js	yes	yes	optional-engine-registry.js	host-seam
+recall-quality-gate.js	yes	yes	optional-engine-registry.js	host-seam

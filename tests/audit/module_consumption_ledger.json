@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-18T03:55:06.184Z",
-  "extra_js_count": 414,
+  "generated_at": "2026-11-18T04:51:09.100Z",
+  "extra_js_count": 415,
   "host_injected_count": 252,
-  "total_modules": 415,
+  "total_modules": 416,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 415,
+  "active_count": 416,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -7895,6 +7895,31 @@
       "module": "recall-quality-bench.js",
       "surface": [
         "LonShaRecallQualityBench"
+      ],
+      "prod_call_sites": 5,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 3,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": [
+        {
+          "file": "optional-engine-registry.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ]
+    },
+    "recall-quality-gate.js": {
+      "module": "recall-quality-gate.js",
+      "surface": [
+        "LonShaRecallQualityGate"
       ],
       "prod_call_sites": 5,
       "business_call_sites": 3,

@@ -4,7 +4,7 @@
   "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
   "source": "index.js",
   "lines_before_split": 13546,
-  "index_lines_max": 13082,
+  "index_lines_max": 13087,
   "module": "index-helpers.js",
   "module_lines": 815,
   "wiring": {
@@ -528,18 +528,18 @@
     "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
   },
   "rebase": {
-    "at": "v4.158.0（R24 双计划收口）",
-    "from": 12992,
-    "to": 13082,
-    "measured_index_lines": 13082,
-    "what": "ratchet 重定基：R24 十八项新能力的宿主装配块（18 × 5 行 = 90 行，均为「取库口 + 形态校验 + 装配」）住在 index.js 里，故实测 12992 → 13082。",
-    "why_not_moved": "把装配块搬到 host 模块会让 18 项接线判据（X1–X9 / O1–O9 各自断言 index.js 含 this.engine.<key>）整片失效；接线点到入口是刻意的（入口是唯一装配面），故本轮选择重定基而非搬家。",
-    "discipline": "新天花板 13082 仍低于拆前 13546，且此后仅降不涨；任何再涨必须在此处补一条同形留痕并写明「为什么不能搬」。",
+    "at": "v3.474.0（R25 优化九项接线后重绑）",
+    "from": 13082,
+    "to": 13087,
+    "measured_index_lines": 13087,
+    "what": "二次重定基：R25 优化九项里只有 O1（召回质量回归闸）需要在宿主落一行装配块（取库口 + 形态校验 + 装配，5 行），其余 O2–O9 全部长在既有模块上、宿主零改动，故实测 13082 → 13087。",
+    "why_not_moved": "同首轮：装配块搬到 host 模块会让九项接线判据整片失效（判据断言 index.js 含 this.engine.<key>）。且本版只有 5 行增量，搬家成本大于收益。",
+    "discipline": "天花板 13087 仍低于拆前 13546；此后仅降不涨，任何再涨必须在此处补同形留痕。",
     "evidence": [
-      "git show 13c5e95^:index.js | wc -l ⇒ 12992；git show 8ef7c29:index.js | wc -l ⇒ 13082（逐版可复算，差 90 = 18 个装配块 × 5 行）",
-      "grep -c \"R24-X\" index.js ⇒ 18（每个装配块一行带本版标记的注释，行数来源可逐条点数）",
-      "tests/audit/host_beast_probe.cjs 实测 entry_lines = 13082（与 wc -l 同读数，两路互证）"
+      "git show 70ebb1b:index.js | wc -l ⇒ 13081（wc 口径）；git show HEAD:index.js | wc -l ⇒ 13086；差 5 = O1 装配块行数（判据口径 split(\"\\n\") 各 +1 ⇒ 13082 / 13087）",
+      "grep -c \"R25-O\" index.js ⇒ 1（本版只有 O1 在宿主落装配块，其余八项长在模块内，行数来源可逐条点数）",
+      "tests/audit/host_beast_probe.cjs 实测 entry_lines = 13087（与 wc -l + 1 同读数，两路互证）"
     ],
-    "why_not_silent": "抬天花板不是抹平：①新值 13082 仍低于拆前 13546，ratchet 方向未变；②留痕写明这 90 行是 R24 十八项宿主装配（取库口+形态校验），不是回流的死代码；③v3116/v3205 的死代码预算同步 +4001 行并带理由，两本账读数互相对得上 —— 抹平的特征（只抬数字不抬理由）在本条里不存在。"
+    "why_not_silent": "抬天花板不是抹平：①新值 13087 仍远低于拆前 13546，ratchet 方向未变；②留痕写明这 5 行是 O1 的宿主装配块（取库口+形态校验），不是回流的死代码，且 O2–O9 宿主零改动已由 grep 点数证明；③host_beast_baseline 同步按探针重绑（entry 13087 / surface 37271），行上界不抬（13392，余量 305 <= slack 400），两本账读数互相对得上。"
   }
 }

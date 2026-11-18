@@ -1,5 +1,5 @@
 {
-  "file": "tests/audit/host_beast_baseline.json",
+  "file": "index.js（+ 宿主面外提模块，合并面）",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
   "measured_at": "v3.474.0",
   "rebuilds": {
@@ -3490,39 +3490,40 @@
       }
     },
     "v3.474.0": {
-      "reason": "[v3.474.0] 本版**没有新增功能**：L22-O1 把 index.js 的纯函数三簇（约 29 个，hash32 / sanitizeJson / stripMemoryOpsTags / extractThinkingChain / ledgerItemKey / buildNpcTierInjection / normalizeCharName 等）整块搬进 index-helpers.js，入口因此 13546 → 12992 行（-554）。这不是「代码变少」而是「代码搬走」——合并面（入口 + 模块 + 拆片）仍是 37176 行，成员数 1374。按纪律：入口上界**跟着实测收紧**，不拿「反正没删东西」把余量留宽（那正是本条要治的「给死代码留余量」）。",
+      "reason": "[v3.474.0] 本版**没有新增功能**：L22-O1 把 index.js 的纯函数三簇（约 29 个，hash32 / sanitizeJson / stripMemoryOpsTags / extractThinkingChain / ledgerItemKey / buildNpcTierInjection / normalizeCharName 等）整块搬进 index-helpers.js，入口因此 13546 → 12992 行（-554）。这不是「代码变少」而是「代码搬走」——合并面（入口 + 模块 + 拆片）仍是 37176 行，成员数 1374。按纪律：入口上界**跟着实测收紧**，不拿「反正没删东西」把余量留宽（那正是本条要治的「给死代码留余量」）。 ／ [R25 重绑] R25 O1–O9 全部长在既有模块上，宿主只增 O1 的 5 行装配块（%+5 行）。",
       "readings": {
-        "total_lines": 13082,
-        "surface_lines": 37176,
+        "total_lines": 13087,
+        "surface_lines": 37271,
         "member_count": 1374,
         "duplicate_member_names": 212,
         "top5_lines": 9466,
-        "top5_pct": 25.5,
-        "top40_lines": 19592,
-        "top40_pct": 52.7,
+        "top5_pct": 25.4,
+        "top40_lines": 19687,
+        "top40_pct": 52.8,
         "prefix_rule_coverage_lines": 4985,
         "prefix_rule_coverage_pct": 13.4,
-        "unclassified_lines": 31050,
+        "unclassified_lines": 31145,
         "seam_distinct_modules": 223,
         "seam_reference_sites": 579,
         "seam_call_shape_sites": 765,
         "members_over_80_lines": 52,
         "low_coupling_members": 18,
-        "high_coupling_members": 18
+        "high_coupling_members": 18,
+        "entry_lines": 13087
       },
       "unchanged": [
         "生命周期接线面不变",
         "本版只量不拆：未拆任何宿主巨兽成员"
       ],
       "not_done": "本版做向量降级出口/预算降级阶梯/玩法预设三项缝合，未拆任何宿主巨兽成员",
-      "delta_from": "v3.472.0",
+      "delta_from": "v3.474.0",
       "delta": {
-        "total_lines": -554,
-        "surface_lines": 758,
-        "member_count": -185,
-        "top40_lines": 5729,
-        "top5_pct": 7.9,
-        "top40_pct": 14.6
+        "total_lines": 5,
+        "surface_lines": 95,
+        "member_count": 0,
+        "top40_lines": 95,
+        "top5_pct": -0.1,
+        "top40_pct": 0.1
       }
     }
   },
@@ -3537,34 +3538,34 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13082,
-    "surface_lines": 37266,
+    "total_lines": 13087,
+    "surface_lines": 37271,
     "member_count": 1374,
     "duplicate_member_names": 212,
     "top5_lines": 9466,
     "top5_pct": 25.4,
-    "top40_lines": 19682,
+    "top40_lines": 19687,
     "top40_pct": 52.8,
     "prefix_rule_coverage_lines": 4985,
     "prefix_rule_coverage_pct": 13.4,
-    "unclassified_lines": 31050,
+    "unclassified_lines": 31145,
     "seam_distinct_modules": 223,
     "seam_reference_sites": 579,
     "seam_call_shape_sites": 765,
     "members_over_80_lines": 52,
     "low_coupling_members": 18,
     "high_coupling_members": 18,
-    "entry_lines": 13082
+    "entry_lines": 13087
   },
   "domains": [
     {
       "domain": "（未归类）",
       "members": 1294,
-      "lines": 31140,
+      "lines": 31145,
       "lines_pct": 83.6,
-      "outside_refs": 29457,
+      "outside_refs": 29482,
       "internal_refs": 11041,
-      "outside_ref_share_pct": 72.7
+      "outside_ref_share_pct": 72.8
     },
     {
       "domain": "诊断与导出",
@@ -3720,7 +3721,7 @@
     {
       "name": "loadModules",
       "file": "index.js",
-      "lines": 552,
+      "lines": 557,
       "outside_refs": 1
     },
     {
@@ -3904,7 +3905,7 @@
       {
         "name": "loadModules",
         "file": "index.js",
-        "lines": 552,
+        "lines": 557,
         "outside_refs": 1,
         "is_host_lifecycle": false
       },
@@ -4116,7 +4117,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13392,
     "maxSlack": 400,
-    "note": "[v3.474.0] 入口 index.js 12992 行、成员数 1374；行上界**上抬至 13392**（余量 400 <= slack 400）、成员上界**上抬至 1404**（余量 30 <= member_slack 30）。合并面 37176 行，TOP5 占 25.5%，TOP40 占 52.7%。",
+    "note": "[v3.474.0] R25 优化九项接线后的当版重绑：入口 index.js 13087 行、成员数 1374；行上界**不抬，仍为 13392**（余量 305 <= slack 400）、成员上界**不抬，仍为 1404**（余量 30 <= member_slack 30）。合并面 37271 行，TOP5 占 25.4%，TOP40 占 52.8%。本版 5 行增量来自 O1 的宿主装配块（取库口 + 形态校验 + 装配），不是死代码回流。",
     "history": [
       {
         "ceiling": 15000,
@@ -4598,18 +4599,24 @@
         "member_ceiling": 1404,
         "milestone_version": "v3.474.0",
         "reason": "[v3.474.0] 入口 index.js 12992 行、成员数 1374；行上界**上抬至 13392**（余量 400 <= slack 400）、成员上界**上抬至 1404**（余量 30 <= member_slack 30）。合并面 37176 行，TOP5 占 25.5%，TOP40 占 52.7%。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.474.0",
+        "reason": "[v3.474.0] R25 优化九项接线后的当版重绑：入口 index.js 13087 行、成员数 1374；行上界**不抬，仍为 13392**（余量 305 <= slack 400）、成员上界**不抬，仍为 1404**（余量 30 <= member_slack 30）。合并面 37271 行，TOP5 占 25.4%，TOP40 占 52.8%。本版 5 行增量来自 O1 的宿主装配块（取库口 + 形态校验 + 装配），不是死代码回流。"
       }
     ],
     "member_ceiling": 1404,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13082,
+  "total_lines": 13087,
   "member_count": 1374,
   "index_total_lines": 13082,
   "index_line_ceiling": 12096,
-  "entry_lines": 13082,
-  "surface_lines": 37266,
+  "entry_lines": 13087,
+  "surface_lines": 37271,
   "members_by_file": {
     "index.js": 893,
     "engine-diagnostic-lines.js": 1,
@@ -4717,7 +4724,7 @@
     {
       "name": "loadModules",
       "file": "index.js",
-      "lines": 552,
+      "lines": 557,
       "outside_refs": 1
     },
     {

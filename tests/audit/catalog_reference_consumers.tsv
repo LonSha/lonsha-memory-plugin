@@ -574,3 +574,12 @@ v4158_shared_events.test.mjs	r24
 v4158_tiered_plane.test.mjs	r24
 v4158_time_machine.test.mjs	r24
 v4158_write_idempotent.test.mjs	r24
+v4160_atround_views.test.mjs	r25
+v4160_correction_idempotent.test.mjs	r25
+v4160_forget_export_same_source.test.mjs	r25
+v4160_index_persistence.test.mjs	r25
+v4160_injection_budget.test.mjs	r25
+v4160_multimodal_tiers.test.mjs	r25
+v4160_oldhost_chain.test.mjs	r25
+v4160_recall_quality_gate.test.mjs	r25
+v4160_settings_diagnostics.test.mjs	r25
