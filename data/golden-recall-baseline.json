@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "k": 5,
+  "routes": [
+    "lex",
+    "ngram"
+  ],
+  "count": 30,
+  "set": "golden-recall-set.json",
+  "metrics": {
+    "recallAtK": 0.8333,
+    "mrr": 0.8333,
+    "falseRecall": 0.0667
+  },
+  "groups": {
+    "g01": {
+      "hit": true,
+      "rank": 1
+    },
+    "g02": {
+      "hit": true,
+      "rank": 1
+    },
+    "g03": {
+      "hit": true,
+      "rank": 1
+    },
+    "g04": {
+      "hit": true,
+      "rank": 1
+    },
+    "g05": {
+      "hit": true,
+      "rank": 1
+    },
+    "g06": {
+      "hit": false,
+      "rank": null
+    },
+    "g07": {
+      "hit": true,
+      "rank": 1
+    },
+    "g08": {
+      "hit": false,
+      "rank": null
+    },
+    "g09": {
+      "hit": false,
+      "rank": null
+    },
+    "g10": {
+      "hit": true,
+      "rank": 1
+    },
+    "g11": {
+      "hit": true,
+      "rank": 1
+    },
+    "g12": {
+      "hit": true,
+      "rank": 1
+    },
+    "g13": {
+      "hit": true,
+      "rank": 1
+    },
+    "g14": {
+      "hit": true,
+      "rank": 1
+    },
+    "g15": {
+      "hit": true,
+      "rank": 1
+    },
+    "g16": {
+      "hit": true,
+      "rank": 1
+    },
+    "g17": {
+      "hit": false,
+      "rank": null
+    },
+    "g18": {
+      "hit": true,
+      "rank": 1
+    },
+    "g19": {
+      "hit": true,
+      "rank": 1
+    },
+    "g20": {
+      "hit": true,
+      "rank": 1
+    },
+    "g21": {
+      "hit": true,
+      "rank": 1
+    },
+    "g22": {
+      "hit": true,
+      "rank": 1
+    },
+    "g23": {
+      "hit": true,
+      "rank": 1
+    },
+    "g24": {
+      "hit": true,
+      "rank": 1
+    },
+    "g25": {
+      "hit": true,
+      "rank": 1
+    },
+    "g26": {
+      "hit": true,
+      "rank": 1
+    },
+    "g27": {
+      "hit": true,
+      "rank": 1
+    },
+    "g28": {
+      "hit": false,
+      "rank": null
+    },
+    "g29": {
+      "hit": true,
+      "rank": 1
+    },
+    "g30": {
+      "hit": true,
+      "rank": 1
+    }
+  }
+}

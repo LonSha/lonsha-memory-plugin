@@ -11938,6 +11938,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaMultimodalMemory || (typeof LonShaMultimodalMemory !== 'undefined' ? LonShaMultimodalMemory : null);
                     if (api && typeof api.register === 'function' && typeof api.recall === 'function' && typeof api.injectText === 'function') this.engine.multimodal = api;
                 }
+                // [v4.160.0 · R25-O1] 召回质量回归闸：同一配置两次必一样，比基准差一条就点名。
+                if (!this.engine.recallQualityGate) {
+                    const api = optEngines.LonShaRecallQualityGate || (typeof LonShaRecallQualityGate !== 'undefined' ? LonShaRecallQualityGate : null);
+                    if (api && typeof api.judge === 'function' && typeof api.snapshot === 'function') this.engine.recallQualityGate = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();

@@ -425,7 +425,8 @@
     "perspective-memory.js",
     "shared-event-memory.js",
     "memory-time-machine.js",
-    "multimodal-memory.js"
+    "multimodal-memory.js",
+    "recall-quality-gate.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

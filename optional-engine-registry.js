@@ -88,6 +88,7 @@
     ['LonShaSharedEventMemory', 'shared-event-memory.js'],
     ['LonShaTimeMachine', 'memory-time-machine.js'],
     ['LonShaMultimodalMemory', 'multimodal-memory.js'],
+    ['LonShaRecallQualityGate', 'recall-quality-gate.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],
