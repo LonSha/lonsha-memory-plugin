@@ -385,6 +385,11 @@ const LEDGER = [
      *   体 md5 由 v3281 B1 从盘上实测枚举得出，非手抄。 */
     ['floorOf', ['knowledge-trace.js', 'pov-projection.js'], '6fe7a611',
         '楼层取数原语：只认 number 与非空数字串，其余如实 null（不拿 0 冒充「就是 0」）。同族理由见上。'],
+    /* [v4.158.0 · R24] 召回内核与视图层各自持自足原语：三簇体逐字相同而模块零依赖运行（不引兄弟模块常量）。
+     *   体长/md5 均由盘上实测得出（tests/_tmp_calc3281 口径与 buildClusters 同源），不是手抄。 */
+    ['tokenize', ['recall-inverted-index.js', 'tiered-memory-plane.js'], '17298e00', '文本分词原语；倒排索引与分层平面各自持有以保持单文件自足（收拢即引入跨模块静默读旧值）'],
+    ['isCjk', ['memory-views.js', 'recall-inverted-index.js', 'tiered-memory-plane.js'], '14e0e664', 'CJK 字符判定门；三模块独立运行、不共享全局工具'],
+    ['tsOf', ['memory-views.js', 'privacy-forgetting-proof.js'], '0fe306bb', '时间戳归一原语；视图投影与遗忘回执各自自足'],
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */

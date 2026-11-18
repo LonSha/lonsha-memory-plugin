@@ -3538,13 +3538,13 @@
   ],
   "readings": {
     "total_lines": 13082,
-    "surface_lines": 37176,
+    "surface_lines": 37266,
     "member_count": 1374,
     "duplicate_member_names": 212,
     "top5_lines": 9466,
-    "top5_pct": 25.5,
-    "top40_lines": 19592,
-    "top40_pct": 52.7,
+    "top5_pct": 25.4,
+    "top40_lines": 19682,
+    "top40_pct": 52.8,
     "prefix_rule_coverage_lines": 4985,
     "prefix_rule_coverage_pct": 13.4,
     "unclassified_lines": 31050,
@@ -3553,24 +3553,25 @@
     "seam_call_shape_sites": 765,
     "members_over_80_lines": 52,
     "low_coupling_members": 18,
-    "high_coupling_members": 18
+    "high_coupling_members": 18,
+    "entry_lines": 13082
   },
   "domains": [
     {
       "domain": "（未归类）",
       "members": 1294,
-      "lines": 31050,
-      "lines_pct": 83.5,
-      "outside_refs": 29076,
-      "internal_refs": 11049,
-      "outside_ref_share_pct": 72.5
+      "lines": 31140,
+      "lines_pct": 83.6,
+      "outside_refs": 29457,
+      "internal_refs": 11041,
+      "outside_ref_share_pct": 72.7
     },
     {
       "domain": "诊断与导出",
       "members": 22,
       "lines": 2052,
       "lines_pct": 5.5,
-      "outside_refs": 2541,
+      "outside_refs": 2563,
       "internal_refs": 6,
       "outside_ref_share_pct": 99.8
     },
@@ -3717,16 +3718,16 @@
       "outside_refs": 4
     },
     {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 552,
+      "outside_refs": 1
+    },
+    {
       "name": "_assembleComponents",
       "file": "index.js",
       "lines": 526,
       "outside_refs": 0
-    },
-    {
-      "name": "loadModules",
-      "file": "index.js",
-      "lines": 462,
-      "outside_refs": 1
     },
     {
       "name": "exportMemoryReport",
@@ -3901,17 +3902,17 @@
     "high_coupling_non_lifecycle": 18,
     "low_coupling_examples": [
       {
+        "name": "loadModules",
+        "file": "index.js",
+        "lines": 552,
+        "outside_refs": 1,
+        "is_host_lifecycle": false
+      },
+      {
         "name": "_assembleComponents",
         "file": "index.js",
         "lines": 526,
         "outside_refs": 0,
-        "is_host_lifecycle": false
-      },
-      {
-        "name": "loadModules",
-        "file": "index.js",
-        "lines": 462,
-        "outside_refs": 1,
         "is_host_lifecycle": false
       },
       {
@@ -4603,8 +4604,308 @@
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 12992,
+  "total_lines": 13082,
   "member_count": 1374,
   "index_total_lines": 13082,
-  "index_line_ceiling": 12096
+  "index_line_ceiling": 12096,
+  "entry_lines": 13082,
+  "surface_lines": 37266,
+  "members_by_file": {
+    "index.js": 893,
+    "engine-diagnostic-lines.js": 1,
+    "engine-evidence-center.js": 1,
+    "engine-execution-pipeline.js": 1,
+    "engine-injection-pipeline.js": 44,
+    "engine-persistence-ops.js": 54,
+    "engine-qa-tools.js": 26,
+    "engine-recall.js": 20,
+    "engine-repair-ops.js": 42,
+    "engine-report.js": 49,
+    "engine-self-check.js": 24,
+    "engine-story-annual.js": 28,
+    "memory-core.js": 4,
+    "index-helpers.js": 12,
+    "undefined": 175
+  },
+  "unclassified_top": [
+    "_moduleLib",
+    "_noteModuleFailure",
+    "_moduleFailureSnapshot",
+    "_indexHelpers",
+    "_indexHelperCall",
+    "_schemaMigrationLib",
+    "_moduleRegistryLib",
+    "_changeset",
+    "_cacheIdentityLib",
+    "_cacheWorkloadLib",
+    "_strengthPolicyLib",
+    "_strengthProposalLib",
+    "_stmCloseQuotaLib",
+    "clearApiCooldowns",
+    "getApiCooldownStats",
+    "fetchWithTimeoutRetry",
+    "writeInjectSlot",
+    "clearInjectSlots",
+    "extraJsLoadReport",
+    "_extraJsBaseDir",
+    "ensureExtraJsOnce",
+    "extractSynopsisFast",
+    "fmtNpcTiesContext",
+    "hintForError",
+    "errLog"
+  ],
+  "biggest_members": [
+    {
+      "name": "install",
+      "file": "engine-diagnostic-lines.js",
+      "lines": 2069,
+      "outside_refs": 14
+    },
+    {
+      "name": "install",
+      "file": "engine-evidence-center.js",
+      "lines": 2036,
+      "outside_refs": 14
+    },
+    {
+      "name": "install",
+      "file": "engine-execution-pipeline.js",
+      "lines": 1967,
+      "outside_refs": 14
+    },
+    {
+      "name": "buildInjection",
+      "file": "engine-recall.js",
+      "lines": 1833,
+      "outside_refs": 59
+    },
+    {
+      "name": "selfCheck",
+      "file": "index-helpers.js",
+      "lines": 1561,
+      "outside_refs": 318
+    },
+    {
+      "name": "applyExtractedPayload",
+      "file": "engine-qa-tools.js",
+      "lines": 1345,
+      "outside_refs": 3
+    },
+    {
+      "name": "recallMemory",
+      "file": "engine-self-check.js",
+      "lines": 1036,
+      "outside_refs": 37
+    },
+    {
+      "name": "restoreFromPayload",
+      "file": "engine-repair-ops.js",
+      "lines": 664,
+      "outside_refs": 44
+    },
+    {
+      "name": "sanitizeJson",
+      "lines": 638,
+      "outside_refs": 28
+    },
+    {
+      "name": "onBeforeGeneration",
+      "file": "index.js",
+      "lines": 574,
+      "outside_refs": 4
+    },
+    {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 552,
+      "outside_refs": 1
+    },
+    {
+      "name": "_assembleComponents",
+      "file": "index.js",
+      "lines": 526,
+      "outside_refs": 0
+    },
+    {
+      "name": "exportMemoryReport",
+      "file": "memory-core.js",
+      "lines": 396,
+      "outside_refs": 15
+    },
+    {
+      "name": "registerEvents",
+      "file": "index.js",
+      "lines": 379,
+      "outside_refs": 1
+    },
+    {
+      "name": "collectExport",
+      "file": "engine-repair-ops.js",
+      "lines": 307,
+      "outside_refs": 54
+    },
+    {
+      "name": "onMessageReceived",
+      "file": "index.js",
+      "lines": 300,
+      "outside_refs": 44
+    },
+    {
+      "name": "refresh",
+      "file": "index.js",
+      "lines": 238,
+      "outside_refs": 11
+    },
+    {
+      "name": "rollbackFloor",
+      "file": "index.js",
+      "lines": 202,
+      "outside_refs": 17
+    },
+    {
+      "name": "buildBridgeSnapshot",
+      "file": "engine-recall.js",
+      "lines": 196,
+      "outside_refs": 12
+    },
+    {
+      "name": "r22ProductReadout",
+      "file": "index.js",
+      "lines": 193,
+      "outside_refs": 3
+    },
+    {
+      "name": "_maintenancePipeline",
+      "file": "index.js",
+      "lines": 169,
+      "outside_refs": 1
+    },
+    {
+      "name": "askMemoryQuestion",
+      "file": "engine-report.js",
+      "lines": 162,
+      "outside_refs": 4
+    },
+    {
+      "name": "extractMemoryWithLLM",
+      "file": "index.js",
+      "lines": 161,
+      "outside_refs": 0
+    },
+    {
+      "name": "askMemoryQuestionFollowUp",
+      "file": "engine-report.js",
+      "lines": 156,
+      "outside_refs": 4
+    },
+    {
+      "name": "getDegradationLedger",
+      "file": "index.js",
+      "lines": 155,
+      "outside_refs": 1
+    },
+    {
+      "name": "applyRepairPlan",
+      "file": "engine-story-annual.js",
+      "lines": 153,
+      "outside_refs": 10
+    },
+    {
+      "name": "_stmCloseQuotaLib",
+      "file": "index.js",
+      "lines": 141,
+      "outside_refs": 0
+    },
+    {
+      "name": "applyCorrectionPlan",
+      "file": "engine-story-annual.js",
+      "lines": 139,
+      "outside_refs": 11
+    },
+    {
+      "name": "retryRepairItems",
+      "file": "index.js",
+      "lines": 132,
+      "outside_refs": 0
+    },
+    {
+      "name": "askMemoryQuestionAsync",
+      "file": "engine-report.js",
+      "lines": 131,
+      "outside_refs": 4
+    },
+    {
+      "name": "persistenceOpsDescribe",
+      "file": "engine-repair-ops.js",
+      "lines": 129,
+      "outside_refs": 3
+    },
+    {
+      "name": "loreImportApply",
+      "lines": 127,
+      "outside_refs": 10
+    },
+    {
+      "name": "_absorbFactVersions",
+      "file": "index.js",
+      "lines": 124,
+      "outside_refs": 1
+    },
+    {
+      "name": "applyCarryover",
+      "file": "index.js",
+      "lines": 123,
+      "outside_refs": 1
+    },
+    {
+      "name": "optimizeMemory",
+      "file": "index.js",
+      "lines": 118,
+      "outside_refs": 4
+    },
+    {
+      "name": "importCarryoverSeed",
+      "file": "index.js",
+      "lines": 113,
+      "outside_refs": 0
+    },
+    {
+      "name": "backfillFloors",
+      "file": "index.js",
+      "lines": 111,
+      "outside_refs": 1
+    },
+    {
+      "name": "maybeFold",
+      "lines": 111,
+      "outside_refs": 6
+    },
+    {
+      "name": "_o9Gate",
+      "lines": 109,
+      "outside_refs": 9
+    },
+    {
+      "name": "storyCanonAdoptConfirm",
+      "file": "index.js",
+      "lines": 106,
+      "outside_refs": 0
+    }
+  ],
+  "surface_files": [
+    "index.js",
+    "engine-diagnostic-lines.js",
+    "engine-evidence-center.js",
+    "engine-execution-pipeline.js",
+    "engine-injection-pipeline.js",
+    "engine-persistence-ops.js",
+    "engine-qa-tools.js",
+    "engine-recall.js",
+    "engine-repair-ops.js",
+    "engine-report.js",
+    "engine-self-check.js",
+    "engine-story-annual.js",
+    "memory-core.js",
+    "index-helpers.js"
+  ]
 }
