@@ -43,6 +43,38 @@
         return "d-" + list.length + "-" + h.toString(16);
     }
 
+    /** [v4.160.0 · R25-O6] 删完立刻重建索引：索引是第二份真源，不重建就等于没删干净。
+     *   index 由调用方注入（不为了一行代码把这个模块和倒排索引绑死）。
+     */
+    function forgetAndRebuild(storeIn, scope, target, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var r = forget(storeIn, scope, target, o);
+        if (!r.ok) return r;
+        var idx = o.index && typeof o.index === "object" ? o.index : null;
+        var rebuilt = null, indexVersion = 0;
+        if (idx && typeof idx.rebuild === "function") {
+            var docs = arr(r.store && r.store.memories).map(function (m) {
+                return { id: String(m.id), text: String(m.text || "") };
+            });
+            rebuilt = idx.rebuild(docs);
+            indexVersion = arr(docs).length;
+        }
+        var receipt = r.receipt || {};
+        receipt.indexVersion = indexVersion;
+        receipt.rebuilt = rebuilt ? true : false;
+        return { ok: true, store: r.store, receipt: receipt, index: rebuilt ? rebuilt.index : null, indexVersion: indexVersion, removed: r.removed }; 
+    }
+
+    /** [v4.160.0 · R25-O6] 导出/备份面审计：删过的句子不得在导出文本里残留。 */
+    function auditExport(storeIn, needles, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var s = store(storeIn);
+        var ex = exportJSON(s, Object.assign({}, o, { all: true }));
+        var text = JSON.stringify(ex);
+        var leaks = arr(needles).map(String).filter(function (n) { return n && text.indexOf(n) !== -1; });
+        return { ok: leaks.length === 0, leaks: leaks, bytes: text.length };
+    }
+
     /** 我的记忆清单：搜 / 模 / 分页。 */
     function list(storeIn, options) {
         var s = store(storeIn);
@@ -181,6 +213,7 @@
     return {
         SCOPES: SCOPES, digest: digest,
         list: list, exportJSON: exportJSON, forget: forget,
+        forgetAndRebuild: forgetAndRebuild, auditExport: auditExport,
         makeStore: makeStore,
         privacySelfCheck: privacySelfCheck
     };
