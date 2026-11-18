@@ -433,7 +433,7 @@
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 578,
+    "test_files": 587,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -1012,7 +1012,16 @@
       "v4160_multimodal_tiers.test.mjs",
       "v4160_oldhost_chain.test.mjs",
       "v4160_recall_quality_gate.test.mjs",
-      "v4160_settings_diagnostics.test.mjs"
+      "v4160_settings_diagnostics.test.mjs",
+      "v4161_ask_why.test.mjs",
+      "v4161_branch_compare.test.mjs",
+      "v4161_consensus_review.test.mjs",
+      "v4161_cross_modal_lookup.test.mjs",
+      "v4161_graph_compare.test.mjs",
+      "v4161_migration_pack.test.mjs",
+      "v4161_time_point_browse.test.mjs",
+      "v4161_voice_timeline.test.mjs",
+      "v4161_weekly_health.test.mjs"
     ],
     "audit_dir_exists": true,
     "audit_gated": 76,
@@ -1078,7 +1087,7 @@
       "index.js": "a781ed0b4647",
       "update-log.json": null,
       "README.md": "77cf3f28aa24",
-      "PLAN.md": "470a535b2ce6",
+      "PLAN.md": "3a855e845425",
       "CHANGELOG.md": "127f772ca43d",
       "TODO.md": "3b579ba14e11",
       "tests/audit/doc_readings.json": "d84bdd3312e7"

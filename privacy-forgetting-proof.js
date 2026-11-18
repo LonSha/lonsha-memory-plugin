@@ -179,6 +179,77 @@
         return { memories: out, receipts: [] };
     }
 
+    /** [v4.161.0 · R25-X8] 记忆迁移包：只带选中的人/时段/模态，带版本与校验和。
+     *   导入走幂等键（id + 正文摘要），同一包导两次库内存量不变。
+     */
+    function fnvOf(text) {
+        var s0 = String(text || ""), h = 2166136261;
+        for (var i = 0; i < s0.length; i += 1) { h ^= s0.charCodeAt(i); h = (h * 16777619) >>> 0; }
+        return h.toString(16);
+    }
+
+    function packKey(m) {
+        return String(m && m.id) + "|" + fnvOf(String(m && m.text || ""));
+    }
+
+    function pickFields(m) {
+        return {
+            id: String(m.id), text: String(m.text || ""),
+            at: String(m.at || ""), floor: m.floor === undefined || m.floor === null ? null : Number(m.floor),
+            type: String(m.type || ""), modality: String(m.modality || "text"),
+            people: arr(m.people).map(String)
+        };
+    }
+
+    function exportPack(storeIn, selector) {
+        var sel = selector && typeof selector === "object" ? selector : {};
+        var list = arr(store(storeIn).memories).filter(function (m) {
+            if (sel.person && arr(m.people).map(String).indexOf(String(sel.person)) === -1) return false;
+            if (sel.modality && String(m.modality || "text") !== String(sel.modality)) return false;
+            if (sel.from && String(m.at || "") < String(sel.from)) return false;
+            if (sel.to && String(m.at || "") > String(sel.to)) return false;
+            return true;
+        }).map(pickFields);
+        var body = JSON.stringify(list);
+        return {
+            ok: true,
+            pack: {
+                kind: "lonsha-memory-migration", version: 1,
+                selector: { person: String(sel.person || ""), modality: String(sel.modality || ""), from: String(sel.from || ""), to: String(sel.to || "") },
+                count: list.length, checksum: "k-" + list.length + "-" + fnvOf(body), entries: list
+            }
+        };
+    }
+
+    function verifyPack(pack) {
+        var p0 = pack && typeof pack === "object" ? pack : null;
+        if (!p0 || p0.kind !== "lonsha-memory-migration") return { ok: false, bad: ["not-a-pack"] };
+        if (Number(p0.version) !== 1) return { ok: false, bad: ["version-mismatch"] };
+        var list = arr(p0.entries).map(pickFields);
+        var want = "k-" + list.length + "-" + fnvOf(JSON.stringify(list));
+        if (String(p0.checksum) !== want) return { ok: false, bad: ["checksum-mismatch"] };
+        return { ok: true, entries: list };
+    }
+
+    function importPack(storeIn, pack) {
+        var v = verifyPack(pack);
+        if (!v.ok) return { ok: false, bad: v.bad, store: store(storeIn), added: 0, skipped: 0 };
+        var base = store(storeIn);
+        var have = {};
+        arr(base.memories).forEach(function (m) { have[packKey(m)] = true; });
+        var added = 0, skipped = 0, next = arr(base.memories).slice();
+        arr(v.entries).forEach(function (e) {
+            var k = packKey(e);
+            if (have[k]) { skipped += 1; return; }
+            have[k] = true; added += 1; next.push(e);
+        });
+        return {
+            ok: true, added: added, skipped: skipped,
+            store: { memories: next, receipts: arr(base.receipts) },
+            total: next.length, checksum: String(pack.checksum)
+        };
+    }
+
     function privacySelfCheck() {
         var bad = [];
         if (SCOPES.length !== 4) bad.push("scopes");
@@ -214,6 +285,7 @@
         SCOPES: SCOPES, digest: digest,
         list: list, exportJSON: exportJSON, forget: forget,
         forgetAndRebuild: forgetAndRebuild, auditExport: auditExport,
+        exportPack: exportPack, verifyPack: verifyPack, importPack: importPack, packKey: packKey,
         makeStore: makeStore,
         privacySelfCheck: privacySelfCheck
     };

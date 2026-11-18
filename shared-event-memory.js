@@ -121,6 +121,57 @@
         ];
     }
 
+    /** [v4.161.0 · R25-X9] 分歧表态：采纳 A / 采纳 B / 存档保留，留痕（谁·何时·为什么）。
+     *   ★ 采纳**不删另一条**：只降权（被采纳者 1、其余 0.5）；存档保留两边都 1。
+     */
+    var ACTIONS = Object.freeze(["adopt-a", "adopt-b", "archive", "revoke"]);
+
+    function createReviewBoard() { return { reviews: {} }; }
+
+    function weightsOf(reviews) {
+        var list = arr(reviews), w = {};
+        if (!list.length) return w;
+        var last = list[list.length - 1];
+        arr(last.holders).forEach(function (h) { w[h] = 1; });
+        if (last.action === "adopt-a" || last.action === "adopt-b") {
+            var keep = last.action === "adopt-a" ? last.holders[0] : last.holders[1];
+            if (keep) { w[keep] = 1; arr(last.holders).forEach(function (h) { if (h !== keep) w[h] = 0.5; }); }
+        }
+        return w;
+    }
+
+    function rankingOf(weights) {
+        return Object.keys(weights || {}).map(function (h) { return { holder: h, weight: weights[h] }; })
+            .sort(function (a, b) { return b.weight - a.weight || (a.holder < b.holder ? -1 : 1); });
+    }
+
+    function applyReview(board, summary, eventId, decision) {
+        var b = board && typeof board.reviews === "object" ? board : createReviewBoard();
+        var d = decision && typeof decision === "object" ? decision : {};
+        var row = arr(summary && summary.rows).filter(function (r) { return String(r.eventId) === String(eventId); })[0];
+        if (!row) return { ok: false, bad: ["no-such-event"], board: b };
+        var action = String(d.action || "");
+        if (ACTIONS.indexOf(action) === -1) return { ok: false, bad: ["unknown-action"], board: b };
+        var holders = arr(row.perspectives).map(function (x) { return String(x.holder); });
+        if ((action === "adopt-a" || action === "adopt-b") && holders.length < 2) {
+            return { ok: false, bad: ["no-dispute"], board: b };
+        }
+        var prev = arr(b.reviews[String(eventId)]);
+        var next = action === "revoke" ? prev.slice(0, Math.max(0, prev.length - 1)) : prev.slice();
+        if (action !== "revoke") {
+            next.push({ action: action, by: String(d.by || ""), at: String(d.at || ""), why: String(d.why || ""), holders: holders });
+        }
+        var reviews = {};
+        Object.keys(b.reviews).forEach(function (k) { reviews[k] = b.reviews[k]; });
+        reviews[String(eventId)] = next;
+        var weights = weightsOf(next);
+        return {
+            ok: true, eventId: String(eventId), action: action,
+            board: { reviews: reviews }, weights: weights, ranking: rankingOf(weights),
+            kept: holders.length, holders: holders, trace: next
+        };
+    }
+
     function sharedSelfCheck() {
         var bad = [];
         if (STATES.length !== 3) bad.push("states");
@@ -149,6 +200,7 @@
         STATES: STATES, FACETS: FACETS,
         buildBodies: buildBodies, summarize: summarize, diffs: diffs,
         recallFor: recallFor, fixture: fixture,
+        applyReview: applyReview, createReviewBoard: createReviewBoard, ACTIONS: ACTIONS,
         sharedSelfCheck: sharedSelfCheck
     };
 }));

@@ -190,6 +190,84 @@
         };
     }
 
+    /** [v4.161.0 · R25-X2] 跨模态互查：按模态分组 + 命中项的来源楼层与人物。
+     *  无描述/悬空条目**永不出现**在结果里（互查不是编造现场）。
+     */
+    function recallGrouped(store, query, options) {
+        var r = recall(store, query, options);
+        var groups = { text: [], image: [], audio: [] };
+        var entries = arr(store && store.entries);
+        arr(r.hits).forEach(function (h) {
+            var mod = MODALITIES.indexOf(String(h.modality)) >= 0 ? String(h.modality) : "text";
+            // 楼层/人物一律从库里的条目取（检索命中面不带这两个字段，拿命中面就会退化成 null）。
+            var e = entries.filter(function (x) { return String(x.id) === String(h.id); })[0] || {};
+            var src = e.sourceRef || h.sourceRef || {};
+            groups[mod].push({
+                id: String(h.id), modality: mod, label: label(h),
+                floor: src.floor === undefined || src.floor === null ? null : Number(src.floor),
+                srcId: str(src.srcId), people: arr(e.people || h.people).map(str),
+                score: Number(h.score || 0)
+            });
+        });
+        return {
+            ok: true, groups: groups, order: MODALITIES.slice(),
+            hits: arr(r.hits).length, considered: r.considered,
+            skipped: {
+                undescribed: entries.filter(function (e) { return e.state === "undescribed"; }).length,
+                dangling: entries.filter(function (e) { return e.state === "dangling"; }).length
+            }
+        };
+    }
+
+    /** [v4.161.0 · R25-X3] 转写按句切分：句号/问号/感叹号/分号/换行都是边界，空句不占位。 */
+    function splitSentences(text) {
+        var s0 = str(text).split(String.fromCharCode(13)).join("。");
+        s0 = s0.split(String.fromCharCode(10)).join("。");
+        var raw = s0.split(/[。！？!?；;]/);
+        var out = [];
+        for (var i = 0; i < raw.length; i++) {
+            var t = raw[i].trim();
+            if (t) out.push(t);
+        }
+        return out;
+    }
+
+    /** 语音时间轴：每条语音的每句各自一行，按时间（再按 id / 句序）稳定排序。 */
+    function timeline(store) {
+        var rows = [];
+        arr(store && store.entries).forEach(function (e) {
+            if (String(e.modality) !== "audio") return;
+            var sentences = splitSentences(e.transcript);
+            sentences.forEach(function (t, i) {
+                rows.push({
+                    id: String(e.id), index: i, sentence: t,
+                    at: str(e.capturedAt), floor: e.floor === null || e.floor === undefined ? null : Number(e.floor),
+                    srcId: str(e.srcId), state: String(e.state || "")
+                });
+            });
+        });
+        rows.sort(function (a, b) {
+            if (a.at !== b.at) return a.at < b.at ? -1 : 1;
+            if (a.id !== b.id) return a.id < b.id ? -1 : 1;
+            return a.index - b.index;
+        });
+        return { ok: true, rows: rows, total: rows.length };
+    }
+
+    /** 句级引用：这一句回到哪条语音、哪一层楼。查不到就说查不到。 */
+    function locateSentence(store, id, index) {
+        var e = arr(store && store.entries).filter(function (x) { return String(x.id) === String(id); })[0];
+        if (!e) return { ok: false, bad: ["no-such-entry"] };
+        var sentences = splitSentences(e.transcript);
+        var i = Number(index);
+        if (!(i >= 0) || i >= sentences.length) return { ok: false, bad: ["no-such-sentence"] };
+        return {
+            ok: true, id: String(e.id), index: i, sentence: sentences[i],
+            floor: e.floor === null || e.floor === undefined ? null : Number(e.floor),
+            srcId: str(e.srcId), capturedAt: str(e.capturedAt), total: sentences.length
+        };
+    }
+
     function mmSelfCheck() {
         var bad = [];
         if (MODALITIES.length !== 3) bad.push("modalities");
@@ -218,6 +296,7 @@
         MODALITIES: MODALITIES, STATES: STATES, tokens: tokens,
         createStore: createStore, register: register, describe: describe,
         recall: recall, injectText: injectText, removeSource: removeSource, list: list,
+        recallGrouped: recallGrouped, splitSentences: splitSentences, timeline: timeline, locateSentence: locateSentence,
         mmSelfCheck: mmSelfCheck
     };
 }));

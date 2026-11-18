@@ -236,6 +236,53 @@
         return { ok: true, from: d.from, to: d.to, rows: rows, counts: d.counts };
     }
 
+    /** [v4.161.0 · R25-X5] 两张图谱按两时点对比：只报对称差，不画不存在的边。
+     *  边的集合 = 输入的并集里的人；新增/消失各自点名，新增边带来源楼层（取投影里的 sourceRef）。
+     */
+    function graphDiff(viewA, viewB, projectB) {
+        var a = viewA || {}, b = viewB || {};
+        function keyOf(e) { var x = String(e.a), y = String(e.b); return x < y ? x + "||" + y : y + "||" + x; }
+        var A = {}, B = {};
+        arr(a.edges).forEach(function (e) { A[keyOf(e)] = e; });
+        arr(b.edges).forEach(function (e) { B[keyOf(e)] = e; });
+        var added = [], removed = [], same = [];
+        Object.keys(B).forEach(function (k) {
+            if (!A[k]) added.push({ key: k, a: B[k].a, b: B[k].b, weight: B[k].weight });
+            else same.push({ key: k, a: B[k].a, b: B[k].b, weight: B[k].weight });
+        });
+        Object.keys(A).forEach(function (k) { if (!B[k]) removed.push({ key: k, a: A[k].a, b: A[k].b, weight: A[k].weight }); });
+        added.sort(function (x, y) { return x.key < y.key ? -1 : 1; });
+        removed.sort(function (x, y) { return x.key < y.key ? -1 : 1; });
+        var nodes = {};
+        arr(b.nodes).forEach(function (n) { nodes[n.key] = n; });
+        arr(a.nodes).forEach(function (n) { if (!nodes[n.key]) nodes[n.key] = n; });
+        /** 新增边的来源楼层：只从投影的 timeline 里查真楼层，查不到就空着（不编）。 */
+        function floorsOf(edge) {
+            var out = [];
+            [edge.a, edge.b].forEach(function (k) {
+                var n = nodes[k];
+                if (!n) return;
+                arr(n.sourceRef && n.sourceRef.mems).forEach(function (id) {
+                    var t = arr(projectB && projectB.timeline).filter(function (x) { return String(x.id) === String(id); })[0];
+                    var f = t && t.sourceRef && t.sourceRef.floor;
+                    if (f !== undefined && f !== null && out.indexOf(Number(f)) === -1) out.push(Number(f));
+                });
+            });
+            out.sort(function (x, y) { return x - y; });
+            return out;
+        }
+        var rows = added.map(function (e) { return { kind: "added", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: floorsOf(e) }; })
+            .concat(removed.map(function (e) { return { kind: "removed", edge: e.key, a: e.a, b: e.b, weight: e.weight, floors: [] }; }));
+        rows.sort(function (x, y) { return x.edge < y.edge ? -1 : 1; });
+        return {
+            ok: true, rows: rows,
+            added: added, removed: removed, same: same,
+            counts: { added: added.length, removed: removed.length, same: same.length, drawn: added.length + same.length },
+            symmetricDifference: added.map(function (e) { return e.key; }).sort().concat(removed.map(function (e) { return e.key; }).sort()),
+            phantom: 0, dashed: 0
+        };
+    }
+
     function viewsSelfCheck() {
         var bad = [];
         var store = { memories: makeStore(120, 5) };
@@ -274,7 +321,7 @@
     }
 
     return {
-        project: project,
+        project: project, graphDiff: graphDiff,
         timelineView: timelineView, graphView: graphView, searchView: searchView,
         diffView: diffView,
         makeStore: makeStore,

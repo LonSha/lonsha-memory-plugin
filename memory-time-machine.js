@@ -96,6 +96,55 @@
         return { ok: false, bad: ["not-found"] };
     }
 
+    /** [v4.161.0 · R25-X1] 时点列表：把「回到哪一轮」变成用户能点的一行行读数。
+     *  每行只答四件事：哪一轮 / 什么时候 / 有几条 / 跟上一版差几条。
+     */
+    function browse(machine) {
+        var marks = arr(machine && machine.marks).slice().sort(function (a, b) { return a.round - b.round; });
+        var rows = marks.map(function (k, i) {
+            var prev = i > 0 ? marks[i - 1] : null;
+            var d = prev ? diff(machine, prev.round, k.round) : null;
+            var changed = d ? (d.counts.added + d.counts.modified + d.counts.removed + d.counts.status) : arr(k.store.memories).length;
+            return {
+                round: k.round, at: k.at, label: k.label,
+                count: arr(k.store.memories).length,
+                prevRound: prev ? prev.round : null,
+                diffCount: changed,
+                kinds: d ? d.counts : null
+            };
+        });
+        return { ok: true, rows: rows, total: rows.length,
+            firstRound: rows.length ? rows[0].round : null,
+            lastRound: rows.length ? rows[rows.length - 1].round : null };
+    }
+
+    /** 差异里的某一条点回原文楼层：只报快照里真有的楼层，没有就如实说没有（不猜）。 */
+    function locate(machine, round, id) {
+        var k = findMark(machine, round);
+        if (!k) return { ok: false, bad: ["no-such-round"] };
+        var m = arr(k.store.memories).filter(function (x) { return idOf(x) === String(id); })[0];
+        if (!m) return { ok: false, bad: ["no-such-memory"] };
+        var floor = m.floor === undefined || m.floor === null ? null : Number(m.floor);
+        if (floor === null) return { ok: false, bad: ["no-floor"], id: String(id), text: String(m.text || "") };
+        return { ok: true, round: Number(round), id: String(id), floor: floor, at: String(m.at || ""), text: String(m.text || "") };
+    }
+
+    /** [v4.161.0 · R25-X6] 两分支逐条对照：差异分类沿用时间机器五类（不另造词表）。 */
+    function branchDiff(machine, a, b) {
+        var d = diff(machine, a, b);
+        if (!d.ok) return d;
+        return { ok: true, from: d.from, to: d.to, kinds: KINDS.slice(), rows: d.changes, counts: d.counts,
+            changed: d.changes.filter(function (c) { return c.kind !== "unchanged"; }).length };
+    }
+
+    /** 只保留某类条目（分支独有的三条就走这里）：返回**已排序**的 id 集合，同输入必同结果。 */
+    function pickOnly(rows, kinds) {
+        var want = arr(kinds).map(String);
+        var ids = arr(rows).filter(function (c) { return want.indexOf(String(c.kind)) >= 0; }).map(function (c) { return String(c.id); });
+        ids.sort();
+        return { ok: true, kinds: want, ids: ids, count: ids.length };
+    }
+
     function machineSelfCheck() {
         var bad = [];
         if (KINDS.length !== 5) bad.push("kinds");
@@ -113,6 +162,12 @@
         if (arr(co.machine.branches).length !== 2) bad.push("branch-missing");
         var fsx = firstSeen(b.machine, "m3");
         if (!fsx.ok || fsx.round !== 2) bad.push("first-seen");
+        var br = browse(b.machine);
+        if (!br.ok || br.total !== 2 || br.rows[1].diffCount !== 3) bad.push("browse:" + JSON.stringify(br.rows));
+        var lo = locate(b.machine, 1, "m2");
+        if (lo.ok) bad.push("locate-must-not-invent-floor");
+        var po = pickOnly(branchDiff(b.machine, 1, 2).rows, ["added"]);
+        if (po.count !== 1 || po.ids[0] !== "m3") bad.push("pick-only:" + JSON.stringify(po));
         return {
             ok: bad.length === 0, bad: bad,
             sample: "marks=" + arr(b.machine.marks).length + " added=" + d.counts.added + " removed=" + d.counts.removed + " modified=" + d.counts.modified + " branches=" + arr(co.machine.branches).length
@@ -122,6 +177,7 @@
     return {
         KINDS: KINDS, createMachine: createMachine, mark: mark, findMark: findMark,
         diff: diff, checkout: checkout, firstSeen: firstSeen,
+        browse: browse, locate: locate, branchDiff: branchDiff, pickOnly: pickOnly,
         machineSelfCheck: machineSelfCheck
     };
 }));

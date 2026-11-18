@@ -583,3 +583,12 @@ v4160_multimodal_tiers.test.mjs	r25
 v4160_oldhost_chain.test.mjs	r25
 v4160_recall_quality_gate.test.mjs	r25
 v4160_settings_diagnostics.test.mjs	r25
+v4161_time_point_browse.test.mjs	r25x
+v4161_cross_modal_lookup.test.mjs	r25x
+v4161_voice_timeline.test.mjs	r25x
+v4161_weekly_health.test.mjs	r25x
+v4161_graph_compare.test.mjs	r25x
+v4161_branch_compare.test.mjs	r25x
+v4161_ask_why.test.mjs	r25x
+v4161_migration_pack.test.mjs	r25x
+v4161_consensus_review.test.mjs	r25x
