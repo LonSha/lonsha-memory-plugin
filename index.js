@@ -11878,6 +11878,16 @@ function _collectNewFace() {
                     const api = optEngines.LonShaTieredMemoryPlane || (typeof LonShaTieredMemoryPlane !== 'undefined' ? LonShaTieredMemoryPlane : null);
                     if (api && typeof api.classify === 'function' && typeof api.recallTiered === 'function') this.engine.tieredPlane = api;
                 }
+                // [v4.158.0 · R24-O6] 设置面：登记制（项/组/默认/影响读数）+ 偏离可见 + 分组回默认。
+                if (!this.engine.settingsConsole) {
+                    const api = optEngines.LonShaSettingsConsole || (typeof LonShaSettingsConsole !== 'undefined' ? LonShaSettingsConsole : null);
+                    if (api && typeof api.view === 'function' && typeof api.audit === 'function') this.engine.settingsConsole = api;
+                }
+                // [v4.158.0 · R24-O7] 诊断可读化：一页体检 + 为什么没召回 + 可导出。
+                if (!this.engine.checkupPage) {
+                    const api = optEngines.LonShaMemoryCheckupPage || (typeof LonShaMemoryCheckupPage !== 'undefined' ? LonShaMemoryCheckupPage : null);
+                    if (api && typeof api.buildPage === 'function' && typeof api.exportText === 'function') this.engine.checkupPage = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
