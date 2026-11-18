@@ -81,6 +81,7 @@
     ['LonShaHostCompatMatrix', 'host-compatibility-matrix.js'],
     ['LonShaMemoryViews', 'memory-views.js'],
     ['LonShaRecallQualityBench', 'recall-quality-bench.js'],
+    ['LonShaCorrectionLoop', 'memory-correction-loop.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],

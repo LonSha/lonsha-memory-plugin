@@ -11903,6 +11903,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaRecallQualityBench || (typeof LonShaRecallQualityBench !== 'undefined' ? LonShaRecallQualityBench : null);
                     if (api && typeof api.runSet === 'function' && typeof api.compare === 'function') this.engine.qualityBench = api;
                 }
+                // [v4.158.0 · R24-X4] 纠错闭环：四类动作 + 即时生效 + 可回滚 + 影响面读数。
+                if (!this.engine.correctionLoop) {
+                    const api = optEngines.LonShaCorrectionLoop || (typeof LonShaCorrectionLoop !== 'undefined' ? LonShaCorrectionLoop : null);
+                    if (api && typeof api.applyCorrection === 'function' && typeof api.rollback === 'function') this.engine.correctionLoop = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
