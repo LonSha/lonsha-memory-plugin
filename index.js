@@ -11858,6 +11858,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaForgetCascade || (typeof LonShaForgetCascade !== 'undefined' ? LonShaForgetCascade : null);
                     if (api && typeof api.forget === 'function' && typeof api.createStore === 'function') this.engine.forgetCascade = api;
                 }
+                // [v4.158.0 · R24-O5] 写入幂等：入口幂等键 + 三态合并 + 冲突裁决回执。
+                if (!this.engine.writeIdempotent) {
+                    const api = optEngines.LonShaWriteIdempotent || (typeof LonShaWriteIdempotent !== 'undefined' ? LonShaWriteIdempotent : null);
+                    if (api && typeof api.write === 'function' && typeof api.idempotencyKey === 'function') this.engine.writeIdempotent = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
