@@ -35,6 +35,19 @@
         return out;
     }
 
+    /** [v4.160.0 · R25-O4] 纠错幂等键：同一人同一条目同一改法只落一次修订。
+     *   字段按固定顺序序列化（不靠对象键序），因此「文本一样但键序不同」也不会双计。
+     */
+    function correctionKey(target, p) {
+        var k = [String(target), String(p.action || "")];
+        if (p.text !== undefined) k.push("text=" + String(p.text));
+        if (p.owner !== undefined) k.push("owner=" + String(p.owner));
+        if (p.at !== undefined) k.push("at=" + String(p.at));
+        if (p.type !== undefined) k.push("type=" + String(p.type));
+        if (p.void === true) k.push("void=1");
+        return k.join("|");
+    }
+
     function emptyStore(input) {
         var s = input && typeof input === "object" ? input : {};
         return {
@@ -73,10 +86,16 @@
         for (var i = 0; i < next.memories.length; i++) { if (idOf(next.memories[i]) === target) { idx = i; break; } }
         if (idx === -1) return { ok: false, bad: ["not-found"], store: next };
         var mem = next.memories[idx];
+        var key = correctionKey(target, p);
+        var dup = arr(next.revisions[target]).filter(function (r) { return r && r.key === key; })[0];
+        if (dup) {
+            return { ok: true, status: "same", revision: dup.version, key: key, store: next, memory: clone(mem) };
+        }
         if (mem.voided && p.void !== false) {
             return { ok: false, bad: ["already-voided"], store: next };
         }
         var revision = {
+            key: key,
             id: target,
             version: arr(next.revisions[target]).length + 1,
             at: String(o.at || ""),
@@ -117,6 +136,7 @@
         var idx = -1;
         for (var i = 0; i < next.memories.length; i++) { if (idOf(next.memories[i]) === target) { idx = i; break; } }
         if (idx === -1) return { ok: false, bad: ["not-found"], store: next };
+        if (rev.rolledBack === true) return { ok: true, status: "same", store: s, memory: clone(s.memories[idx]) };
         next.memories[idx] = clone(rev.before);
         if (!Array.isArray(next.revisions[target])) next.revisions[target] = [];
         next.revisions[target].push({
@@ -124,6 +144,8 @@
             action: "rollback", at: "", before: clone(rev.after || {}), after: clone(rev.before)
         });
         next.receipts.push({ kind: "correction", id: target, action: "rollback", version: v, at: "" });
+        var back = arr(next.revisions[target]).filter(function (r) { return r.version === v; })[0];
+        if (back) back.rolledBack = true;
         return { ok: true, store: next, memory: clone(rev.before), restoredVersion: v };
     }
 
@@ -185,7 +207,7 @@
 
     return {
         ACTIONS: ACTIONS,
-        impact: impact, applyCorrection: applyCorrection, rollback: rollback,
+        impact: impact, applyCorrection: applyCorrection, rollback: rollback, correctionKey: correctionKey,
         recall: recall, history: history,
         correctionSelfCheck: correctionSelfCheck
     };
