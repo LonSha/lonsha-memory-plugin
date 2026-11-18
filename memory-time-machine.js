@@ -145,6 +145,30 @@
         return { ok: true, kinds: want, ids: ids, count: ids.length };
     }
 
+    /** [v4.161.0 · R26-X1] 时点书签：给时点起名，按名取回。重名一律拒，不覆盖旧名。 */
+    function setName(machine, round, name, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var marks = arr(machine && machine.marks);
+        var idx = -1;
+        for (var i = 0; i < marks.length; i += 1) if (Number(marks[i].round) === Number(round)) { idx = i; break; }
+        if (idx === -1) return { ok: false, bad: ["no-such-round"], machine: machine };
+        var want = String(name || "").trim();
+        if (!want) return { ok: false, bad: ["empty-name"], machine: machine };
+        var taken = marks.some(function (k, j) { return j !== idx && String(k.name || "") === want; });
+        if (taken && o.overwrite !== true) return { ok: false, bad: ["name-taken"], machine: machine };
+        var next = marks.map(function (k, j) { return j === idx ? Object.assign({}, k, { name: want }) : k; });
+        return { ok: true, machine: { marks: next, branches: arr(machine.branches).slice() }, round: Number(round), name: want };
+    }
+
+    /** 按名字取时点：没有就具名，不拿最近时点顶替。 */
+    function findByName(machine, name) {
+        var want = String(name || "").trim();
+        if (!want) return { ok: false, bad: ["empty-name"] };
+        var hit = arr(machine && machine.marks).filter(function (k) { return String(k.name || "") === want; })[0];
+        if (!hit) return { ok: false, bad: ["no-such-name"] };
+        return { ok: true, round: Number(hit.round), at: String(hit.at || ""), name: want, count: arr(hit.store && hit.store.memories).length };
+    }
+
     function machineSelfCheck() {
         var bad = [];
         if (KINDS.length !== 5) bad.push("kinds");
@@ -178,6 +202,7 @@
         KINDS: KINDS, createMachine: createMachine, mark: mark, findMark: findMark,
         diff: diff, checkout: checkout, firstSeen: firstSeen,
         browse: browse, locate: locate, branchDiff: branchDiff, pickOnly: pickOnly,
+        setName: setName, findByName: findByName,
         machineSelfCheck: machineSelfCheck
     };
 }));

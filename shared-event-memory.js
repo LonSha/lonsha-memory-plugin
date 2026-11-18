@@ -172,6 +172,46 @@
         };
     }
 
+    /** [v4.161.0 · R26-X9] 多票表态：多人各投，票数汇总成权重；平票不仲裁、如实说平票。 */
+    function applyVotes(board, summary, eventId, votes) {
+        var b = board && typeof board.reviews === "object" ? board : createReviewBoard();
+        var list = arr(votes);
+        var row = arr(summary && summary.rows).filter(function (r) { return String(r.eventId) === String(eventId); })[0];
+        if (!row) return { ok: false, bad: ["no-such-event"], board: b };
+        var tally = {};
+        ACTIONS.forEach(function (a) { tally[a] = 0; });
+        for (var i = 0; i < list.length; i += 1) {
+            var act = String(list[i] && list[i].action || "");
+            if (ACTIONS.indexOf(act) === -1 || act === "revoke") return { ok: false, bad: ["unknown-action"], board: b };
+            tally[act] += 1;
+        }
+        var holders = arr(row.perspectives).map(function (x) { return String(x.holder); });
+        var best = 0, winners = [];
+        ["adopt-a", "adopt-b", "archive"].forEach(function (a) {
+            if (tally[a] > best) { best = tally[a]; winners = [a]; }
+            else if (tally[a] === best && best > 0) winners.push(a);
+        });
+        var tie = winners.length > 1;
+        var winner = tie ? "" : (winners[0] || "");
+        var weights = {};
+        if (!winner || winner === "archive") { holders.forEach(function (h) { weights[h] = 1; }); }
+        else {
+            var keep = winner === "adopt-a" ? holders[0] : holders[1];
+            holders.forEach(function (h) { weights[h] = h === keep ? 1 : 0.5; });
+        }
+        var next = arr(b.reviews[String(eventId)]).slice();
+        if (winner) next.push({ action: winner, holders: holders, votes: list.length, tie: false });
+        var reviews = {};
+        Object.keys(b.reviews).forEach(function (k) { reviews[k] = b.reviews[k]; });
+        reviews[String(eventId)] = next;
+        return {
+            ok: true, eventId: String(eventId), tally: tally, votes: list.length,
+            winner: winner, tie: tie, winners: winners,
+            weights: weights, ranking: rankingOf(weights), kept: holders.length,
+            board: { reviews: reviews }, trace: next
+        };
+    }
+
     function sharedSelfCheck() {
         var bad = [];
         if (STATES.length !== 3) bad.push("states");
@@ -200,7 +240,7 @@
         STATES: STATES, FACETS: FACETS,
         buildBodies: buildBodies, summarize: summarize, diffs: diffs,
         recallFor: recallFor, fixture: fixture,
-        applyReview: applyReview, createReviewBoard: createReviewBoard, ACTIONS: ACTIONS,
+        applyReview: applyReview, createReviewBoard: createReviewBoard, ACTIONS: ACTIONS, applyVotes: applyVotes,
         sharedSelfCheck: sharedSelfCheck
     };
 }));
