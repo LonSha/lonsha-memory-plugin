@@ -69,6 +69,8 @@
         ['CognitiveScatomaDenialGuard', 'cognitive-scatoma-denial-guard.js'],
         ['DaydreamSpontaneousWanderingEngine', 'daydream-spontaneous-wandering-engine.js'],
         ['VectorSemanticSparseHybridRetrieval', 'vector-semantic-sparse-hybrid-retrieval.js'],
+        // [v4.158.0 · R24-O1] 召回内核 v3：三路融合 + 逐路报账 + 命中解释
+        ['LonShaRecallKernel', 'recall-kernel-v3.js'],
         ['TieredStorageTieredCompactionLedger', 'tiered-storage-tiered-compaction-ledger.js'],
         ['RealtimeConflictGraphRollback', 'realtime-conflict-graph-rollback.js'],
         ['MemorySalienceDecayCurator', 'memory-salience-decay-curator.js'],

@@ -11848,6 +11848,11 @@ function _collectNewFace() {
                     const Cls = optEngines.VectorSemanticSparseHybridRetrieval || (typeof VectorSemanticSparseHybridRetrieval !== 'undefined' ? VectorSemanticSparseHybridRetrieval : null);
                     if (Cls) this.engine.hybridRetrievalOptimizer = new Cls();
                 }
+                // [v4.158.0 · R24-O1] 召回内核 v3：对象型 API（非类），真挂到 engine 上供召回路径消费。
+                if (!this.engine.recallKernel) {
+                    const api = optEngines.LonShaRecallKernel || (typeof LonShaRecallKernel !== 'undefined' ? LonShaRecallKernel : null);
+                    if (api && typeof api.recall === 'function') this.engine.recallKernel = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
