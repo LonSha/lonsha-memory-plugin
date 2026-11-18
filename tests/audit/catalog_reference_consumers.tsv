@@ -594,3 +594,5 @@ v4161_migration_pack.test.mjs	r25x
 v4161_consensus_review.test.mjs	r25x
 v4162_grouped_gate.test.mjs	r26
 v4162_project_cache.test.mjs	r26
+v4162_describe_closed_loop.test.mjs	r26
+v4162_import_preview.test.mjs	r26

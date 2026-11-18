@@ -268,6 +268,43 @@
         };
     }
 
+    /** [v4.162.0 · R26-O3] 描述回填闭环：回填后**索引跟着重建**，层级读数跟着变。
+     *   只回填不重建 = 搜不到，等于没回填（第二份真源不跟上就是撒谎）。
+     */
+    function describeClosed(store, id, text, options) {
+        var o = options && typeof options === "object" ? options : {};
+        var before = arr(store && store.entries).filter(function (e) { return String(e.id) === String(id); })[0] || null;
+        if (!before) return { ok: false, bad: ["no-such-entry"] };
+        var r = describe(store, id, text);
+        if (!r.ok) return { ok: false, bad: ["describe-failed"] };
+        var rebuilt = null, indexVersion = 0;
+        var idx = o.index && typeof o.index === "object" ? o.index : null;
+        if (idx && typeof idx.rebuild === "function") {
+            var docs = arr(r.store.entries).filter(function (e) { return e.state === "ok"; })
+                .map(function (e) { return { id: String(e.id), text: searchableText(e) }; });
+            rebuilt = idx.rebuild(docs);
+            indexVersion = docs.length;
+        }
+        var tierOf = typeof o.tierOf === "function" ? o.tierOf : function (e) {
+            return e && e.state === "ok" && substanceLength(e) > 0 ? "hot" : "cold";
+        };
+        var tierBefore = before.state === "ok" ? tierOf(before) : "cold";
+        var tierAfter = tierOf(r.entry);
+        return {
+            ok: true, store: r.store, entry: r.entry,
+            receipt: {
+                id: String(id), stateFrom: String(before.state), stateTo: String(r.entry.state),
+                indexRebuilt: rebuilt ? true : false, indexVersion: indexVersion,
+                tierFrom: String(tierBefore), tierTo: String(tierAfter), tierMoved: String(tierBefore) !== String(tierAfter),
+                searchable: r.entry.state === "ok"
+            }
+        };
+    }
+
+    function substanceLength(e) {
+        return (str(e && e.description) + str(e && e.transcript)).replace(/\s+/g, "").length;
+    }
+
     function mmSelfCheck() {
         var bad = [];
         if (MODALITIES.length !== 3) bad.push("modalities");
@@ -296,7 +333,7 @@
         MODALITIES: MODALITIES, STATES: STATES, tokens: tokens,
         createStore: createStore, register: register, describe: describe,
         recall: recall, injectText: injectText, removeSource: removeSource, list: list,
-        recallGrouped: recallGrouped, splitSentences: splitSentences, timeline: timeline, locateSentence: locateSentence,
+        describeClosed: describeClosed, substanceLength: substanceLength, recallGrouped: recallGrouped, splitSentences: splitSentences, timeline: timeline, locateSentence: locateSentence,
         mmSelfCheck: mmSelfCheck
     };
 }));

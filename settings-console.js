@@ -153,6 +153,22 @@
         return { ok: true, values: v, applied: applied, unknown: unknown };
     }
 
+    /** [v4.162.0 · R26-O9] 导入前置预览：先看会改哪几项，再决定要不要导。
+     *   预览与真导入共用同一回填路径，所以「预览说改 3 项」必然等于「导完改 3 项」。
+     */
+    function previewImport(pack, currentValues) {
+        var back = importDiagnostics(pack);
+        if (!back.ok) return { ok: false, bad: back.bad, willChange: [], unchanged: [], unknown: [] };
+        var v = Object.assign({}, defaults(), currentValues || {});
+        var willChange = [], unchanged = [];
+        back.applied.forEach(function (id) {
+            var from = v[id], to = back.values[id];
+            if (JSON.stringify(from) === JSON.stringify(to)) unchanged.push({ id: id, value: to });
+            else willChange.push({ id: id, from: from, to: to });
+        });
+        return { ok: true, willChange: willChange, unchanged: unchanged, unknown: back.unknown.slice(), values: back.values };
+    }
+
     function settingsSelfCheck() {
         var bad = [];
         if (REGISTRY.length < 10) bad.push("registry-thin");
@@ -179,6 +195,7 @@
         budgetReading: budgetReading,
         resetGroup: resetGroup, resetAll: resetAll, audit: audit,
         diagnostics: diagnostics, scanSensitive: scanSensitive, importDiagnostics: importDiagnostics,
+        previewImport: previewImport,
         settingsSelfCheck: settingsSelfCheck
     };
 }));
