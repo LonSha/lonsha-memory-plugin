@@ -424,7 +424,8 @@
     "memory-capacity-watermark.js",
     "cross-session-continuation.js",
     "memory-trace-surface.js",
-    "memory-time-machine.js"
+    "memory-time-machine.js",
+    "multimodal-memory.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

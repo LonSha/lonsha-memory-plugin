@@ -11933,6 +11933,11 @@ function _collectNewFace() {
                     const api = optEngines.LonShaTimeMachine || (typeof LonShaTimeMachine !== 'undefined' ? LonShaTimeMachine : null);
                     if (api && typeof api.mark === 'function' && typeof api.diff === 'function' && typeof api.checkout === 'function') this.engine.timeMachine = api;
                 }
+                // [v4.158.0 · R24-X3] 多模态记忆：图片与语音进记忆，缺失描述不编造、源删转 dangling。
+                if (!this.engine.multimodal) {
+                    const api = optEngines.LonShaMultimodalMemory || (typeof LonShaMultimodalMemory !== 'undefined' ? LonShaMultimodalMemory : null);
+                    if (api && typeof api.register === 'function' && typeof api.recall === 'function' && typeof api.injectText === 'function') this.engine.multimodal = api;
+                }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);
                     if (Cls) this.engine.tieredStorageLedger = new Cls();
