@@ -3548,6 +3548,12 @@
         "high_coupling_members": 18,
         "entry_lines": 13180
       },
+      "unchanged": [
+        "本版零行为变更：只增加 18 个 engine 槽装配块（取库口 + 两项能力守卫），未改任何既有方法体",
+        "生命周期接线面不变",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版交付 L26 十八项（契约 / 治理 / 可见三面）+ 18 套判据；未拆宿主巨兽成员，MemoryEngine 与 LonShaMemoryPlugin 仍在入口",
       "delta_from": "v3.474.0",
       "delta": {
         "total_lines": 93,

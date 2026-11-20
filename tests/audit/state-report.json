@@ -1113,12 +1113,12 @@
     }
   },
   "full_run": {
-    "status": "stale",
-    "registered_at": "3.431.0",
-    "tests_total": 430,
-    "assertions": 4658,
-    "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.475.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "status": "registered",
+    "registered_at": "3.475.0",
+    "tests_total": 624,
+    "assertions": 6361,
+    "audit": "73/73",
+    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
   "host_run": {
     "status": "not-executed",
@@ -1142,14 +1142,12 @@
       "index.js": "39a2aaad549f",
       "update-log.json": null,
       "README.md": "43f6df80b41b",
-      "PLAN.md": "11d751608269",
-      "CHANGELOG.md": "c331971e6d20",
+      "PLAN.md": "675d158a0def",
+      "CHANGELOG.md": "496fefc4532a",
       "TODO.md": "fd477922da0a",
-      "tests/audit/doc_readings.json": "d84bdd3312e7"
+      "tests/audit/doc_readings.json": "c56fda0d81c3"
     }
   },
-  "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.475.0"
-  ],
-  "unknown_count": 1
+  "unknown": [],
+  "unknown_count": 0
 }
