@@ -14,6 +14,10 @@ presence-routing-guard.js	yes	yes	engine-diagnostic-lines-part-c.js	host-seam
 evidence-source-locator.js	yes	yes	engine-diagnostic-lines-part-b.js	host-seam
 config-effect-registry.js	yes	yes	none	host-seam
 settings-ui.js	yes	yes	none	host-seam
+lonsha-icons.js	yes	no	dashboard-shell.js;dashboard-v2.js	module-internal
+dashboard-shell.js	yes	yes	dashboard-v2.js	host-seam
+dashboard-v2.js	yes	no	dashboard-shell.js;dev-console-v3.js	module-internal
+dev-console-v3.js	yes	no	dashboard-shell.js	module-internal
 modules_combined.js	yes	yes	none	host-seam
 graph_algorithms.js	yes	yes	modules_combined.js	host-seam
 memory-supersede.js	yes	yes	none	host-seam
@@ -115,7 +119,7 @@ floor-identity.js	yes	yes	none	host-seam
 archive-audit.js	yes	yes	none	host-seam
 memory-organs.js	yes	yes	none	host-seam
 memory-core.js	yes	yes	none	host-seam
-memory-config.js	yes	yes	none	host-seam
+memory-config.js	yes	yes	dev-console-v3.js	host-seam
 fact-state.js	yes	yes	none	host-seam
 memory-tools-api.js	yes	yes	none	host-seam
 memory-center.js	yes	yes	none	host-seam

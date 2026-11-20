@@ -22,15 +22,15 @@
         const effectFeedback = (keys) => {
             try {
                 if (!configEffects || typeof configEffects.buildEffectFeedback !== 'function') {
-                    return '⚠️ 生效时机登记缺失';
+                    return '生效时机登记缺失';
                 }
                 const list = Array.isArray(keys) ? keys : [];
                 const groups = configEffects.buildEffectFeedback(list);
                 const known = new Set(groups.flatMap(g => g.keys || []));
                 const missing = list.filter(k => !known.has(k));
                 const text = groups.map(g => g.label).join('；');
-                return (text || '已保存') + (missing.length ? '；⚠️ 未登记：' + Array.from(new Set(missing)).join(',') : '');
-            } catch (e) { reportUiError(e, 'config-effects'); return '⚠️ 生效时机判定失败'; }
+                return (text || '已保存') + (missing.length ? '；未登记：' + Array.from(new Set(missing)).join(',') : '');
+            } catch (e) { reportUiError(e, 'config-effects'); return '生效时机判定失败'; }
         };
 
         // ========== 共享样式 ==========
@@ -174,7 +174,7 @@
             /* [v3.472.0 · L22 UI] 面板骨架重排：固定头 / 固定底栏 / 可滚动主体。
              *   修前三个问题：
              *     ① 「保存」在 body 最末尾 —— 用户在实验室改完要滚过几屏才能找到它；
-             *     ② 点遮罩 / 点 ✕ 直接 remove() —— 未保存的改动静默丢失，也不提示；
+             *     ② 点遮罩 / 点 直接 remove() —— 未保存的改动静默丢失，也不提示；
              *     ③ 页签是普通 button，无 role/aria-selected，键盘不可用。
              *   本段只新增类，不改动既有 token 与既有类名（避免已有渲染判据整片失效）。 */
             .lonsha-sheet-head-fixed { position: sticky; top: 0; z-index: 3; background: var(--ls-bg-2, #111827); }
@@ -326,6 +326,8 @@
                         bg = el.style.backgroundColor || 'var(--ls-bg-3, #1b2436)';
                         fg = 'var(--ls-text, #f1f5f9)';
                     }
+                    /* [v3.1] 开发者控制台（[data-ls-dc="3"]）的按钮由 css/dev-console-v3.css 按 token 着色，不再写死深色 */
+                    if (el.closest && el.closest('[data-ls-dc="3"]')) return;
                     el.style.setProperty('background-color', bg, 'important');
                     el.style.setProperty('background-image', 'none', 'important');
                     el.style.setProperty('color', fg, 'important');
@@ -345,13 +347,13 @@
             const _ttl = String(title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
             overlay.innerHTML = `
                 <div class="lonsha-sheet" role="dialog" aria-modal="true" aria-label="${_ttl}">
-                    <div class="lonsha-sheet-header lonsha-sheet-head-fixed"><span>${title}</span><button type="button" class="lonsha-sheet-close" aria-label="关闭">✕</button></div>
+                    <div class="lonsha-sheet-header lonsha-sheet-head-fixed"><span>${title}</span><button type="button" class="lonsha-sheet-close" aria-label="关闭"><i class="ls-ico" data-i="xmark" aria-hidden="true"></i></button></div>
                     <div class="lonsha-sheet-body ls-sheet-body-scroll">${bodyHTML}</div>
                     ${o.footerHTML ? `<div class="ls-dirtybar" data-dirty="0">${o.footerHTML}</div>` : ''}
                 </div>
             `;
             /* [v3.472.0 · L22 UI] 关闭不再是一键 remove()：
-             *   修前点 ✕ / 点遮罩 = 直接删 DOM，未保存的改动静默丢失。
+             *   修前点 x / 点遮罩 = 直接删 DOM，未保存的改动静默丢失。
              *   现在若调用方给了 beforeClose()（返回 false 表示不许关），先问它；
              *   它说不行就留在面板里，由调用方自己渲染确认条。
              *   拦截点必须在**关闭动作本身**，而不是在每个按钮上各加一次提示。 */
@@ -430,17 +432,24 @@
                 if (back && back.focus) { try { back.focus(); } catch (_e6) { /* 非致命 */ } }
             };
             document.body.appendChild(overlay);
+            /* 分层交接：玩家面由 dashboard-shell 包装。这里只记录外壳版本（不重复包装，
+               外壳自己在 showSettingsPanel 返回后增强），既让依赖方向在宿主侧可见，
+               也让「外壳缺席」时面板照常可用（data-ls-shell 不设置即可）。 */
+            try {
+                const _shell = (typeof window !== 'undefined' && window.LonShaDashboardShell) || null;
+                if (_shell && _shell.version) overlay.setAttribute('data-ls-shell', String(_shell.version));
+            } catch (_eShell) { /* 外壳缺席：保持旧面板 */ }
             return overlay;
         };
 
 
-        const toast = (msg) => {
-            const t = document.createElement('div');
+        const toast = (msg, kind) => {   /* v3.1：第二参 kind = success | warn | error | info | pending 或任一图标名（css/ls-icons.css），前导状态图标不再用 emoji */
+            const t = document.createElement('div'); const _ti = kind ? ({ success: 'check-circle', warn: 'warning', error: 'x-circle', info: 'info', pending: 'hourglass' }[kind] || String(kind)) : '';
             t.className = 'ls-toast';
-            t.textContent = msg;
+            if (_ti) { t.setAttribute('data-kind', String(kind)); t.innerHTML = '<i class="ls-ico" data-i="' + _ti.replace(/[^a-z0-9-]/g, '') + '" aria-hidden="true"></i>' + String(msg).replace(/&/g, '&amp;').replace(/</g, '&lt;'); } else t.textContent = msg;
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
-        };
+        }; const lsToast = (kind, msg) => toast(msg, kind); plugin.lsToast = lsToast;   /* lsToast(kind, msg)：与 toast(msg, kind) 等价的具名入口 */
 
         // ========== 状态总览 ==========
         plugin.showStatsPanel = function() {
@@ -451,12 +460,12 @@
                 const bridge = window.VirtualPhone?.lonshaBridge;
                 if (bridge) {
                     const bs = bridge.getStats?.() || {};
-                    phoneStatus = (bridge.enabled ? '✅ 已连接' : '⛔ 已关闭') + ` (回填${bs.backfillCount || 0}·BM25 ${bs.bm25Docs || 0}${bridge.isCoordinated ? '·协调注入' : ''})`;
+                    phoneStatus = (bridge.enabled ? '已连接' : '已关闭') + ` (回填${bs.backfillCount || 0}·BM25 ${bs.bm25Docs || 0}${bridge.isCoordinated ? '·协调注入' : ''})`;
                 }
-                else if (window.VirtualPhone?.memoryCore) phoneStatus = '⚠️ 桥未挂载';
+                else if (window.VirtualPhone?.memoryCore) phoneStatus = '桥未挂载';
             } catch (e) { reportUiError(e, 'nonfatal') }
             const body = `
-                <div class="ls-stat-section-title">◷ 发生的故事</div>
+                <div class="ls-stat-section-title"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>发生的故事</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="timeline"><div class="ls-stat-num">${s.timeline?.entries?.length || 0}</div><div class="ls-stat-label">剧情时间线</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="summaries"><div class="ls-stat-num">${s.summary.summaries.length}</div><div class="ls-stat-label">事件摘要</div></div>
@@ -466,7 +475,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="pulse"><div class="ls-stat-num">${s.pulse?.beats?.length || 0}</div><div class="ls-stat-label">叙事张力</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">◈ 人物</div>
+                <div class="ls-stat-section-title"><i class="ls-ico" data-i="info" aria-hidden="true"></i>人物</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="status"><div class="ls-stat-num">${Object.keys(s.status?.characters || {}).length}</div><div class="ls-stat-label">角色心境</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="povs" title="视角投影：挑一个角色，看他此刻知道什么 / 不知道什么 / 以为什么"><div class="ls-stat-num">${(() => { try { const _pv = (typeof s.povProject === 'function') ? s.povProject({}) : null; if (!_pv || _pv.ok !== true) return '—'; return (_pv.viewers || []).length; } catch (e) { return '—'; } })()}</div><div class="ls-stat-label">可投影视角</div></div>
@@ -482,7 +491,7 @@
 <div class="ls-stat-card ls-clickable" data-view="organs" title="组织制度 / 关系动力 / 心智契约 / 意义变迁 / 时代传承"><div class="ls-stat-num">${(s.worldProg?.institutions?.length || 0) + Object.keys(s.worldProg?.relationDynamics || {}).length + (s.worldProg?.symbolicEntities?.length || 0) + (s.worldProg?.eraTransitions?.length || 0)}</div><div class="ls-stat-label">组织与心智</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">⬡ 世界与物品</div>
+                <div class="ls-stat-section-title"><i class="ls-ico" data-i="stack" aria-hidden="true"></i>世界与物品</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="items"><div class="ls-stat-num">${s.items?.records?.length || 0}</div><div class="ls-stat-label">物品流转</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="suspense"><div class="ls-stat-num">${s.suspense?.openItems?.().length || 0}</div><div class="ls-stat-label">未解之谜</div></div>
@@ -492,7 +501,7 @@
                     <div class="ls-stat-card ls-clickable" data-view="prequel"><div class="ls-stat-num">${s.prequel?.text ? '已导入' : '—'}</div><div class="ls-stat-label">前情设定</div></div>
                 </div>
 
-                <div class="ls-stat-section-title">⚙ 维护</div>
+                <div class="ls-stat-section-title"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>维护</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '就绪' : '—'}</div><div class="ls-stat-label">本轮注入预览</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">详细设置</div></div>
@@ -501,31 +510,31 @@
                     <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">操作审计日志</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:13px;line-height:24px;">${phoneStatus}</div><div class="ls-stat-label">RubyPhone 协同</div></div>
                 </div>
-                <div class="ls-hint" style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ls-accent);font-size:14px;">◈</span> 点击卡片可查看对应档案的条目明细与演进事实。数据自动与对话快照安全绑定。</div>
+                <div class="ls-hint" style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ls-accent);font-size:14px;"><i class="ls-ico" data-i="info" aria-hidden="true"></i></span> 点击卡片可查看对应档案的条目明细与演进事实。数据自动与对话快照安全绑定。</div>
                 <details style="margin-top:14px;border:1px solid var(--ls-line,rgba(240,246,252,0.10));border-radius:var(--ls-r-md,12px);padding:8px 12px;background:var(--ls-bg-2,#161b22);">
-                    <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:4px 0;">🔍 展开查看底层运行轨迹与诊断指标</summary>
+                    <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:4px 0;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>展开查看底层运行轨迹与诊断指标</summary>
                     <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--ls-line,rgba(240,246,252,0.10));">
-                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title">🎯 最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)">⚠️ 触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint">🎯 最近召回监控：生成过一次后显示命中来源分布。</div>'}
-                ${(s._lastRecallHitExplanations && s._lastRecallHitExplanations.length > 0) ? `<div class="ls-group"><div class="ls-group-title">👤 人物消歧与召回路线命中解释 (L14-O4)</div><div class="ls-item">${s._lastRecallHitExplanations.map(exp => `<div class="ls-item-text" style="margin:2px 0;font-size:12px;"><b>[${exp.activeRoute || 'HYBRID'}]</b> ${exp.title || exp.itemId} · 世界线: <code>${exp.worldline || 'main'}</code> · 消歧状态: <span style="color:${exp.disambiguation?.passed ? 'var(--ls-success,#3fb950)' : 'var(--ls-warn,#d29922)'}">${exp.disambiguation?.passed ? '✔ 通过' : '✘ 隔离'}</span> · 权重系数: ${exp.routeWeight ?? 1.0}</div>`).join('')}</div><div class="ls-hint">💡 召回偏好自适应调校，不修改人物事实真源。支持单次查询隔离与回退。</div></div>` : ''}
-                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length || s._staleTaskDropped || s._epochDropped || s.mutex?._foreignRelease ? (() => {   /* [v3.145] 栅栏作废/越权释放也强制可见 */ /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title">⏳ 变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 时间倒跳 ${s._timeWentBack.from}→${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)">⚠️ 标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta">🕐 时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta">💾 保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`💾 写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn,#d29922)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (s._staleTaskDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)">⏸️ 会话租约作废 ${s._staleTaskDropped} 次${s._lastStaleDrop ? `（最近 ${s._lastStaleDrop.task || '提取'}：${s._lastStaleDrop.from} → ${s._lastStaleDrop.to}）` : ''}</span>`); if (s._epochDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)">🚧 状态变更栅栏作废 ${s._epochDropped} 次${s._lastEpochBump ? `（最近 ${s._lastEpochBump.reason} → 栅栏 ${s._lastEpochBump.epoch}）` : ''}</span>`); if (s.mutex?._foreignRelease) parts.push(`<span style="color:var(--ls-warn,#d29922)">🔒 拒绝越权释放锁 ${s.mutex._foreignRelease} 次</span>`); if (r && r.at) { const f = (r.failed || []).length; parts.push(`♻️ 最近恢复(${r.source}${r.loadedProducer ? ' ← v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn,#d29922)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}${r.rolledBack ? ' <span style="color:var(--ls-warn,#d29922)">已自动回滚原状态</span>' : (f ? ' <span style="color:#f85149">未回滚（保留半套，可紧急备份恢复）</span>' : '')}${r.rollbackWarning ? ' <span style="color:#f85149">' + r.rollbackWarning + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
-                ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title">📈 召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint">💡 长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
+                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近召回监控：生成过一次后显示命中来源分布。</div>'}
+                ${(s._lastRecallHitExplanations && s._lastRecallHitExplanations.length > 0) ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="person" aria-hidden="true"></i>人物消歧与召回路线命中解释 (L14-O4)</div><div class="ls-item">${s._lastRecallHitExplanations.map(exp => `<div class="ls-item-text" style="margin:2px 0;font-size:12px;"><b>[${exp.activeRoute || 'HYBRID'}]</b> ${exp.title || exp.itemId} · 世界线: <code>${exp.worldline || 'main'}</code> · 消歧状态: <span style="color:${exp.disambiguation?.passed ? 'var(--ls-success,#3fb950)' : 'var(--ls-warn,#d29922)'}">${exp.disambiguation?.passed ? '<i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>通过' : '<i class="ls-ico" data-i="xmark" data-tone="error" aria-hidden="true"></i>隔离'}</span> · 权重系数: ${exp.routeWeight ?? 1.0}</div>`).join('')}</div><div class="ls-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>召回偏好自适应调校，不修改人物事实真源。支持单次查询隔离与回退。</div></div>` : ''}
+                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length || s._staleTaskDropped || s._epochDropped || s.mutex?._foreignRelease ? (() => {   /* [v3.145] 栅栏作废/越权释放也强制可见 */ /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>时间倒跳 ${s._timeWentBack.from}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta"><i class="ls-ico" data-i="save" aria-hidden="true"></i>保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`<i class="ls-ico" data-i="save" aria-hidden="true"></i>写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn,#d29922)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (s._staleTaskDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="pause" aria-hidden="true"></i>会话租约作废 ${s._staleTaskDropped} 次${s._lastStaleDrop ? `（最近 ${s._lastStaleDrop.task || '提取'}：${s._lastStaleDrop.from} -> ${s._lastStaleDrop.to}）` : ''}</span>`); if (s._epochDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>状态变更栅栏作废 ${s._epochDropped} 次${s._lastEpochBump ? `（最近 ${s._lastEpochBump.reason} -> 栅栏 ${s._lastEpochBump.epoch}）` : ''}</span>`); if (s.mutex?._foreignRelease) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>拒绝越权释放锁 ${s.mutex._foreignRelease} 次</span>`); if (r && r.at) { const f = (r.failed || []).length; parts.push(`<i class="ls-ico" data-i="refresh" aria-hidden="true"></i>最近恢复(${r.source}${r.loadedProducer ? ' v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn,#d29922)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}${r.rolledBack ? ' <span style="color:var(--ls-warn,#d29922)">已自动回滚原状态</span>' : (f ? ' <span style="color:#f85149">未回滚（保留半套，可紧急备份恢复）</span>' : '')}${r.rollbackWarning ? ' <span style="color:#f85149">' + r.rollbackWarning + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
+                ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="trend-up" aria-hidden="true"></i>召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
                     </div>
                 </details>
             `;
-            const ov = makeSheet('lonsha-stats-overlay', '📖 记忆总览', body);
+            const ov = makeSheet('lonsha-stats-overlay', '记忆总览', body);
             ov.querySelectorAll('.ls-clickable').forEach(card => {
                 card.addEventListener('click', () => plugin.showBrowser(card.dataset.view));
             });
         };
 
-        // [v3.14] 从世界书提取角色面板（收编 zhino）: 提取 → 预览勾选 → 确认写入
+        // [v3.14] 从世界书提取角色面板（收编 zhino）: 提取 -> 预览勾选 -> 确认写入
         plugin.showExtractRoles = async function() {
             const engine = plugin.engine;
             if (!engine) { toast('引擎未初始化'); return; }
-            toast('📚 正在读取世界书并提取角色…');
+            toast('正在读取世界书并提取角色…', 'book');
             let roles = [];
             try { roles = await engine.extractRolesFromLore(); } catch (e) { toast('提取失败: ' + e.message); return; }
-            if (!roles.length) { toast('⚠️ 未提取到角色（检查是否绑定了世界书/API 是否可用）'); return; }
+            if (!roles.length) { toast('未提取到角色（检查是否绑定了世界书/API 是否可用）', 'warn'); return; }
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             // 标注已存在角色（将只补别名）
             const known = new Set(engine.getKnownCharacters ? engine.getKnownCharacters() : []);
@@ -544,9 +553,9 @@
                 <div style="max-height:40vh;overflow-y:auto;margin:6px 0;">${rows}</div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
                     <button class="ls-btn" id="ls-extract-cancel">取消</button>
-                    <button class="ls-btn ls-btn-primary" id="ls-extract-apply">✅ 写入 ${roles.length} 个</button>
+                    <button class="ls-btn ls-btn-primary" id="ls-extract-apply"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>写入 ${roles.length} 个</button>
                 </div>`;
-            const overlay = makeSheet('lonsha-extract-overlay', '⬡ 角色谱系提取', body);
+            const overlay = makeSheet('lonsha-extract-overlay', '角色谱系提取', body);
             overlay.querySelector('#ls-extract-cancel')?.addEventListener('click', () => { overlay.remove(); });
             overlay.querySelector('#ls-extract-apply')?.addEventListener('click', async () => {
                 const sel = Array.from(overlay.querySelectorAll('.ls-extract-cb:checked')).map(cb => roles[Number(cb.dataset.idx)]);
@@ -555,7 +564,7 @@
                     const res = engine.applyExtractedRoles(sel);
                     const chatId = engine.getCurrentChatId();
                     if (chatId) await engine.storage.save(chatId, engine.collectExport());
-                    toast(`✅ 写入完成: 新增 ${res.added} 个，补别名 ${res.aliasPatched} 个`);
+                    toast(`写入完成: 新增 ${res.added} 个，补别名 ${res.aliasPatched} 个`, 'success');
                     overlay.remove();
                 } catch (e) { toast('写入失败: ' + e.message); }
             });
@@ -572,7 +581,7 @@
              *   **属性值**上时，值里一个双引号就能提前闭合属性、余下内容被浏览器当成新标签
              *   （属性吞并）。本函数九个 `data-opid` 里 `items`（物品名）与 `life`（档案 id）
              *   都是用户/LLM 产出的自由文本，故口令按上下文分：文本节点用 `esc`，属性值用 `escAttr`。
-             *   修前实测：物品名含双引号 ⇒ `getAttribute("data-opid")` 读回被吞并后的残缺串，
+             *   修前实测：物品名含双引号 => `getAttribute("data-opid")` 读回被吞并后的残缺串，
              *   点击后寻址失败；更坏的情形是页面被注入多余标签而**不报错**。 */
             const escAttr = (t) => esc(t).replace(/"/g, '&quot;');
             const fmtTime = (ts) => ts ? new Date(ts).toLocaleString('zh-CN', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
@@ -634,17 +643,17 @@
             };
             const faceHTML = (howTo) => {
                 if (faceState.state === 'absent') {
-                    return '<div class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="' + escAttr(faceState.code) + '">⚠️ 不可用 · ' + esc(faceState.reason || '原因未知')
+                    return '<div class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="' + escAttr(faceState.code) + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ' + esc(faceState.reason || '原因未知')
                         + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这一面<b>没装上</b>，不是「0 条」。装回对应模块（或换完整快照）后重开本页。</div></div>';
                 }
                 if (faceState.state === 'blocked') {
                     /* 文案必须**随态变化**且点名缺什么：把「缺前置条件」写成「没有数据」，
                      *   等于让人去查一个不存在的 bug。 */
-                    return '<div class="ls-hint ls-face-blocked" data-ls-face="blocked" data-face-why="' + escAttr(faceState.code) + '">⚠️ 需要先配置 · ' + esc(faceState.reason || '前置条件缺失')
+                    return '<div class="ls-hint ls-face-blocked" data-ls-face="blocked" data-face-why="' + escAttr(faceState.code) + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>需要先配置 · ' + esc(faceState.reason || '前置条件缺失')
                         + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这一面<b>装上了，但缺前置条件</b>，所以暂时产不出数据 —— 它不是「本来就没有」。</div></div>';
                 }
                 if (faceState.state === 'failed') {
-                    return '<div class="ls-hint ls-face-failed" data-ls-face="failed">⚠️ 取数失败 · ' + esc(faceState.reason || 'thrown')
+                    return '<div class="ls-hint ls-face-failed" data-ls-face="failed"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取数失败 · ' + esc(faceState.reason || 'thrown')
                         + '<button class="ls-btn ls-face-retry" style="margin-left:8px;padding:2px 10px;font-size:12px;">重试</button>'
                         + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">失败的取数不是「没有数据」—— 它可能是可恢复的。</div></div>';
                 }
@@ -653,20 +662,20 @@
             };
 
             if (viewType === 'summaries') {
-                title = '📝 摘要列表';
+                title = '摘要列表';
                 const list = faceRead(() => (s.summary ? '' : '摘要服务缺席'), () => s.summary.summaries);
                 // [v3.74] B2: 手动补摘输入框（柏宝书：任意楼层单独补摘）
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
                     <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
-                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-line-strong,rgba(240,246,252,0.18))!important;background-image:none!important;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）">🔧 批量补齐</button>
+                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-line-strong,rgba(240,246,252,0.18))!important;background-image:none!important;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>批量补齐</button>
                 </div>
                 <div style="display:flex;gap:6px;margin:0 0 8px 0;">
                     <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
-                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）">🎬 标记番外</button>
-                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="取消番外标记，恢复该楼记忆处理">↩️ 取消番外</button>
-                </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;">💡 若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置 → 正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
+                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）"><i class="ls-ico" data-i="film" aria-hidden="true"></i>标记番外</button>
+                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="取消番外标记，恢复该楼记忆处理"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>取消番外</button>
+                </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? faceHTML('去聊几句，AI 回复后会自动生成。') :
                     list.slice().reverse().map(m => `
                         <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${escAttr(String(m.floor))}">
@@ -675,13 +684,13 @@
                         </div>`).join(''));
             }
             else if (viewType === 'diaries') {
-                title = '📔 角色日记';
+                title = '角色日记';
                 const diaries = faceRead(() => (s.diary ? '' : '日记服务缺席'), () => s.diary.diaries);
                 const names = Object.keys(diaries);
                 body = names.length === 0 ? faceHTML('提取到角色后会自动撰写。') :
                     names.map(name => `
                         <div class="ls-group">
-                            <div class="ls-group-title">📓 ${esc(name)} (${diaries[name].length} 篇)</div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>${esc(name)} (${diaries[name].length} 篇)</div>
                             ${diaries[name].slice(-10).reverse().map(d => `
                                 <div class="ls-item">
                                     <div class="ls-item-meta">楼层 ${d.floor ?? '?'} · ${fmtTime(d.timestamp)}</div>
@@ -690,7 +699,7 @@
                         </div>`).join('');
             }
             else if (viewType === 'graph') {
-                title = '🕸️ 图谱节点';
+                title = '图谱节点';
                 const nodes = faceRead(() => (s.graph ? '' : '图谱服务缺席'), () => Array.from(s.graph.nodes.values()));
                 body = nodes.length === 0 ? faceHTML('图谱节点在提取到人物/地点后自动生成。') :
                     nodes.map(n => `
@@ -714,8 +723,8 @@
                  *      非位串挡在渲染前，双重保险；
                  *   ③ **五档不同形** —— 标签与颜色逐档区分，「判不了」不装成「他不知道」。
                  */
-                title = '👁️ 视角投影 · 换一双眼睛看这一轮';
-                /* ★ [v3.439.0 自纠 · W7 B/C 两档当场抓到] 本视图原来自己判可用性、自己拼文案，
+                title = '视角投影 · 换一双眼睛看这一轮';
+                /* [v3.439.0 自纠 · W7 B/C 两档当场抓到] 本视图原来自己判可用性、自己拼文案，
                  *   于是绕过了 O3 那套 `data-ls-face` 三态 —— 后果是面板驱动门读不到这张面的态：
                  *     · 摘掉 `engine.pov` 时标记是 ""（把「没装上」读成了「没有」）；
                  *     · `engine.pov` 的取数抛错时标记也是 ""（把「取不到」读成了「暂无」）。
@@ -724,7 +733,7 @@
                  *   一个回答「这张面现在是什么态」，一个回答「投影走到哪一步」）。 */
                 let povRead = null;
                 /* 原始私密记忆（供「删除」这条既有动作仍有点得到的入口）。
-                 *   ★ [v3.439.0 自纠] X3 把本视图从「列名单」换成「用这个角色的眼睛看」之后，
+                 *   [v3.439.0 自纠] X3 把本视图从「列名单」换成「用这个角色的眼睛看」之后，
                  *   原列表上那批 `data-opkind="pov"` 可点条目一起消失了 —— `_memOps('pov')` 的
                  *   删除分支还在，却再没有任何界面产得出它的宿主元素，即「建好不消费 = 功能级失效」。
                  *   v334 的静态锚点当场点名。修法不是把新面退回去，而是**两个都在**：
@@ -747,7 +756,7 @@
                 } else if (!povRead || povRead.ok !== true) {
                     /* 面在、但宿主这一调用没成功（方法缺 / 抛错）—— 仍然不许与「空」同形。 */
                     body = '<div data-pov-state="absent" data-pov-why="' + escAttr(String((povRead && povRead.reason) || 'unknown')) + '">'
-                        + '<div class="ls-hint">⚠️ 视角投影面不可用（不是「他什么都不知道」）：' + esc((povRead && povRead.reason) || 'unknown') + '</div>'
+                        + '<div class="ls-hint"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>视角投影面不可用（不是「他什么都不知道」）：' + esc((povRead && povRead.reason) || 'unknown') + '</div>'
                         + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这不是「他什么都不知道」—— 「面不在」与「他确实不知道」是两个结论。</div></div>';
                 } else if (!povRead.viewers || povRead.viewers.length === 0) {
                     body = '<div data-pov-state="empty">' + faceHTML('三本账里还没有任何角色。提取到角色内心/秘密后，这里会出现可选的视角。') + '</div>';
@@ -766,7 +775,7 @@
                 if (povRawList.length) {
                     body += '<details class="ls-item" style="margin-top:10px;" data-pov-raw="1">'
                         + '<summary style="cursor:pointer;font-size:12px;color:var(--ls-text-3,#6e7681);">'
-                        + '📥 原始私密记忆 · ' + povRawList.length + ' 条（点条目可删除）</summary>'
+                        + '<i class="ls-ico" data-i="download" aria-hidden="true"></i>原始私密记忆 · ' + povRawList.length + ' 条（点条目可删除）</summary>'
                         + povRawList.slice().reverse().map((p) => (
                             '<div class="ls-item ls-clickable" data-opkind="pov" data-opid="' + escAttr(String(p.id)) + '">'
                             + '<div class="ls-item-meta"><b>' + esc(p.owner) + '</b> · 楼层 ' + (p.floor ?? '?')
@@ -777,22 +786,22 @@
                 }
             }
             else if (viewType === 'timeline') {
-                title = '📅 剧情时间线';
+                title = '剧情时间线';
                 const tl = faceRead(() => (s.timeline ? '' : '时间线服务缺席'), () => s.timeline.entries || []);
                 const lineageHeader = `<div class="ls-hint" style="margin-bottom:8px;display:flex;gap:6px;align-items:center;">`
                     + `<span>挑一条记忆看沿革:</span>`
                     + `<input class="ls-input ls-input-sm" id="ls-tl-lineage-id" placeholder="条目 ID 或点击条目" style="flex:1;max-width:220px;">`
-                    + `<button class="ls-btn ls-btn-sm" id="ls-tl-lineage-btn">📜 查看沿革</button>`
+                    + `<button class="ls-btn ls-btn-sm" id="ls-tl-lineage-btn"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>查看沿革</button>`
                     + `</div>`;
                 body = lineageHeader + (tl.length === 0 ? faceHTML('剧情中出现明确日期时会自动记录。') :
                     tl.slice().reverse().map(e => `
                         <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${escAttr(e.id)}">
-                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · ⭐${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent,#58a6ff);text-decoration:none;">📜 沿革</a></div>
+                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · <i class="ls-ico" data-i="star" aria-hidden="true"></i>${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent,#58a6ff);text-decoration:none;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>沿革</a></div>
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join(''));
             }
             else if (viewType === 'volumes') {
-                title = '📚 卷摘要（高层剧情概括）';
+                title = '卷摘要（高层剧情概括）';
                 const vols = faceRead(() => (s.summary ? '' : '摘要服务缺席（卷摘要由它折叠产出）'), () => s.summary.volumes || []);
                 body = vols.length === 0 ? faceHTML('活跃摘要超过阈值后会自动折叠生成。') :
                     vols.slice().reverse().map(v => `
@@ -802,7 +811,7 @@
                         </div>`).join('');
             }
             else if (viewType === 'status') {
-                title = '🎮 角色状态 + 待办与履约';
+                title = '角色状态 + 待办与履约';
                 const chars = s.status?.characters || {};
                 const names = Object.keys(chars);
                 let charHtml = names.length === 0 ? '<div class="ls-hint">暂无角色状态。聊几句后 LLM 会自动提取数值变化。</div>' :
@@ -811,7 +820,7 @@
                         const fields = Object.entries(rec.fields || {}).map(([k, v]) => `<span class="ls-item-text">${esc(k)}:${esc(String(v))}</span>`).join(' | ');
                         const todos = (rec.todos || []).map(t => `<div class="ls-item-text">· ${esc(t.date ? t.date + ' ' : '')}${esc(t.text)}</div>`).join('');
                         return `<div class="ls-group">
-                            <div class="ls-group-title">📊 ${esc(n)}</div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="chart" aria-hidden="true"></i>${esc(n)}</div>
                             <div class="ls-item">${fields || '<span class="ls-hint">无状态字段</span>'}</div>
                             ${todos ? `<div class="ls-item"><div class="ls-item-meta">待办</div>${todos}</div>` : ''}
                         </div>`;
@@ -828,26 +837,26 @@
 
                     if (!commitState || commitState.ok !== true) {
                         commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🤝 约定履约与生命周期</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 约定履约面不可用 · ${esc(commitState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>约定履约面不可用 · ${esc(commitState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (commitState.state === 'no-instances') {
                         commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🤝 约定履约与生命周期 · <span>${esc(lineText)}</span></div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期 · <span>${esc(lineText)}</span></div>
                             <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无具体约定履约实例（约定生成单次实例、豁免或部分履约时在此跟踪）。</div>
                         </div>`;
                     } else {
                         const insts = commitState.instances || [];
                         const instRows = insts.map(inst => {
-                            const badge = inst.status === 'overdue' ? '⚠️ 逾期' : (inst.status === 'partially_fulfilled' ? `⏳ 部分(${Math.round(inst.completionRatio * 100)}%)` : (inst.status === 'waived' ? '🕊️ 本次豁免' : (inst.status === 'fulfilled' ? '✅ 完成' : '📌 待办')));
+                            const badge = inst.status === 'overdue' ? '逾期' : (inst.status === 'partially_fulfilled' ? `部分(${Math.round(inst.completionRatio * 100)}%)` : (inst.status === 'waived' ? '本次豁免' : (inst.status === 'fulfilled' ? '完成' : '待办')));
                             const due = inst.dueFloor != null ? ` · 截止第${inst.dueFloor}楼` : '';
                             return `<div class="ls-item" style="margin-bottom:4px;">
-                                <div class="ls-item-meta"><b>${esc(inst.actor)} ↔ ${esc(inst.counterpart)}</b> [${badge}] #${inst.sequence}${due}</div>
+                                <div class="ls-item-meta"><b>${esc(inst.actor)}<i class="ls-ico ls-ico-inline" data-i="swap" role="img" aria-label="与"></i>${esc(inst.counterpart)}</b> [${badge}] #${inst.sequence}${due}</div>
                                 <div class="ls-item-text">${esc(inst.content)}</div>
                             </div>`;
                         }).join('');
                         commitHtml = `<div class="ls-group" data-face="commitments" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title">🤝 约定履约与生命周期 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
                             ${instRows}
                         </div>`;
                     }
@@ -865,12 +874,12 @@
                         ? String(s._revisitScheduleLine() || '') : '';
                     if (!revState || revState.ok !== true) {
                         revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">📅 记忆回访日程工作台</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 记忆回访工作台不可用 · ${esc(revState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆回访工作台不可用 · ${esc(revState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (revState.state === 'no-sessions') {
                         revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">📅 记忆回访日程工作台 · <span>${esc(revLine)}</span></div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台 · <span>${esc(revLine)}</span></div>
                             <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无已登记回访日程会话（主题序列回顾与纪念卡将在此呈现，不生成伪造事实）。</div>
                         </div>`;
                     } else {
@@ -881,7 +890,7 @@
                             </div>`;
                         }).join('');
                         revisitHtml = `<div class="ls-group" data-face="revisit-schedule" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title">📅 记忆回访日程工作台 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(revLine)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(revLine)}</span></div>
                             ${sessRows}
                             <div class="ls-hint" style="margin-top:4px;">口径：只读回顾有据记忆卡片，浏览与暂缓不产生事实，绝不代角色私自发言。</div>
                         </div>`;
@@ -893,13 +902,13 @@
                 body = charHtml + commitHtml + revisitHtml;
             }
             else if (viewType === 'protagonist') {
-                title = '🧍 主角档案 + 生活小档案';
+                title = '主角档案 + 生活小档案';
                 const p = s.status?.protagonist || {};
                 const pFields = ['gender', 'age', 'identity', 'appearance', 'outfit', 'condition'];
                 const pLabels = { gender: '性别', age: '年龄', identity: '身份', appearance: '体貌', outfit: '当前着装', condition: '生理/伤病状况' };
                 const pRows = pFields.map(k => `<div class="ls-item ls-clickable" data-opkind="protagonist_field" data-opid="${escAttr(k)}"><div class="ls-item-meta">${pLabels[k]}${p.floor ? ` · 第${p.floor}楼更新` : ''}</div><div class="ls-item-text">${esc(p[k]) || '<span class="ls-hint">未登记（点击编辑）</span>'}</div></div>`).join('');
                 const lds = s.status?.lifeDetails || [];
-                const tierName = { pinned: '📌 置顶常驻', active: '🔹 常规', archive: '📦 沉降' };
+                const tierName = { pinned: '置顶常驻', active: '常规', archive: '沉降' };
                 let ldHtml = '';
                 for (const tier of ['pinned', 'active', 'archive']) {
                     const group = lds.filter(d => (d.tier || 'active') === tier);
@@ -907,17 +916,17 @@
                     ldHtml += `<div class="ls-group"><div class="ls-group-title">${tierName[tier]} (${group.length})</div>` +
                         group.map(d => `<div class="ls-item ls-clickable" data-opkind="life" data-opid="${escAttr(d.id)}"><div class="ls-item-meta">${d.floor ? `第${d.floor}楼` : '—'}${(d.anchors || []).length ? ' · ' + esc((d.anchors || []).slice(0, 4).join('/')) : ''}${d.until ? ' · 至 ' + esc(d.until) : ''}</div><div class="ls-item-text">${esc(d.text)}</div></div>`).join('') + '</div>';
                 }
-                                /* ===== [v3.440.0 · L13-X7] 习惯与成长证据分区 ======
+                                /* ===== [v3.440.0 · L13-X7] 习惯 / 成长证据分区（标题字面量只在下方 hgBlock 出现一次） ======
                  * 为什么要单独一块：`habitRepos` 只记「形成了什么习惯」，而「他凭什么是这个习惯、
                  *   什么时候失效」在 `growthBundles` 的四阶段证据里。两块账分开存、分开报。
                  * 三条纪律（与 L12-O4 / L13-O3 同口径）：
                  *   (1) **只显示有证据的**：证据列表只收 records 非空的束；
-                 *   (2) 无证据 ⇒ `empty` 态（真的没有），不写「暂无习惯」这种安慰话 ——
+                 *   (2) 无证据 => `empty` 态（真的没有），不写「暂无习惯」这种安慰话 ——
                  *       安慰话会让「没记过」与「没有这个习惯」读起来一样；
                  *   (3) 成形但零证据的习惯**单列条数**（unproven），绝不并进证据列表 ——
                  *       并进去就等于让「形成了习惯」冒充「有据可查」。
-                 * ★ 本块**不新增任何写入口**：练习仍走 agencyContractAct('practice')。
-                 * ★ 不做「经验值 / 等级」类展示 —— 本仓纪律：不把成长做成数值条。
+                 * 本块**不新增任何写入口**：练习仍走 agencyContractAct('practice')。
+                 * 不做「经验值 / 等级」类展示 —— 本仓纪律：不把成长做成数值条。
                  */
                 /* 取数：**不走 faceRead 的列表语义**（那是有意给列表用的：抛错回落空数组，
                  *   于是「取数失败」与「模块缺席」在这里会同形，而本块必须把两件事分开报）。 */
@@ -946,43 +955,43 @@
                                     + (it.latest.contextCondition ? '（条件：' + esc(it.latest.contextCondition) + '）' : '') + '</div>'
                                 : '';
                             return '<div class="ls-item" data-habit-key="' + escAttr(it.key) + '" data-habit-status="' + escAttr(it.status) + '">'
-                                + '<div class="ls-item-meta">' + (rev ? '⏳ 待复验（凭据被撤回，不再算已掌握）' : '✅ 有据')
+                                + '<div class="ls-item-meta">' + (rev ? '待复验（凭据被撤回，不再算已掌握）' : '有据')
                                 + ' · 走到「' + esc(stageTxt) + '」 · ' + it.total + ' 条证迹</div>'
                                 + '<div class="ls-item-text">' + esc(it.key || '（未命名）') + '</div>'
                                 + latestTxt + ev + '</div>';
                         }).join('');
-                        return '<div class="ls-group"><div class="ls-group-title">🧭 ' + esc(g.actor)
+                        return '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="compass" aria-hidden="true"></i>' + esc(g.actor)
                             + ' 的习惯 (' + g.count + ')</div>' + rows + '</div>';
                     }).join('');
                 } else if (hg.ok === true) {
                     hgHtml = faceHTML('LLM 提取到「他反复这么做并成了习惯」时会连练习凭据一起登记。');
                 } else {
                     hgHtml = '<div class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="'
-                        + escAttr(hg.reason || 'module-unavailable') + '">⚠️ 不可用 · '
+                        + escAttr(hg.reason || 'module-unavailable') + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · '
                         + esc(hg.reason || 'module-unavailable') + '（不是「没有习惯」，是这个面没装上）</div>';
                 }
                 /* 对账两块账的差额：成形待证 / 无主束 —— **只报条数，不猜对应**。 */
                 const hgDiff = (hg.ok === true && hg.counts && (hg.counts.unproven || hg.counts.orphan))
-                    ? '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 对账：成形待证 '
+                    ? '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>对账：成形待证 '
                         + hg.counts.unproven + ' 条（习惯本体在、但没留下任何凭据）· 无主束 '
                         + hg.counts.orphan + ' 条（证据在、但找不到对应本体）—— 两块账不互相充抵，也不自动合并。</div>'
                     : '';
                 const hgLine = (typeof s._habitGrowthLine === 'function')
                     ? (function () { try { return String(s._habitGrowthLine() || ''); } catch (_e) { return ''; } })()
                     : '';
-                const hgBlock = '<div class="ls-group"><div class="ls-group-title">🌱 习惯与成长证据'
+                const hgBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="flower" aria-hidden="true"></i>习惯与成长证据'
                     + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
                     + esc(hgLine) + '</span></div>' + hgHtml + hgDiff
-                    + '<div class="ls-hint">口径：只显示**有凭据**的习惯；凭据被撤回 ⇒ 转「待复验」而不是静默归零；'
+                    + '<div class="ls-hint">口径：只显示**有凭据**的习惯；凭据被撤回<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>转「待复验」而不是静默归零；'
                     + '「学会了」只留凭据，不折算成任何数值。</div></div>';
-                body = `<div class="ls-group"><div class="ls-group-title">🧍 主角档案（点击字段可编辑）</div>${pRows}</div>` +
-                    `<div class="ls-group"><div class="ls-group-title">🧬 生活小档案 (${lds.length})</div>` +
+                body = `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="person" aria-hidden="true"></i>主角档案（点击字段可编辑）</div>${pRows}</div>` +
+                    `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="flow" aria-hidden="true"></i>生活小档案 (${lds.length})</div>` +
                     (ldHtml || '<div class="ls-hint">暂无。LLM 提取到主角习惯/偏好后会自动登记。</div>') +
-                    '<div class="ls-hint">📌 置顶常驻 · 🔹 常规时效 · 📦 沉降仅命中浮出（点击条目可操作）</div></div>' +
+                    '<div class="ls-hint"><i class="ls-ico" data-i="pin" aria-hidden="true"></i>置顶常驻 · <i class="ls-ico" data-i="chevron-right-small" aria-hidden="true"></i>常规时效 · <i class="ls-ico" data-i="box" aria-hidden="true"></i>沉降仅命中浮出（点击条目可操作）</div></div>' +
                     hgBlock;
             }
             else if (viewType === 'scene') {
-                title = '🗺️ 场景树与多角色分席';
+                title = '场景树与多角色分席';
                 /* [v3.428.0 · L12-O4] 与其余 13 面收口成形：本视图有**两处**取数口
                  *   （当前位置 `currentKey()` / 全部地点 `nodes.values()`），只加一个守卫就会
                  *   漏掉另一处 —— 故两处一起进同一个 faceRead：一处抛错即整面落 failed，
@@ -1005,12 +1014,12 @@
                     try { return typeof s._seatingPartitionLine === 'function' ? String(s._seatingPartitionLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _seatHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;">🎭 下一幕多角色分席准备<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_seatLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>下一幕多角色分席准备<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_seatLine)}</span></div>`;
                     if (!_seat || _seat.ok !== true) {
                         if (_seat && _seat.state === 'no-seats') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未排定席位：当前场景暂无活跃角色登场。当有角色进入席位后，将自动根据各人知情链完成公共池与私密口袋切分。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_seat && _seat.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_seat && _seat.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _seat.counts || {};
                     const seats = (_seat.activeSeats || []).join('、') || '无';
@@ -1030,7 +1039,7 @@
                     '</div>') + _seatHtml;
             }
             else if (viewType === 'suspense') {
-                title = '🔖 悬念簿';
+                title = '悬念簿';
                 const items = faceRead(() => (s.suspense ? '' : '悬念簿服务缺席'), () => s.suspense.items || []);
                 const open = items.filter(x => x.status === 'open');
                 const resolved = items.filter(x => x.status === 'resolved').slice(-10).reverse();
@@ -1038,17 +1047,17 @@
                     `<div class="ls-group"><div class="ls-group-title">未了结 (${open.length})</div>` +
                     (open.map(x => `<div class="ls-item ls-clickable" data-opkind="suspense" data-opid="${escAttr(x.id)}"><div class="ls-item-meta">${x.kind === 'suspense' ? '谜团' : '约定'} · 第${x.floor ?? '?'}楼${x.createdTime ? ' · ' + esc(x.createdTime) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     `</div><div class="ls-group"><div class="ls-group-title">近期了结</div>` +
-                    (resolved.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.outcome === 'done' ? '✅ 完成' : x.outcome === 'cancelled' ? '🚫 取消' : '❌ 失败'}${x.resolvedReason ? ' · ' + esc(x.resolvedReason) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
+                    (resolved.map(x => `<div class="ls-item"><div class="ls-item-meta">${x.outcome === 'done' ? '<i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>完成' : x.outcome === 'cancelled' ? '<i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>取消' : '<i class="ls-ico" data-i="x-circle" data-tone="error" aria-hidden="true"></i>失败'}${x.resolvedReason ? ' · ' + esc(x.resolvedReason) : ''}</div><div class="ls-item-text">${esc(x.content)}</div></div>`).join('') || '<div class="ls-hint">无</div>') +
                     '</div>';
             }
             else if (viewType === 'relations') {
-                title = '🔗 关系边与改观';
+                title = '关系边与改观';
                 const nameOf = (id) => s.graph?.nodes?.get?.(id)?.name || id;
                 const edges = faceRead(() => (s.graph ? '' : '图谱服务缺席'), () => Array.from(s.graph?.edges?.values?.() || []));
                 let edgeHtml = edges.length === 0 ? faceHTML('人物同场出现且关系被提取后会自动连边。') :
                     edges.map(e => `
                         <div class="ls-item">
-                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent,#58a6ff)">—[${esc(e.label || '相关')}]→</span> ${esc(nameOf(e.to))}</div>
+                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent,#58a6ff)">—[${esc(e.label || '相关')}]<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i></span> ${esc(nameOf(e.to))}</div>
                         </div>`).join('');
 
                 /* [v3.448.0 · 第十四期 L14-X3] 认知改观与解释版本对照工作台 */
@@ -1065,19 +1074,19 @@
                          *   这里若写「不可用」会让整页读成「关系面没装上」——把「没有」说成「没装上」。
                          *   故点名是哪一块没装上、并说清它不影响关系边读数。 */
                         reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🔄 认知改观与解释版本对照</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 认知改观工作台没装上（关系边读数不受影响） · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>认知改观工作台没装上（关系边读数不受影响） · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (reinterpState.state === 'no-ledgers') {
                         reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🔄 认知改观与解释版本对照 · <span>${esc(lineText)}</span></div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照 · <span>${esc(lineText)}</span></div>
                             <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无角色改观账本（人物对往事态度产生认知转变并记录触发证据后，版本对照将在此呈现）。</div>
                         </div>`;
                     } else {
                         const ledgers = reinterpState.ledgers || [];
                         const cardList = ledgers.map(l => {
                             const vList = (l.versions || []).map(v => {
-                                const stBadge = v.status === 'accepted' ? '✅ 采纳' : (v.status === 'draft' ? '📝 草案' : (v.status === 'superseded' ? '📦 归档' : '🚫 拒绝'));
+                                const stBadge = v.status === 'accepted' ? '采纳' : (v.status === 'draft' ? '草案' : (v.status === 'superseded' ? '归档' : '拒绝'));
                                 const ev = v.triggerEvidence ? ` · 触发证据: ${esc(v.triggerEvidence.summary || v.triggerEvidence.evidenceId)} (第${v.triggerEvidence.floor}楼)` : '';
                                 return `<div style="margin:2px 0 2px 8px;padding-left:4px;border-left:2px solid var(--ls-border,#30363d);font-size:11px;">
                                     <b>v${v.versionNumber}</b> [${stBadge}] 第${v.floor}楼 (${esc(v.perspective || 'view')})：${esc(v.interpretationText)}${ev}
@@ -1093,7 +1102,7 @@
                             </div>`;
                         }).join('');
                         reinterpHtml = `<div class="ls-group" data-face="reinterpretation" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title">🔄 认知改观与解释版本对照 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
                             ${cardList}
                         </div>`;
                     }
@@ -1113,12 +1122,12 @@
                         /* [v3.459.0] 同「认知改观」那条：本页上游三态是「真的没有」，
                          *   这里写「不可用」会让整页被读成关系面没装上。改为点名这块没装上。 */
                         repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🩹 关系修复回应与行为回链</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 关系修复工作台没装上（关系边读数不受影响） · ${esc(repairState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>关系修复工作台没装上（关系边读数不受影响） · ${esc(repairState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (repairState.state === 'no-records') {
                         repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-item-meta">🩹 关系修复回应与行为回链 · <span>${esc(repLine)}</span></div>
+                            <div class="ls-item-meta"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链 · <span>${esc(repLine)}</span></div>
                             <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无关系修复记录（发生道歉、求和或设界提议并逐条回应后在此呈现履约证据链）。</div>
                         </div>`;
                     } else {
@@ -1127,7 +1136,7 @@
                             const ansMap = r.responses || {};
                             const respList = Object.keys(ansMap).map(k => {
                                 const ans = ansMap[k];
-                                const vBadge = (ans && ans.verdict === 'accepted') ? '✅ 接受' : ((ans && ans.verdict === 'rejected') ? '🚫 拒绝' : '⏳ 暂缓');
+                                const vBadge = (ans && ans.verdict === 'accepted') ? '接受' : ((ans && ans.verdict === 'rejected') ? '拒绝' : '暂缓');
                                 return `<div style="margin:2px 0 2px 8px;font-size:11px;">[${vBadge}] ${esc(k)}：${esc(ans?.note || '无说明')}</div>`;
                             }).join('');
                             return `<div class="ls-item" style="margin-bottom:8px;">
@@ -1136,7 +1145,7 @@
                             </div>`;
                         }).join('');
                         repairHtml = `<div class="ls-group" data-face="repair-response" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title">🩹 关系修复回应与行为回链 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(repLine)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(repLine)}</span></div>
                             ${cardList}
                         </div>`;
                     }
@@ -1146,12 +1155,12 @@
                 body = edgeHtml + reinterpHtml + repairHtml;
             }
             else if (viewType === 'vectors') {
-                title = '🧲 向量记忆';
+                title = '向量记忆';
                 /* [L13-O3] 三种「零向量」必须分开报（此前一律显示散文「需要配置 Embedding API」，
                  *   与「真没有数据」同形）：
-                 *     absent  → 向量服务没装上（模块缺席）
-                 *     blocked → 服务在场、零向量、且 embedding 端点/Key 未配置 ⇒ 缺前置条件
-                 *     empty   → 服务在场、已配置、仍零条 ⇒ 真没有 */
+                 *     absent  -> 向量服务没装上（模块缺席）
+                 *     blocked -> 服务在场、零向量、且 embedding 端点/Key 未配置 => 缺前置条件
+                 *     empty   -> 服务在场、已配置、仍零条 => 真没有 */
                 const _embCfg = (() => {
                     try {
                         const c = (typeof s.config === 'object' && s.config) || (typeof s.cfg === 'object' && s.cfg) || null;
@@ -1162,12 +1171,12 @@
                     return { known: false, ready: false };
                 })();
                 const vecs = faceRead(() => (s.vector ? '' : '向量服务缺席'), () => {
-                    /* ★ [v3.439.0 自纠 · W7 A/C 两档同时抓到] 修前两处错，同源于「把守卫写在 faceRead 外面」：
+                    /* [v3.439.0 自纠 · W7 A/C 两档同时抓到] 修前两处错，同源于「把守卫写在 faceRead 外面」：
                      *   ① `const vecs = (s.vector && _embCfg.known && !_embCfg.ready) ? faceBlocked(...) : faceRead(...)`
-                     *      —— `s.vector` 是**实参求值**，底层存储读失败时在 faceRead 之外抛出 ⇒ 异常直接扔给宿主，
+                     *      —— `s.vector` 是**实参求值**，底层存储读失败时在 faceRead 之外抛出 => 异常直接扔给宿主，
                      *      既不落 failed、也不给重试（W7 C 档点名「抛错必须落成 failed」）。
                      *   ② 同一行还让 blocked **无条件压过有数据**：夹具里向量真有一条，却因为「没配 Embedding」
-                     *      被挂上 blocked 标记 ⇒ 标记退化成装饰，读者再也分不出「有数据」与「取不到」（W7 A 档）。
+                     *      被挂上 blocked 标记 => 标记退化成装饰，读者再也分不出「有数据」与「取不到」（W7 A 档）。
                      *   修法：把两件事一起搬进 read 之内 —— 先真读，**读到数据就照常渲染**；
                      *   只有「零向量 + 未配置」才立 blocked（那才是唯一该说「去配一下」的场合）。 */
                     const list = (s.vector && Array.isArray(s.vector.vectors)) ? s.vector.vectors : (s.vector ? s.vector.vectors : []);
@@ -1187,7 +1196,7 @@
                         </div>`).join('');
             }
             else if (viewType === 'items') {
-                title = '🎒 物品台账';
+                title = '物品台账';
                 const items = faceRead(() => (s.items ? '' : '物品台账服务缺席'), () => s.items.records || []);
                 body = items.length === 0 ? faceHTML('剧情中出现物品获得、转交或丢失时会自动登记。') :
                     items.slice().reverse().map(it => `
@@ -1206,12 +1215,12 @@
                  *   O1 的验收是「要么面板里真的能点开，要么从计划里消失」，不接受第三种状态。
                  *
                  * 三态**显式分开**（与 v3.310.0 记忆控制中心同纪律，也是 L12-O4 的口径）：
-                 *   ① 面不可用 ⇒ 报「不可用 + 原因」（`ok:false` + `reason`），**不当成「0 条」**；
-                 *   ② 面可用但确实没有 ⇒ 「真的没有」+ 怎么开始一句话；
-                 *   ③ 有数据 ⇒ 逐条明细。
+                 *   ① 面不可用 => 报「不可用 + 原因」（`ok:false` + `reason`），**不当成「0 条」**；
+                 *   ② 面可用但确实没有 => 「真的没有」+ 怎么开始一句话；
+                 *   ③ 有数据 => 逐条明细。
                  * 面板**不重算任何判定**：条数与状态一律取自内核 xxxState()，
                  *   本块只做排版 —— 重算一次就会出现「界面显示的」与「内核真判的」各说一套。 */
-                title = '🏛️ 组织与心智';
+                title = '组织与心智';
                 const callS = (name) => {
                     try {
                         if (typeof s[name] !== 'function') return { ok: false, reason: 'host-method-missing' };
@@ -1225,7 +1234,7 @@
                 const face = (label, lineName, r, howTo, render) => {
                     const head = `<div class="ls-group-title">${label}<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(lineOf(lineName))}</span></div>`;
                     if (!r || r.ok !== true) {
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc((r && r.reason) || 'module-unavailable')}（不是「0 条」，是这个面没装上）</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc((r && r.reason) || 'module-unavailable')}（不是「0 条」，是这个面没装上）</div></div></div>`;
                     }
                     if (r.reason === 'empty') {
                         return `<div class="ls-group">${head}<div class="ls-hint">真的没有。${howTo}</div></div>`;
@@ -1235,33 +1244,33 @@
 
                 /* ---- ① 制度记忆：组织卡 + 章程/惯例/在册成员/决议 + 换届 ---- */
                 const inst = callS('institutionState');
-                const instHtml = face('🏛️ 制度记忆（组织）', '_institutionLine', inst,
+                const instHtml = face('<i class="ls-ico" data-i="archive" aria-hidden="true"></i>制度记忆（组织）', '_institutionLine', inst,
                     'LLM 提取到「某组织立了规矩 / 换了负责人」后会自动登记；也可让 AI 直接调用 institutionAct。',
                     (r) => (r.items || []).map((x) => `
                         <div class="ls-item">
                             <div class="ls-item-meta"><b>${esc(x.name || x.institutionId)}</b> · 负责人 ${esc(x.currentLeader || '空缺')} · 职数 ${x.roles} · 有效决议 ${x.activeResolutions}${x.handovers ? ' · 换届 ' + x.handovers : ''}</div>
-                            <div class="ls-item-text">分支 ${esc(x.branchId || '—')} · 私人材料 ${x.privateDossierKeys} 份${(r.privateVisible ? ' · 本视角可见 ' + r.privateVisible : '（未指定视角 ⇒ 一律不可见）')}</div>
+                            <div class="ls-item-text">分支 ${esc(x.branchId || '—')} · 私人材料 ${x.privateDossierKeys} 份${(r.privateVisible ? ' · 本视角可见 ' + r.privateVisible : '（未指定视角<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>一律不可见）')}</div>
                         </div>`).join('')
                     + `<div class="ls-hint">口径：离开组织**不自动遗忘**；未公开记录**不越权进入个人视角**（只报条数、不报正文）。</div>`);
 
                 /* ---- ② 关系动力：一对人的期待/付出/修复/释然多轨账 ---- */
                 const rel = callS('relationDynamicsState');
-                const relHtml = face('🔗 关系动力（期待 / 付出 / 修复）', '_relationDynamicsLine', rel,
+                const relHtml = face('<i class="ls-ico" data-i="link" aria-hidden="true"></i>关系动力（期待 / 付出 / 修复）', '_relationDynamicsLine', rel,
                     'LLM 提取到「某人期待某人做什么 / 谁为谁付出 / 谁道了歉」后会自动入账。',
                     (r) => (r.items || []).map((x) => {
-                        const st = x.isReconciled ? '✅ 已和解'
-                            : (x.unilateralPending ? '⏳ 单侧修复待对方确认' : (x.reconciliationStatus && x.reconciliationStatus !== 'none' ? esc(x.reconciliationStatus) : '—'));
+                        const st = x.isReconciled ? '已和解'
+                            : (x.unilateralPending ? '单侧修复待对方确认' : (x.reconciliationStatus && x.reconciliationStatus !== 'none' ? esc(x.reconciliationStatus) : '—'));
                         return `
                         <div class="ls-item">
-                            <div class="ls-item-meta"><b>${esc(x.charA || '?')}</b> ⇄ <b>${esc(x.charB || '?')}</b> · ${st}</div>
+                            <div class="ls-item-meta"><b>${esc(x.charA || '?')}</b><i class="ls-ico ls-ico-inline" data-i="swap" role="img" aria-label="互换"></i><b>${esc(x.charB || '?')}</b> · ${st}</div>
                             <div class="ls-item-text">期待 ${x.expectations} · 付出 ${x.contributions} · 未释然违约 ${x.breaches}</div>
                         </div>`;
                     }).join('')
-                    + `<div class="ls-hint">口径：A 道歉但 B 尚未得知 ⇒ 只算「单侧修复待确认」，**绝不判已和解**。</div>`);
+                    + `<div class="ls-hint">口径：A 道歉但 B 尚未得知<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>只算「单侧修复待确认」，**绝不判已和解**。</div>`);
 
                 /* ---- ③ 心智契约：信念演化 / 经验与习惯 / 缺席与期待 ---- */
                 const agc = callS('agencyContractState');
-                const agcHtml = face('🧠 心智契约（信念 / 习惯 / 缺席期待）', '_agencyContractLine', agc,
+                const agcHtml = face('<i class="ls-ico" data-i="brain" aria-hidden="true"></i>心智契约（信念 / 习惯 / 缺席期待）', '_agencyContractLine', agc,
                     'LLM 提取到「某人有理由地误解了什么 / 形成了什么习惯 / 在等谁做某件事」后会自动入账。',
                     (r) => `
                         <div class="ls-item"><div class="ls-item-meta">信念 ${r.beliefs} · 习惯库 ${r.habits} · 期待 ${r.expectations}</div>
@@ -1270,7 +1279,7 @@
 
                 /* ---- ④ 意义变迁：同一物件的多视角意义 + 反例单列 ---- */
                 const sym = callS('symbolicEvolutionState');
-                const symHtml = face('🕯️ 意义变迁（多义 / 反例）', '_symbolicEvolutionLine', sym,
+                const symHtml = face('<i class="ls-ico" data-i="sparkles" aria-hidden="true"></i>意义变迁（多义 / 反例）', '_symbolicEvolutionLine', sym,
                     'LLM 提取到「某件东西对某人有特殊含义」后会自动登记意象。',
                     (r) => (r.items || []).map((x) => {
                         const who = Object.keys(x.byActor || {});
@@ -1282,21 +1291,21 @@
                             ${objs ? `<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">反例 ${objs}</div>` : ''}
                         </div>`;
                     }).join('')
-                    + `<div class="ls-hint">口径：意义是**视角**不是事实 ⇒ 永远不写回事实 owner；反例单列，不进「共识」。</div>`);
+                    + `<div class="ls-hint">口径：意义是**视角**不是事实<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>永远不写回事实 owner；反例单列，不进「共识」。</div>`);
 
-                /* ---- ⑤ 时代传承：转场 ⇒ 逐项继承/不继承 ⇒ 应用或撤销 ---- */
+                /* ---- ⑤ 时代传承：转场 => 逐项继承/不继承 => 应用或撤销 ---- */
                 const era = callS('eraInheritanceState');
-                const eraHtml = face('⏳ 时代传承（转场 / 继承）', '_eraInheritanceLine', era,
+                const eraHtml = face('<i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>时代传承（转场 / 继承）', '_eraInheritanceLine', era,
                     '卡作者在设置里登记「时代转场」（跨度 + 变化规则）后，这里会出现逐项继承提案。',
                     (r) => (r.items || []).map((x) => `
                         <div class="ls-item">
-                            <div class="ls-item-meta"><b>${esc(x.eraFrom || '?')} → ${esc(x.eraTo || '?')}</b> · ${x.status === 'applied' ? '✅ 已应用' : '⏳ 待定'}${x.undone ? ' · ↩️ 已撤销' : ''}</div>
+                            <div class="ls-item-meta"><b>${esc(x.eraFrom || '?')}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>${esc(x.eraTo || '?')}</b> · ${x.status === 'applied' ? '<i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>已应用' : '<i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>待定'}${x.undone ? ' · <i class="ls-ico" data-i="undo" aria-hidden="true"></i>已撤销' : ''}</div>
                             <div class="ls-item-text">提案 ${x.proposals} · 已继承项 ${x.appliedItems}</div>
                         </div>`).join('')
                     + `<div class="ls-hint">口径：新负责人**继承事业但不自动知道前任私人经历**；撤销后旧卷保持可读。</div>`);
 
                 body = instHtml + relHtml + agcHtml + symHtml + eraHtml
-                    + `<div class="ls-hint" style="margin-top:8px;">📌 上述五面只读展示：写入一律经 institutionAct / relationDynamicsAct / agencyContractAct / symbolicEvolutionAct / eraInheritanceAct（业务判断全在内核，面板不重判）。</div>`;
+                    + `<div class="ls-hint" style="margin-top:8px;"><i class="ls-ico" data-i="pin" aria-hidden="true"></i>上述五面只读展示：写入一律经 institutionAct / relationDynamicsAct / agencyContractAct / symbolicEvolutionAct / eraInheritanceAct（业务判断全在内核，面板不重判）。</div>`;
             }
             /* ===== [v3.433.0 · L13-X2] 反事实推演面（whatif） =====
              *   选一个已发生的事实做「如果它没发生」，看受影响面。三条纪律：
@@ -1304,7 +1313,7 @@
              *   ② 每条受影响条目带真实 id，可点开核对；
              *   ③ 三态同形：bench 模块缺席是「不可用」，不是「受影响 0 条」。 */
             else if (viewType === 'whatif') {
-                title = '🌀 反事实推演 · 如果它没发生';
+                title = '反事实推演 · 如果它没发生';
                 const cfAllFacts = []
                     .concat((s && s.worldProg && Array.isArray(s.worldProg.facts)) ? s.worldProg.facts : [])
                     .concat((s && Array.isArray(s.lockedFacts)) ? s.lockedFacts : []);
@@ -1324,14 +1333,14 @@
                 /* [v3.430.0 · L12-X] X 系列六面的产品可达面。
                  * 为什么非要有这一处（与 organs 视图完全同构）：六个面（组织规则谱系 / 意义视图 /
                  *   世界线前史体检 / 证据裁决影响回放 / 行动回执链 / 沉默四问）在内核与诊断层
-                 *   都齐了，但 settings-ui.js 里一次都没出现过 ⇒ 卡作者点不到、也看不见读数。
+                 *   都齐了，但 settings-ui.js 里一次都没出现过 => 卡作者点不到、也看不见读数。
                  * 三条纪律（逐字沿用 organs 与 L12-O4 三态）：
-                 *   ① 面不可用 ⇒ 报「不可用 + 原因」，绝不说成 0 条；
-                 *   ② 面可用但没有 ⇒ 「真的没有」+ 怎么开始一句话；
+                 *   ① 面不可用 => 报「不可用 + 原因」，绝不说成 0 条；
+                 *   ② 面可用但没有 => 「真的没有」+ 怎么开始一句话；
                  *   ③ 面板不重算任何判定：条数/状态一律取自诊断层 xxxState()。
                  * 额外一条（X 系列特有）：六个面里 X1/X2/X9 是动作面，X3/X4 是只读面，
                  *   X5 是链。只读面不摆按钮 —— 给一个点不动的按钮比不给更糟。 */
-                title = '🧩 机制面（规则 / 意义 / 前史 / 影响 / 回执 / 沉默）';
+                title = '机制面（规则 / 意义 / 前史 / 影响 / 回执 / 沉默）';
                 const callX = (name, ...args) => {
                     try {
                         if (typeof s[name] !== 'function') return { ok: false, reason: 'host-method-missing' };
@@ -1351,7 +1360,7 @@
                         const isSoft = soft.indexOf(String((r && r.reason) || '')) >= 0;
                         const cls = isSoft ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)';
                         const word = isSoft ? '这一问没有对象（不是「没装上」）' : '不可用（不是「0 条」，是这个面没装上）';
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:${cls};">${isSoft ? '' : '⚠️ '}${word} · ${esc((r && r.reason) || 'module-unavailable')}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:${cls};">${isSoft ? '' : '<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>'}${word} · ${esc((r && r.reason) || 'module-unavailable')}</div></div></div>`;
                     }
                     if (r.reason === 'empty') {
                         return `<div class="ls-group">${head}<div class="ls-hint">真的没有。${howTo}</div></div>`;
@@ -1363,41 +1372,41 @@
                 const xbtn = (act, id, text, extra) =>
                     `<button class="ls-btn" data-x="${act}" data-id="${escAttr(id)}"${extra || ''} style="margin-left:8px;padding:2px 8px;font-size:11px;">${text}</button>`;
 
-                /* ---- X1 组织规则谱系：提案 → 表决 → 修订 → 废止 → 传闻 ---- */
+                /* ---- X1 组织规则谱系：提案 -> 表决 -> 修订 -> 废止 -> 传闻 ---- */
                 const x1 = callX('institutionRuleState');
-                const x1Html = faceX('📜 组织规则谱系（提案 / 表决 / 修订 / 废止 / 传闻）', '_institutionRuleLine', x1,
+                const x1Html = faceX('<i class="ls-ico" data-i="doc" aria-hidden="true"></i>组织规则谱系（提案 / 表决 / 修订 / 废止 / 传闻）', '_institutionRuleLine', x1,
                     'LLM 提取到「某组织立了规矩 / 改了规矩 / 废了一条规矩」后会自动登记；也可让 AI 调用 institutionRuleAct。',
                     (r) => (r.items || []).map((x) => `
                         <div class="ls-item">
-                            <div class="ls-item-meta"><b>${esc(x.title || x.ruleId)}</b> · ${x.status === 'active' ? '✅ 生效' : (x.status === 'repealed' ? '🚫 已废止' : '⏳ 待表决')} · ${esc(x.sourceTier)} · v${x.version}${x.hasPrevious ? ' · 有旧版' : ''}</div>
+                            <div class="ls-item-meta"><b>${esc(x.title || x.ruleId)}</b> · ${x.status === 'active' ? '<i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>生效' : (x.status === 'repealed' ? '<i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>已废止' : '<i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>待表决')} · ${esc(x.sourceTier)} · v${x.version}${x.hasPrevious ? ' · 有旧版' : ''}</div>
                             <div class="ls-item-text">表决票 ${x.ratifiedBy}${x.hasPrevious ? ' · 旧版正文需显式 withHistory 才读出' : ''}
-                                ${x.sourceTier !== 'rumor' && x.status === 'proposed' ? xbtn('rule-ratify', x.ruleId, '✅ 表决通过') : ''}
-                                ${x.status !== 'repealed' ? xbtn('rule-repeal', x.ruleId, '🚫 废止') : ''}
+                                ${x.sourceTier !== 'rumor' && x.status === 'proposed' ? xbtn('rule-ratify', x.ruleId, '<i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>表决通过') : ''}
+                                ${x.status !== 'repealed' ? xbtn('rule-repeal', x.ruleId, '<i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>废止') : ''}
                             </div>
                         </div>`).join('')
                     + `<div class="ls-hint">口径：废止不删正文（挪进旧版）；传闻是独立层级、永不参与表决 —— 所以「进表决 N 条」与「传闻 M 条」不相加。</div>`);
 
                 /* ---- X2 意义视图：演化史 + 分视角 + 反例单列 ---- */
                 const x2 = callX('meaningViewState');
-                const x2Html = faceX('🕯️ 意义视图（演化 / 分视角 / 反例）', '_meaningViewLine', x2,
+                const x2Html = faceX('<i class="ls-ico" data-i="sparkles" aria-hidden="true"></i>意义视图（演化 / 分视角 / 反例）', '_meaningViewLine', x2,
                     'LLM 提取到「某件东西对某人的含义变了 / 有人不同意」后会自动登记。',
                     (r) => (r.items || []).map((x) => `
                         <div class="ls-item">
-                            <div class="ls-item-meta"><b>${esc(x.name || x.symbolId)}</b> · 跃迁 ${x.historyCount} 次 · 阶段 ${esc((x.stages || []).slice(-3).join(' → '))}</div>
+                            <div class="ls-item-meta"><b>${esc(x.name || x.symbolId)}</b> · 跃迁 ${x.historyCount} 次 · 阶段 ${esc((x.stages || []).slice(-3).join(' '))}</div>
                             <div class="ls-item-text">${(x.actors || []).length ? '各人理解：' + x.actors.map(a => esc(a.actor) + '「' + esc(a.meaning) + '」').join(' / ') : '（尚无人赋予意义）'}</div>
                             ${(x.objectionActors || []).length ? `<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">反例（不认同，不计入视角人数）：${x.objectionActors.map(a => esc(a)).join('、')}</div>` : ''}
-                            ${(x.actors || []).length ? `<div class="ls-item-text">${(x.actors || []).map(a => xbtn('meaning-drop', x.symbolId, '👁 删掉「' + a.actor + '」的理解', ' data-actor="' + escAttr(a.actor) + '"')).join('')}</div>` : ''}
+                            ${(x.actors || []).length ? `<div class="ls-item-text">${(x.actors || []).map(a => xbtn('meaning-drop', x.symbolId, '<i class="ls-ico" data-i="eye" aria-hidden="true"></i>删掉「' + a.actor + '」的理解', ' data-actor="' + escAttr(a.actor) + '"')).join('')}</div>` : ''}
                         </div>`).join('')
-                    + `<div class="ls-hint">口径：意义是视角不是事实 ⇒ 永不写回事实 owner（本面显式 touchesFactOwner=false）；删一条解释只删那一格，其他人的理解原样保留。</div>`);
+                    + `<div class="ls-hint">口径：意义是视角不是事实<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>永不写回事实 owner（本面显式 touchesFactOwner=false）；删一条解释只删那一格，其他人的理解原样保留。</div>`);
 
                 /* ---- X3 世界线前史体检：三态 + 真预览（只读，不摆按钮） ---- */
                 const x3 = callX('worldlinePrehistory');
-                const x3Html = faceX('🗺️ 世界线前史体检（缺口 / 覆盖 / 未登记）', '_worldlinePrehistoryLine', x3,
+                const x3Html = faceX('<i class="ls-ico" data-i="map" aria-hidden="true"></i>世界线前史体检（缺口 / 覆盖 / 未登记）', '_worldlinePrehistoryLine', x3,
                     '在设置里登记「世界线跳跃表」后，这里会体检首跳之前的楼层有没有判不了的条目。',
                     (r) => {
-                        const st = { unregistered: '⚠️ 未登记跳跃表（无纪元可判）', covered: '✅ 已覆盖（首跳在第 1 楼）', gap: '⚠️ 有缺口' }[r.state] || esc(r.state);
+                        const st = { unregistered: '未登记跳跃表（无纪元可判）', covered: '已覆盖（首跳在第 1 楼）', gap: '有缺口' }[r.state] || esc(r.state);
                         const pv = r.previewState === 'applied'
-                            ? `预览：判不了 ${r.before.undecided}→${r.after.undecided} / 挡下 ${r.before.blocked}→${r.after.blocked}`
+                            ? `预览：判不了 ${r.before.undecided}->${r.after.undecided} / 挡下 ${r.before.blocked}->${r.after.blocked}`
                             : (r.previewState === 'no-current-line'
                                 ? '预览未生效：当前线判不了，闸门对每条都给「判不了」 —— 这时的「零差异」不代表改了没用'
                                 : '无可预览的缺口内条目');
@@ -1409,39 +1418,39 @@
 
                 /* ---- X4 证据裁决影响回放：只给引用、不给正文（只读，不摆按钮） ---- */
                 const x4 = callX('evidenceImpactReplay');
-                const x4Html = faceX('⚖️ 证据裁决影响回放（受影响 / 可重算 / 需确认）', '_evidenceImpactLine', x4,
+                const x4Html = faceX('<i class="ls-ico" data-i="gauge" aria-hidden="true"></i>证据裁决影响回放（受影响 / 可重算 / 需确认）', '_evidenceImpactLine', x4,
                     '走一次事实裁决（adopt / parallel / pending / revoke）后，这里出影响回放卡。',
                     (r) => `<div class="ls-item">
                         <div class="ls-item-meta">事实键 <b>${esc(r.factKey)}</b> · 裁决 ${esc(r.verdict)} · 下游 <b>${esc(r.downstream)}</b></div>
                         <div class="ls-item-text">受影响 ${(r.affected || []).length}（可重算 ${r.tiers.recomputable} / 需确认 ${r.tiers.needs_confirm} / 手改 ${r.tiers.manual_only}）· 未受影响 ${r.unaffected} 项原样${r.secretsExcluded ? ' · 秘密排除 ' + r.secretsExcluded : ''}</div>
                         <div class="ls-item-text">摘要 ${(r.summaryRefs || []).length} · 召回路线 ${(r.recallRoutes || []).length} · 下轮注入 ${(r.nextInjectRefs || []).length}（只给引用）</div>
-                        <div class="ls-hint">口径：撤销裁决 ⇒ 下游回到 pending（不是「已修好」也不是「没发生过」）；未受影响的实体不进 recomputed —— 这是唯一能观测「有没有偷偷全量重算」的点。</div>
+                        <div class="ls-hint">口径：撤销裁决<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>下游回到 pending（不是「已修好」也不是「没发生过」）；未受影响的实体不进 recomputed —— 这是唯一能观测「有没有偷偷全量重算」的点。</div>
                     </div>`);
 
                 /* ---- X5 行动回执链：四态 + 下游三态 ---- */
                 const x5 = callX('actionReceiptState');
-                const x5Html = faceX('📫 行动回执链（建议 → 行动 → 结果 → 下次偏好）', '_actionReceiptLine', x5,
+                const x5Html = faceX('<i class="ls-ico" data-i="mail" aria-hidden="true"></i>行动回执链（建议<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>行动<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>结果<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>下次偏好）', '_actionReceiptLine', x5,
                     '下游（手机侧行动桥）送回回执后，这里逐笔记账；也可让 AI 调用 actionReceiptAct 手动登记。',
                     (r) => {
-                        const dn = { present: '✅ 下游在线', disabled: '⏸ 模块装上了但桥关着', absent: '⚠️ 模块没装上' }[r.downstream] || esc(r.downstream);
+                        const dn = { present: '下游在线', disabled: '模块装上了但桥关着', absent: '模块没装上' }[r.downstream] || esc(r.downstream);
                         return `<div class="ls-item">
                             <div class="ls-item-meta">回执 ${r.receipts} 笔（采纳 ${r.byOutcome.accepted} / 拒绝 ${r.byOutcome.rejected} / 超时 ${r.byOutcome.timed_out} / 部分 ${r.byOutcome.partial}）· ${dn}${r.sessionOnly ? ' · 本会话未长期保存 ' + r.sessionOnly + ' 笔' : ''}</div>
-                            ${(r.chain || []).slice(-6).map(x => `<div class="ls-item-text">· ${esc(x.proposalTag || '(无标签)')} → <b>${esc(x.outcome)}</b>${x.rawOutcome !== x.outcome ? '（原始词 ' + esc(x.rawOutcome) + '）' : ''}</div>`).join('')}
-                            <div class="ls-hint">口径：保存的是链不是结论（四态各自入账）；「桥关着」与「没装上」不同形；用户可拒绝长期保存（persist:false ⇒ 只留本会话）。</div>
+                            ${(r.chain || []).slice(-6).map(x => `<div class="ls-item-text">· ${esc(x.proposalTag || '(无标签)')}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i><b>${esc(x.outcome)}</b>${x.rawOutcome !== x.outcome ? '（原始词 ' + esc(x.rawOutcome) + '）' : ''}</div>`).join('')}
+                            <div class="ls-hint">口径：保存的是链不是结论（四态各自入账）；「桥关着」与「没装上」不同形；用户可拒绝长期保存（persist:false<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>只留本会话）。</div>
                         </div>`;
                     });
 
                 /* ---- X9 沉默四问：为什么没进来 ---- */
                 const x9 = callX('silenceExplainState');
-                const x9Html = faceX('🔇 沉默四问（未召回 / 被挡 / 被裁 / 静音）', '_silenceExplainLine', x9,
+                const x9Html = faceX('<i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>沉默四问（未召回 / 被挡 / 被裁 / 静音）', '_silenceExplainLine', x9,
                     '登记「记忆主题」（地点 / 在场人 / 证据数 / 是否秘密）后，这里回答每个主题这一轮为什么没进来。',
                     (r) => (r.topics || []).map((x) => {
                         const q = { 'not-recalled': '没被召回', blocked: '被挡下', trimmed: '被裁剪', muted: '用户静音', surfacing: '本轮浮现' }[x.question] || esc(x.question);
                         return `<div class="ls-item">
                             <div class="ls-item-meta"><b>${esc(x.topicId)}</b> · ${q} · 原因码 ${esc(x.reasonCode || '—')} · 季候 ${esc(x.phase || '—')}</div>
-                            <div class="ls-item-text">${x.matchedSignals ? `地点 ${x.matchedSignals.matchLocation ? '✅' : '—'} / 在场 ${x.matchedSignals.matchActor ? '✅' : '—'} / 周年 ${x.matchedSignals.isAnniversary ? '✅' : '—'}` : '（这一态不带匹配信号：内核在最前面就短路了）'}${x.deferred ? ' · 已延后' : ''}${x.reversible ? ' · 可重开' : ''}
-                                ${x.question === 'muted' ? xbtn('silence-reopen', x.topicId, '🔓 重开') : ''}
-                                ${x.question !== 'muted' && x.question !== 'surfacing' ? xbtn('silence-mute', x.topicId, '🔇 静音') : ''}
+                            <div class="ls-item-text">${x.matchedSignals ? `地点 ${x.matchedSignals.matchLocation ? '' : '—'} / 在场 ${x.matchedSignals.matchActor ? '' : '—'} / 周年 ${x.matchedSignals.isAnniversary ? '' : '—'}` : '（这一态不带匹配信号：内核在最前面就短路了）'}${x.deferred ? ' · 已延后' : ''}${x.reversible ? ' · 可重开' : ''}
+                                ${x.question === 'muted' ? xbtn('silence-reopen', x.topicId, '<i class="ls-ico" data-i="unlock" aria-hidden="true"></i>重开') : ''}
+                                ${x.question !== 'muted' && x.question !== 'surfacing' ? xbtn('silence-mute', x.topicId, '<i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音') : ''}
                             </div>
                             ${x.secretSuppressedByAnniversary ? '<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">秘密主题：不因周年浮现（不是 bug，是权限前置短路）</div>' : ''}
                         </div>`;
@@ -1449,22 +1458,22 @@
                     + `<div class="ls-hint">口径：一个主题只落一问（否则会给出四个互相矛盾的答案）；静音不删除、随时可重开；「主题不存在」与「主题没进来」不同形。</div>`);
 
                 body = x1Html + x2Html + x3Html + x4Html + x5Html + x9Html
-                    + `<div class="ls-hint" style="margin-top:8px;">📌 X1 / X2 / X9 可写（经 institutionRuleAct / meaningViewAct / silenceExplainAct），X3 / X4 只读 —— 只读面不摆按钮。业务判断全在诊断层，面板不重判。</div>`;
+                    + `<div class="ls-hint" style="margin-top:8px;"><i class="ls-ico" data-i="pin" aria-hidden="true"></i>X1 / X2 / X9 可写（经 institutionRuleAct / meaningViewAct / silenceExplainAct），X3 / X4 只读 —— 只读面不摆按钮。业务判断全在诊断层，面板不重判。</div>`;
             }
             else if (viewType === 'silence') {
                 /* [v3.442.0 · L13-X6] 静音清单面：我现在把什么静音了。
                  * 为什么非要有这一处（真实现场，读码可复算）：`silenceExplainState` 只在
                  *   「问为什么召不回」时才用，**没有**常驻的静音清单；而 `seasonState` /
                  *   `topicSeasons` 在全仓除诊断层外**零写入点**、也不在 WorldProgress 的
-                 *   构造/导出/导入三处枚举里 ⇒ 静音存盘即丢。本版先把「有地方存」补上
+                 *   构造/导出/导入三处枚举里 => 静音存盘即丢。本版先把「有地方存」补上
                  *   （memory-organs.js 三处），再把这面画出来。
                  * 三条纪律（逐字沿用本仓只读视图口径）：
-                 *   ① 面不可用 ⇒ 报「不可用 + 原因」，绝不说成「你什么都没静音」；
-                 *   ② 面可用但没有 ⇒ 「真的没有」+ 怎么做才有；
+                 *   ① 面不可用 => 报「不可用 + 原因」，绝不说成「你什么都没静音」；
+                 *   ② 面可用但没有 => 「真的没有」+ 怎么做才有；
                  *   ③ 面板不重判任何判定：两源分列、条数、可不可解一律取自 silenceListState()。
                  * 额外一条（本面特有）：**没有「全部解除」**。一键全解会掩盖误操作，
                  *   用户再也分不清「原本只静音了一条」还是「刚把三条都解了」。 */
-                title = '🔇 静音清单（本轮上下文 / 持久存档 两源分列）';
+                title = '静音清单（本轮上下文 / 持久存档 两源分列）';
                 const sl = (function () {
                     try {
                         if (typeof s.silenceListState !== 'function') return { ok: false, reason: 'host-method-missing' };
@@ -1474,11 +1483,11 @@
                 const slLine = (function () {
                     try { return typeof s._silenceListLine === 'function' ? String(s._silenceListLine() || '') : ''; } catch (e) { return ''; }
                 })();
-                const slHead = `<div class="ls-group-title">🔇 静音清单（本轮上下文 / 持久存档 两源分列）<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(slLine)}</span></div>`;
+                const slHead = `<div class="ls-group-title"><i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音清单（本轮上下文 / 持久存档 两源分列）<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(slLine)}</span></div>`;
                 /* 逐条渲染：两源**绝不合并**。同一个 topicId 同时出现在两源时，
                  *   两列都保留 —— 「持久静音 + 本轮又静了一次」本身就是一条信息。 */
                 const slRow = (x) => {
-                    const srcWord = x.source === 'season' ? '📌 持久（跨存档）' : '⏱ 本轮（重开对话即失效）';
+                    const srcWord = x.source === 'season' ? '持久（跨存档）' : '本轮（重开对话即失效）';
                     const sinceWord = x.sinceKind === 'last-season-action'
                         ? '最近一次季候动作 ' + new Date(Number(x.since)).toLocaleString()
                         : (x.sinceKind === 'this-run' ? '仅本轮生效，无持久起点' : '起点未知（内核只记动作词，不记时间）');
@@ -1488,19 +1497,19 @@
                         <div class="ls-item-text">${esc(x.why)}</div>
                         <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">起点：${esc(sinceWord)} · 到期：${esc(untilWord)}</div>
                         ${x.liftable
-                            ? `<div class="ls-item-text"><button class="ls-btn" data-silence-lift="${escAttr(x.topicId)}" style="padding:2px 8px;font-size:11px;">🔓 解除这一条</button></div>`
+                            ? `<div class="ls-item-text"><button class="ls-btn" data-silence-lift="${escAttr(x.topicId)}" style="padding:2px 8px;font-size:11px;"><i class="ls-ico" data-i="unlock" aria-hidden="true"></i>解除这一条</button></div>`
                             : `<div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">本轮静音改不动（调用方给的上下文）：要撤掉得重开对话或让调用方移除。</div>`}
                     </div>`;
                 };
                 let slBody = '';
                 if (!sl || sl.ok !== true) {
-                    /* ★ 缺席**不许**装成「你什么都没静音」—— 这两件事对用户的意义完全相反。 */
-                    slBody = `<div class="ls-group">${slHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用（**不是「你没有静音任何东西」**，是这个面没装上） · ${esc((sl && sl.reason) || 'module-unavailable')}</div></div></div>`;
+                    /* 缺席**不许**装成「你什么都没静音」—— 这两件事对用户的意义完全相反。 */
+                    slBody = `<div class="ls-group">${slHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「你没有静音任何东西」**，是这个面没装上） · ${esc((sl && sl.reason) || 'module-unavailable')}</div></div></div>`;
                 } else if (!sl.counts || !sl.counts.total) {
                     const why = (sl.listable && sl.listable.season === false)
                         ? '持久静音账还没有落格（这份存档里从没写过静音）；本轮上下文也没静音任何主题。'
                         : '两源都没有静音。';
-                    slBody = `<div class="ls-group">${slHead}<div class="ls-hint">真的没有静音。${why}在「沉默四问」里点「🔇 静音」或让 AI 调 silenceExplainAct，这里就会出现。</div></div>`;
+                    slBody = `<div class="ls-group">${slHead}<div class="ls-hint">真的没有静音。${why}在「沉默四问」里点「<i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音」或让 AI 调 silenceExplainAct，这里就会出现。</div></div>`;
                 } else {
                     const rows = (sl.items || []).map(slRow).join('');
                     const ctxN = (sl.counts && sl.counts.ctx) || 0;
@@ -1518,7 +1527,7 @@
             }
             else if (viewType === 'oplog') {
                 // [v3.55] P16: 事件溯源审计浏览器（消费 v3.54 OpLog）
-                title = '🔍 事件审计链（OpLog）';
+                title = '事件审计链（OpLog）';
                 const opLog = faceRead(() => (s.opLog ? '' : 'OpLog 服务缺席'), () => s.opLog);
                 if (!opLog || !opLog.entries?.length) {
                     body = faceHTML('进行几轮对话后，此处显示所有记忆变更的完整审计链。');
@@ -1528,13 +1537,13 @@
                     //   locked_fact / worldprogress / cse / delta / gc / ledger 六类变更
                     //   在「事件审计链」里显示为英文原始 key。呈现层与账本的**类型集合**
                     //   不同步，等于账本自己没被完整读出来。补齐后由测试锁定集合关系。
-                    const typeCn = { summary: '📝摘要', graph: '🕸️图谱', status: '📊状态', item: '🎒物品', suspense: '🧩悬念', diary: '📔日记', pov: '👁认知', timeline: '📅时间线', card: '🃏卡牌', money: '💰钱财', conflict: '⚔️矛盾', pair: '👥群像', rollback: '↩️回滚', locked_fact: '🔒锁定事实', worldprogress: '🌍世界进度', cse: '🧠人物状态', delta: '📒正史增量', gc: '🧹回收账本', ledger: '📚楼层账本', tombstone: '🪦已删除', char_mem: '🧠角色记忆' };
+                    const typeCn = { summary: '摘要', graph: '图谱', status: '状态', item: '物品', suspense: '悬念', diary: '日记', pov: '认知', timeline: '时间线', card: '卡牌', money: '钱财', conflict: '矛盾', pair: '群像', rollback: '回滚', locked_fact: '锁定事实', worldprogress: '世界进度', cse: '人物状态', delta: '正史增量', gc: '回收账本', ledger: '楼层账本', tombstone: '已删除', char_mem: '角色记忆' };
                     const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`
-                        + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}">📒 账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
+                        + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
                     const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
                     const rows = opLog.recent(80).slice().reverse().map(e => {
-                        /* [v3.466.0 · L21-X8] 每行可展开的「↩️ 这次改动牵动了什么」：
+                        /* [v3.466.0 · L21-X8] 每行可展开的「这次改动牵动了什么」：
                          *   operation-echo-report 四档（graph/summary/injection/timeline）三态
                          *   （受影响/未受影响/判不了），「判不了」绝不并进「未受影响」。 */
                         let echoLine = '';
@@ -1554,16 +1563,16 @@
                         <div class="ls-item">
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
                             <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2,#9da7b3)">— ${esc(e.meta)}</span>` : ''}</div>
-                            ${echoLine ? `<details class="ls-echo"><summary style="cursor:pointer;font-size:12px;color:var(--ls-text-2,#9da7b3);">↩️ 这次改动牵动了什么</summary><div class="ls-item-text" style="font-size:12px;">${esc(echoLine.replace('↩️ 这次改动牵动了什么：', ''))}</div></details>` : ''}
+                            ${echoLine ? `<details class="ls-echo"><summary style="cursor:pointer;font-size:12px;color:var(--ls-text-2,#9da7b3);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>这次改动牵动了什么</summary><div class="ls-item-text" style="font-size:12px;">${esc(echoLine.replace('这次改动牵动了什么：', ''))}</div></details>` : ''}
                         </div>`; }).join('');
                     const tombstones = typeof s.charMem?.getTombstones === 'function' ? s.charMem.getTombstones() : [];
                     const tombRows = tombstones.length
-                        ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta">🪦 ${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;">↺ 恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger,#f85149);">彻底清除</button></div></div>`).join('')
+                        ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger,#f85149);">彻底清除</button></div></div>`).join('')
                         : '<div class="ls-hint">暂无软删记忆。</div>';
                     /* [v3.443.0 · L13-X8] 本轮生成的可撤销快照面（Problem 8：生成后新增的条目
                      *   此前没有一键回滚入口 —— 只能去各面对着手删，或整份回滚把同轮正确写入一起吞掉）。
                      * 三条纪律与静音面同源：
-                     *   ① 面不可用 ⇒ 报「不可用 + 原因」，**绝不说成**「本轮什么都没新增」；
+                     *   ① 面不可用 => 报「不可用 + 原因」，**绝不说成**「本轮什么都没新增」；
                      *   ② 没有/半对/有，三态各自措辞（「采集断在半路」不许装成「没有」）；
                      *   ③ 面板不重判：可不可撤、撤哪几条一律取自 roundUndoState()。
                      * 本面特有的一条：**本轮修改过的条目不回退**（只标待复核）——
@@ -1579,13 +1588,13 @@
                         try { return typeof s._roundUndoLine === 'function' ? String(s._roundUndoLine() || '') : ''; } catch (e) { return ''; }
                     })();
                     const roundUndoHtml = (function () {
-                        const ruHead = `<div class="ls-group-title">↩️ 撤销本轮写入<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(ruLine)}</span></div>`;
+                        const ruHead = `<div class="ls-group-title"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮写入<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(ruLine)}</span></div>`;
                         const rule = '口径：只回滚本轮**新增**的条目；本轮**修改**过的条目保持原样、只标待复核（回退修改会吞掉别的动作）；本轮删除过的不可恢复（正文未留，撤回来等于编造）。';
                         if (!ru || ru.ok !== true) {
-                            return `<div class="ls-group">${ruHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用（**不是「本轮什么都没新增」**，是这个面没装上） · ${esc((ru && ru.reason) || 'module-unavailable')}</div></div></div>`;
+                            return `<div class="ls-group">${ruHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「本轮什么都没新增」**，是这个面没装上） · ${esc((ru && ru.reason) || 'module-unavailable')}</div></div></div>`;
                         }
                         if (ru.state === 'undone') {
-                            /* ★ 「撤过了」不许装成「本轮没有新增」——后者会让用户以为自己白点了按钮。 */
+                            /* 「撤过了」不许装成「本轮没有新增」——后者会让用户以为自己白点了按钮。 */
                             const when = ru.undoneAt ? new Date(Number(ru.undoneAt)).toLocaleString() : '时间未知';
                             return `<div class="ls-group">${ruHead}<div class="ls-item-meta">第 ${ru.seq === null || ru.seq === undefined ? '—' : esc(String(ru.seq))} 轮已于 ${esc(when)} 撤销过</div><div class="ls-hint">这一轮新增的条目已经删掉了，再点一次不会重放（重放只会拿一批已不存在的 id 去删，报一堆失败像缺陷）。已撤销的条目本身不可恢复。${esc(rule)}</div></div>`;
                         }
@@ -1603,7 +1612,7 @@
                             ? `<div class="ls-hint" style="color:${color};">${esc(word)}：${arr.map((x) => esc(String(x.ledger || '?') + '/' + String(x.id || '?'))).join(' · ')}</div>`
                             : '';
                         const btn = added.length
-                            ? `<div class="ls-item-text"><button class="ls-btn" data-round-undo="1" style="padding:4px 10px;font-size:12px;color:var(--ls-danger,#f85149);">↩️ 撤销本轮新增 ${added.length} 条</button></div>`
+                            ? `<div class="ls-item-text"><button class="ls-btn" data-round-undo="1" style="padding:4px 10px;font-size:12px;color:var(--ls-danger,#f85149);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮新增 ${added.length} 条</button></div>`
                             : '<div class="ls-hint">本轮没有新增条目 —— 没有可撤销的东西（这不是失败）。</div>';
                         return `<div class="ls-group">${ruHead}
                         <div class="ls-item-meta">第 ${ru.seq === null || ru.seq === undefined ? '—' : esc(String(ru.seq))} 轮 · 新增 ${c.added || 0} 条 · 删除 ${c.removed || 0} 条 · 改过 ${c.modified || 0} 条</div>
@@ -1612,7 +1621,7 @@
                         <div class="ls-hint">${esc(rule)}</div>
                     </div>`;
                     })();
-                    body = roundUndoHtml + head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div><div class="ls-hint" style="margin-top:10px;">🪦 已删除记忆（可恢复）</div><div id="lonsha-tombstone-rows">${tombRows}</div>`;
+                    body = roundUndoHtml + head + floorInput + `<div id="lonsha-oplog-rows">${rows}</div><div class="ls-hint" style="margin-top:10px;"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>已删除记忆（可恢复）</div><div id="lonsha-tombstone-rows">${tombRows}</div>`;
                 }
             }
 
@@ -1621,7 +1630,7 @@
                 //   为什么不塞进「最近恢复」：恢复面回答「这次搬了哪些字段」，
                 //   体检面回答「这份档里有没有谁都不认的键、有没有读不出的值」——成因与处置都不同。
                 //   本页**只点名不执行**：清理已有唯一真源（顶层键集合），在此再删一份就是第二份判据。
-                title = '🧾 证据缺口 · 存档体检';
+                title = '证据缺口 · 存档体检';
                 const aa = s._lastArchiveAudit;
                 /* ===== [v3.441.0 · L13-X4] 证据缺口工作台 ======
                  * 为什么放在 archive 视图（计划原文就指定这里）：两件事回答的是同一个问题的两半 ——
@@ -1653,29 +1662,29 @@
                     : '';
                 /* 三档徽章：**逐档不同文不同形**。共用一句话就是「合成一档」的软形态。 */
                 const gapBadge = {
-                    'no-source': { cls: '⚠️', txt: '从没证据', why: '既没有证据引用，历史里也没有带来源的登记' },
-                    'source-lost': { cls: '🗑️', txt: '证据失效', why: '账上写着证据引用，但在当前正文里已找不到（被删或被裁）' },
-                    'contradicted': { cls: '⚔️', txt: '证据矛盾', why: '同主语在未决矛盾账里有多版本' },
-                    'undecided': { cls: '❓', txt: '判不了', why: '该判而判不了（见下方两侧核验状态）' },
+                    'no-source': { cls: '', txt: '从没证据', why: '既没有证据引用，历史里也没有带来源的登记' },
+                    'source-lost': { cls: '', txt: '证据失效', why: '账上写着证据引用，但在当前正文里已找不到（被删或被裁）' },
+                    'contradicted': { cls: '', txt: '证据矛盾', why: '同主语在未决矛盾账里有多版本' },
+                    'undecided': { cls: '', txt: '判不了', why: '该判而判不了（见下方两侧核验状态）' },
                 };
                 let gapBlock = '';
                 if (gap.ok !== true) {
-                    gapBlock = '<div class="ls-group"><div class="ls-group-title">🔍 证据缺口</div>'
+                    gapBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="search" aria-hidden="true"></i>证据缺口</div>'
                         + '<div class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="'
-                        + escAttr(gap.reason || 'module-unavailable') + '">⚠️ 不可用 · '
+                        + escAttr(gap.reason || 'module-unavailable') + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · '
                         + esc(gap.reason || 'module-unavailable')
                         + '（**不是「证据都齐了」**，是这个面没装上）</div></div>';
                 } else if (!(gap.thin || []).length) {
                     /* 空态：**必须**把「扫了多少条」念出来。只说「没有缺口」会让
                      *   一次空扫（0 条事实）与一次真扫（扫了 40 条都够厚）同形。 */
-                    gapBlock = '<div class="ls-group"><div class="ls-group-title">🔍 证据缺口'
+                    gapBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="search" aria-hidden="true"></i>证据缺口'
                         + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
                         + esc(gapLine) + '</span></div>'
                         + '<div class="ls-hint" data-ls-gap-face="empty">扫过 ' + (gap.scanned || 0)
                         + ' 条事实（证据够厚 ' + (gap.thick || 0) + ' 条），没有落在「证据薄」阈值（≤ '
                         + (gap.threshold ?? 0) + ' 条）里的条目。</div></div>';
                 } else {
-                    /* 分档渲染：一次遍历建四格，**卡片顺序 = 严重度序**（矛盾 → 失效 → 从没 → 判不了）。
+                    /* 分档渲染：一次遍历建四格，**卡片顺序 = 严重度序**（矛盾 -> 失效 -> 从没 -> 判不了）。
                      *   每格独立计数、独立人话；格内条目才带序号。 */
                     const byCause = { 'contradicted': [], 'source-lost': [], 'no-source': [], 'undecided': [] };
                     for (const it of gap.thin) (byCause[it.cause] || byCause['undecided']).push(it);
@@ -1691,10 +1700,10 @@
                         + '<div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681);">' + esc(it.note || '') + '</div>'
                         + '<div style="margin-top:4px;display:flex;gap:6px;">'
                         + '<button class="ls-btn ls-gap-refill" data-gap-refill="' + escAttr(it.factId) + '"'
-                        + ' style="padding:2px 8px;font-size:12px;">✎ 去补证</button>'
+                        + ' style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>去补证</button>'
                         + '<button class="ls-btn ls-gap-down" data-gap-down="' + escAttr(it.factId) + '"'
                         + ' data-gap-why="' + escAttr(it.cause) + '"'
-                        + ' style="padding:2px 8px;font-size:12px;">↓ 降级为推测</button>'
+                        + ' style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="arrow-down" aria-hidden="true"></i>降级为推测</button>'
                         + '</div></div>';
                     let boxes = '';
                     for (const c of ['contradicted', 'source-lost', 'no-source', 'undecided']) {
@@ -1710,10 +1719,10 @@
                     /* 两侧核验状态：**不许省**。它是「判不了」这一格能说清的前提。 */
                     const chk = gap.checked || {};
                     const chkHtml = '<div class="ls-hint" style="color:' + ((chk.source && chk.conflict) ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)') + ';">'
-                        + '核验状态：来源侧 ' + (chk.source ? '✅ 已核验（正文可读）' : '⚠️ 未核验（正文不可读 ⇒ 不判「证据失效」）')
-                        + ' · 矛盾侧 ' + (chk.conflict ? '✅ 已核验（矛盾账在）' : '⚠️ 未核验（矛盾账没装上 ⇒ 不判「没有矛盾」）')
+                        + '核验状态：来源侧 ' + (chk.source ? '已核验（正文可读）' : '未核验（正文不可读 => 不判「证据失效」）')
+                        + ' · 矛盾侧 ' + (chk.conflict ? '已核验（矛盾账在）' : '未核验（矛盾账没装上 => 不判「没有矛盾」）')
                         + '</div>';
-                    gapBlock = '<div class="ls-group"><div class="ls-group-title">🔍 证据缺口'
+                    gapBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="search" aria-hidden="true"></i>证据缺口'
                         + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
                         + esc(gapLine) + '</span></div>'
                         + '<div class="ls-hint">扫过 ' + (gap.scanned || 0) + ' 条事实，其中证据薄 '
@@ -1732,8 +1741,8 @@
                         : { ok: false, reason: 'host-method-missing' };
                 } catch (e) { sourceRaw = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
                 if (!sourceRaw || sourceRaw.ok !== true) {
-                    sourceBlock = '<div class="ls-group"><div class="ls-group-title">⌖ 原文回源</div>'
-                        + '<div class="ls-hint ls-face-absent">⚠️ 不可用 · ' + esc((sourceRaw && sourceRaw.reason) || 'module-unavailable') + '</div></div>';
+                    sourceBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>原文回源</div>'
+                        + '<div class="ls-hint ls-face-absent"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ' + esc((sourceRaw && sourceRaw.reason) || 'module-unavailable') + '</div></div>';
                 } else {
                     const sourceRows = (sourceRaw.rows || []).filter((r) => r && (r.state === 'edited' || r.state === 'missing' || r.state === 'unknown-floor'));
                     const sourceCounts = sourceRaw.counts || {};
@@ -1745,10 +1754,10 @@
                         return '<div class="ls-item" data-source-row="' + escAttr(r.ref || '') + '">'
                             + '<div class="ls-item-meta">' + esc(r.state || 'unknown') + ' · ' + esc(r.ref || '') + '</div>'
                             + '<div class="ls-item-text">' + esc(r.reason || '来源未定位') + '</div>'
-                            + (recoverable ? '<button class="ls-btn ls-source-rebind" data-source-ref="' + escAttr(r.ref || '') + '" style="padding:2px 8px;font-size:12px;">⌖ 预览改绑</button>' : '<div class="ls-hint">无唯一恢复候选，不自动跳邻楼。</div>')
+                            + (recoverable ? '<button class="ls-btn ls-source-rebind" data-source-ref="' + escAttr(r.ref || '') + '" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>预览改绑</button>' : '<div class="ls-hint">无唯一恢复候选，不自动跳邻楼。</div>')
                             + '</div>';
                     }).join('') : '<div class="ls-hint">当前没有失效或待确认的来源。</div>';
-                    sourceBlock = '<div class="ls-group"><div class="ls-group-title">⌖ 原文回源</div>'
+                    sourceBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>原文回源</div>'
                         + '<div class="ls-hint" data-source-summary="1">' + esc(sourceHead) + '</div>'
                         + sourceRowsHtml + '</div>';
                 }
@@ -1761,7 +1770,7 @@
                 } else {
                     const head = `<div class="ls-hint">判定 <b>${esc(aa.verdict)}</b> · 总 ${aa.total ?? 0} 键 / ${aa.bytes ?? 0} 字节 · 活真源 ${aa.active ?? 0} · 可清理候选 ${aa.cleanup ?? 0} · 保留 ${aa.retained ?? 0}</div>`;
                     const warn = (aa.cleanup || 0) > 0
-                        ? `<div class="ls-hint" style="color:var(--ls-warn,#e3b341)">⚠️ 有 ${aa.cleanup} 个键可清理：不在本插件存档顶层键集合内、且值可读。清理不在本页执行，此处只点名。</div>`
+                        ? `<div class="ls-hint" style="color:var(--ls-warn,#e3b341)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>有 ${aa.cleanup} 个键可清理：不在本插件存档顶层键集合内、且值可读。清理不在本页执行，此处只点名。</div>`
                         : '';
                     const ckRow = (aa.cleanupKeys || []).length
                         ? `<div class="ls-item"><div class="ls-item-meta">可清理候选</div><div class="ls-item-text">${(aa.cleanupKeys || []).map(esc).join(' · ')}</div></div>` : '';
@@ -1769,8 +1778,8 @@
                         ? `<div class="ls-item"><div class="ls-item-meta">保留（含原因）</div><div class="ls-item-text">${(aa.retainedKeys || []).map(esc).join(' · ')}</div></div>` : '';
                     const cl = s._lastItemOpsClaim;
                     const claim = cl
-                        ? `<div class="ls-item"><div class="ls-item-meta">🎒 物品 op 忠实认领证明</div><div class="ls-item-text">候选 ${cl.ops} 条 / 楼层 ${cl.floors} 层 · 可证明 ${cl.proved} · 判不了 ${cl.unproved}${cl.issue ? ' · 根因 ' + esc(cl.issue) : ''}</div><div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681)">只读证明：不删任何 op —— 失效清理的唯一真源是优化 3b 段（fp 不在该楼任何 swipe 取值里）。</div></div>`
-                        : '<div class="ls-hint">🎒 物品 op 认领证明：本次导入无 itemOps，或聊天未就绪。</div>';
+                        ? `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>物品 op 忠实认领证明</div><div class="ls-item-text">候选 ${cl.ops} 条 / 楼层 ${cl.floors} 层 · 可证明 ${cl.proved} · 判不了 ${cl.unproved}${cl.issue ? ' · 根因 ' + esc(cl.issue) : ''}</div><div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681)">只读证明：不删任何 op —— 失效清理的唯一真源是优化 3b 段（fp 不在该楼任何 swipe 取值里）。</div></div>`
+                        : '<div class="ls-hint"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>物品 op 认领证明：本次导入无 itemOps，或聊天未就绪。</div>';
                     archiveBody = head + warn + ckRow + rkRow + claim
                         + (aa.line ? `<div class="ls-hint" style="color:var(--ls-text-3,#6e7681)">${esc(aa.line)}</div>` : '');
                 }
@@ -1783,12 +1792,12 @@
             else if (viewType === 'lockedfacts') {
                 // [v3.63] 锁定事实管理（dsh lockedFacts）：查看/新增/删除，逐字保护
                 // [L14-X1] 融合 消息多跳转告链 工作台
-                title = '🔒 用户锁定剧情事实 + 消息多跳转告链';
+                title = '用户锁定剧情事实 + 消息多跳转告链';
                 const list = faceRead(() => ((s.summary && typeof s.summary.getLockedFacts === 'function') ? '' : '锁定事实服务缺席'), () => s.summary.getLockedFacts() || []);
                 const head = `<div class="ls-hint">锁定的剧情事实会<b>逐字</b>进入每轮摘要与注入流，永不因压缩丢失。摘要生成后有校验器防遗漏。适用于：关键约定、物品归属、重要转折、你不想被 AI 忘记的一切。</div>`;
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
                     <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
-                    <button id="ls-lf-add" class="ls-btn" style="padding:6px 14px;">🔒 锁定</button>
+                    <button id="ls-lf-add" class="ls-btn" style="padding:6px 14px;"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>锁定</button>
                 </div>`;
                 const items = list.length === 0
                     ? faceHTML('在上方输入框写下剧情事实后点击「锁定」，它会逐字进入每轮摘要。')
@@ -1798,7 +1807,7 @@
                                 <div class="ls-item-meta">第${f.floor}楼锁定 · ${fmtTime(f.createdAt)}</div>
                                 <div class="ls-item-text">${esc(f.text)}</div>
                             </div>
-                            <button class="ls-btn ls-lf-del" data-lfid="${escAttr(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✕</button>
+                            <button class="ls-btn ls-lf-del" data-lfid="${escAttr(f.id)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;"><i class="ls-ico" data-i="xmark" aria-hidden="true"></i></button>
                         </div>`).join('');
                 const factsHtml = head + addForm + '<div style="margin-top:8px;">' + items + '</div>';
 
@@ -1810,18 +1819,18 @@
                         : { ok: false, reason: 'host-method-missing' };
                     const rLine = (typeof s._knowledgeRelayLine === 'function') ? s._knowledgeRelayLine() : '';
                     if (!rState || rState.ok !== true) {
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 消息转告链工作台不可用 · ${esc((rState && rState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>消息转告链工作台不可用 · ${esc((rState && rState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
                     } else if (rState.state === 'no-chains' || !rState.chains || rState.chains.length === 0) {
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-hint">暂无消息转告链。当某条消息被角色A告诉B、再传给C时，此处记录逐跳传播时刻、机密授权与撤回影响，严防时间穿越与超前全知。</div></div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-hint">暂无消息转告链。当某条消息被角色A告诉B、再传给C时，此处记录逐跳传播时刻、机密授权与撤回影响，严防时间穿越与超前全知。</div></div>`;
                     } else {
                         const chainCards = rState.chains.map(ch => {
-                            const chChars = ch.characters && ch.characters.length ? ch.characters.join(' → ') : '无节点';
+                            const chChars = ch.characters && ch.characters.length ? ch.characters.join(' ') : '无节点';
                             return `<div class="ls-item">
                                 <div class="ls-item-meta"><b>${esc(ch.factId)}</b> · 起源: ${esc(ch.originSpeaker)} · 第${ch.rootFloor}楼 · 传导: ${esc(chChars)}</div>
                                 <div class="ls-item-text">跳转总数: ${ch.hopCount} 跃（生效 ${ch.activeHops} · 撤回 ${ch.retractedHops}）· 迟到消息严禁穿越时间</div>
                             </div>`;
                         }).join('');
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">📡 消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div>${chainCards}</div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div>${chainCards}</div>`;
                     }
                 } catch (e) {
                     relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">转告链面板异常 · ${esc(e.message || e)}</div></div></div>`;
@@ -1834,35 +1843,35 @@
                         : { ok: false, reason: 'host-method-missing' };
                     const scLine = (typeof s._sceneStateTrackerLine === 'function') ? s._sceneStateTrackerLine() : '';
                     if (!scState || scState.ok !== true) {
-                        sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🎭 物理现场快照与在场权限<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 现场快照服务不可用 · ${esc((scState && scState.reason) || 'module-unavailable')}</div></div></div>`;
+                        sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照与在场权限<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>现场快照服务不可用 · ${esc((scState && scState.reason) || 'module-unavailable')}</div></div></div>`;
                     } else {
                         const sceneObj = scState.scene || {};
                         const castStr = scState.inSceneCharacters === undefined ? '未指定（全开）' : (scState.inSceneCharacters.length === 0 ? '【全员离场无人】' : scState.inSceneCharacters.join('、'));
-                        const persistStr = scState.isPersisted ? `✅已落盘（第${scState.scene?.floor ?? 0}楼）` : '⏳待随会话保存';
+                        const persistStr = scState.isPersisted ? `已落盘（第${scState.scene?.floor ?? 0}楼）` : '待随会话保存';
                         sceneHtml = `<div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title">🎭 物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)} · 存档状态: ${persistStr}</div>
                                 <div class="ls-item-text">动作: ${esc(sceneObj.action || '无焦点动作')} · 未决: ${esc(sceneObj.unresolved || '无悬念')}</div>
                             </div>
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title">🌲 事实纠错影响扩散树 & 💔 誓约决裂烙印</div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="flower" aria-hidden="true"></i>事实纠错影响扩散树 & <i class="ls-ico" data-i="heart" aria-hidden="true"></i>誓约决裂烙印</div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">级联演化树状态: 就绪 (支持根事实追溯、派生下溯与撤销重构) · 誓约创伤烙印: 深度追踪</div>
                                 <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">当根事实被修改时，派生推论自动标记 deprecated 并从生成注入中隔离。</div>
                             </div>
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title">🛡️ 防全知视界隔离与认知边界四桶动态滤镜<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._cognitiveHorizonLine === 'function') ? s._cognitiveHorizonLine() : '')}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="shield" aria-hidden="true"></i>防全知视界隔离与认知边界四桶动态滤镜<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._cognitiveHorizonLine === 'function') ? s._cognitiveHorizonLine() : '')}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">机制: STBME 仿生四桶 (亲历/共历/传闻/禁区) · 封口指令锁: 活跃 · 隔空读心防御: 物理级0-Token阻断</div>
                                 <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">酒馆多角色通用：按聚焦发言角色进行视界动态投影，严格切断不在场角色私密心声，防止大模型上帝视角出戏剧透。</div>
                             </div>
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title">🧠 仿生记忆共振巩固与多跳推演<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._resonanceConsolidationLine === 'function') ? s._resonanceConsolidationLine() : '')}</span></div>
-                            <div class="ls-group-title" style="margin-top:6px;">🧬 分层折叠金字塔与整合去重演化<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._pyramidEvolutionLine === 'function') ? s._pyramidEvolutionLine() : '')}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="brain" aria-hidden="true"></i>仿生记忆共振巩固与多跳推演<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._resonanceConsolidationLine === 'function') ? s._resonanceConsolidationLine() : '')}</span></div>
+                            <div class="ls-group-title" style="margin-top:6px;"><i class="ls-ico" data-i="flow" aria-hidden="true"></i>分层折叠金字塔与整合去重演化<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._pyramidEvolutionLine === 'function') ? s._pyramidEvolutionLine() : '')}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">PEDSA 激活扩散: 2 跳 · 衰减 0.6 · 时序合成边 0.2 · 矛盾边负能量 ×2.0 · 访问强化正反馈: 活跃</div>
                                 <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">跨实体时空关联形成动态多级激活；旧记忆 0.8 封底不清零，可被重新引燃。访问热表随会话存档落盘，酒馆多角色/群聊通用，不绑定任何特定角色。</div>
@@ -1876,27 +1885,27 @@
             }
             else if (viewType === 'deltas') {
                 // [v3.68] A: 正史增量视图（established/uncertain 分状态，手动确证）
-                title = '📒 正史增量账本';
+                title = '正史增量账本';
                 const list = faceRead(() => (s.deltaBook ? '' : '正史增量服务缺席'), () => s.deltaBook.deltas || []);
                 if (!list.length) {
                     body = faceHTML('摘要折叠时 LLM 会同步产出增量事实（established=有明确证据，uncertain=存疑待佐证，后续剧情会自动确证）。');
                 } else {
                     const stBadge = (st) => st === 'established'
-                        ? '<span style="font-size:10px;font-weight:700;color:var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));border-radius:4px;padding:1px 6px;">✅已确证</span>'
-                        : '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;">⏳待定</span>';
+                        ? '<span style="font-size:10px;font-weight:700;color:var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>已确证</span>'
+                        : '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>待定</span>';
                     body = list.slice().reverse().map(d => `
                         <div class="ls-item" style="display:flex;align-items:flex-start;gap:8px;">
                             <div style="flex:1;">
                                 <div class="ls-item-meta">${stBadge(d.status)} · 第${d.evidenceFloor}楼 · ${fmtTime(d.timestamp)}</div>
                                 <div class="ls-item-text">${esc(d.summary)}</div>
                             </div>
-                            ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${escAttr(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;">✓</button>` : ''}
+                            ${d.status === 'uncertain' ? `<button class="ls-btn ls-delta-confirm" data-dsum="${escAttr(d.summary)}" style="padding:2px 8px;font-size:12px;flex-shrink:0;"><i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i></button>` : ''}
                         </div>`).join('');
                 }
 }
              else if (viewType === 'pulse') {
                  // [v3.96] 叙事心电图视图（原创：张力曲线 + 节奏诊断 + 角色弧光）
-                 title = '💓 叙事心电图';
+                 title = '叙事心电图';
                  const beats = s.pulse?.beats || [];
                  const arcs = s.pulse?.arcs || {};
                  if (!beats.length) {
@@ -1940,7 +1949,7 @@
                          <div class="ls-item-meta">角色弧光阶段（情感轨迹拟合）</div>
                          ${arcKeys.slice(0,8).map(k => {
                              const a = arcs[k];
-                             const trail = a.polarityTrail.slice(-6).map(x => x.polarity >= 0 ? '↗' : '↘').join('');
+                             const trail = a.polarityTrail.slice(-6).map(x => x.polarity >= 0 ? '' : '').join('');
                              return `<div class="ls-item-text" style="display:flex;justify-content:space-between;align-items:center;"><span><b>${esc(k)}</b> <span style="color:var(--ls-text-3,#6e7681);font-size:11px;">${trail}</span></span>${phaseBadge(a.phase)}</div>`;
                          }).join('')}
                      </div>` : '';
@@ -1949,21 +1958,21 @@
              }
              else if (viewType === 'conflicts') {
                 // [v3.65] C: 未决矛盾视图（severity 严重度分级展示）
-                title = '⚔️ 未决矛盾账本 + 往事多方讲述对照';
+                title = '未决矛盾账本 + 往事多方讲述对照';
                 const list = s.conflicts?.conflicts || [];
                 let conflictHtml = '';
                 if (!list.length) {
                     conflictHtml = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
                 } else {
                     const sevBadge = (sev) => {
-                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger,#f85149);background:var(--ls-danger-soft,rgba(248,81,73,0.14));border-radius:4px;padding:1px 6px;">🔴高</span>';
-                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info,#58a6ff);background:var(--ls-info-soft,rgba(56,139,253,0.12));border-radius:4px;padding:1px 6px;">🔵低</span>';
-                        return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;">🟡中</span>';
+                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger,#f85149);background:var(--ls-danger-soft,rgba(248,81,73,0.14));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="error" aria-hidden="true"></i>高</span>';
+                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info,#58a6ff);background:var(--ls-info-soft,rgba(56,139,253,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="info" aria-hidden="true"></i>低</span>';
+                        return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="warn" aria-hidden="true"></i>中</span>';
                     };
                     conflictHtml = list.slice().reverse().map(c => `
                         <div class="ls-item">
                             <div class="ls-item-meta">${sevBadge(c.severity)} <b>${esc(c.subject)}</b> · 第${c.floor}楼${c.time ? ' · ' + esc(c.time) : ''}</div>
-                            <div class="ls-item-text">版本A「${esc(c.versionA)}」 ↔ 版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3,#6e7681);">' + esc(c.note) + '</span>' : ''}</div>
+                            <div class="ls-item-text">版本A「${esc(c.versionA)}」<i class="ls-ico ls-ico-inline" data-i="swap" role="img" aria-label="与"></i>版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3,#6e7681);">' + esc(c.note) + '</span>' : ''}</div>
                         </div>`).join('');
                 }
 
@@ -1976,19 +1985,19 @@
                     const nLine = (typeof s._narrationCompareLine === 'function') ? s._narrationCompareLine() : '';
 
                     if (!nState || nState.ok !== true) {
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 讲述对照工作台不可用 · ${esc((nState && nState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>讲述对照工作台不可用 · ${esc((nState && nState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
                     } else if (nState.state === 'no-sessions' || !nState.sessions || nState.sessions.length === 0) {
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-hint">暂无多方讲述对照会话。当不同角色对同一过去事件产生讲述分歧时，此处自动列出逐段对比与物理证据反查。</div></div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-hint">暂无多方讲述对照会话。当不同角色对同一过去事件产生讲述分歧时，此处自动列出逐段对比与物理证据反查。</div></div>`;
                     } else {
                         const sessCards = nState.sessions.map(sess => {
-                            const dispTag = sess.hasDispute ? '<span style="color:var(--ls-danger,#f85149);font-weight:700;">⚠️ 存在分歧</span>' : '<span style="color:var(--ls-success,#3fb950);">✅ 多方吻合</span>';
+                            const dispTag = sess.hasDispute ? '<span style="color:var(--ls-danger,#f85149);font-weight:700;"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>存在分歧</span>' : '<span style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>多方吻合</span>';
                             const spkStr = sess.speakers.length ? sess.speakers.join('、') : '无讲述者';
                             return `<div class="ls-item">
                                 <div class="ls-item-meta"><b>${esc(sess.title || sess.eventId)}</b> · 讲述人: ${esc(spkStr)} · 物理证据: ${sess.canonicalCount} 条 · ${dispTag}</div>
                                 <div class="ls-item-text">讲述篇数: ${sess.narrationCount} 篇 · 讲述绝不篡改物理正史</div>
                             </div>`;
                         }).join('');
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title">🗣️ 往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div>${sessCards}</div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div>${sessCards}</div>`;
                     }
                 } catch (e) {
                     narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">讲述对照面板异常 · ${esc(e.message || e)}</div></div></div>`;
@@ -2002,9 +2011,9 @@
                 //   修前 `_lastInjection` 被 selfCheck 的「召回管线 dry-run（**不注入**，只验证链路通）」
                 //   也写过一次 —— 一次诊断会把「最近一次实际注入」覆盖掉，
                 //   而本面板文案写的是「即 AI 真实所见」：面板在替一次**没发生过的注入**作证。
-                //   现在两条路分开：真生成 → `_lastInjection`；诊断 → `_diagnostics.dryRun`，
+                //   现在两条路分开：真生成 -> `_lastInjection`；诊断 -> `_diagnostics.dryRun`，
                 //   下面单独一格展示并明写「不计入实际注入」。
-                title = '👁 注入内容预览';
+                title = '注入内容预览';
                 const inj = s._lastInjection;
                 const _dryRun = s._diagnostics?.dryRun;
                 if (!inj?.html) {
@@ -2018,9 +2027,9 @@
                      *   两者处置相反：前者该重发、后者该看回复。 */
                     const _oc = String(inj.outcome || 'pending');
                     const _ocBadge = _oc === 'completed'
-                        ? ' <span style="color:var(--ls-success,#3fb950);">✓ 已完成（回复已落层）</span>'
+                        ? ' <span style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>已完成（回复已落层）</span>'
                         : (_oc === 'aborted'
-                            ? ' <span style="color:var(--ls-warn,#d29922);">⚠️ 被中止（本轮无回复，可重发）</span>'
+                            ? ' <span style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>被中止（本轮无回复，可重发）</span>'
                             : ' <span style="color:var(--ls-text-3,#6e7681);">· 结局未定（生成进行中或宿主未发结束事件）</span>');
                     let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · 第 ${inj.round} 轮 · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）${_ocBadge}</div>`;
                     // [v3.215.0] R2-A 逐块读数：回答「进的是哪几块 / 裁的是哪几块」——
@@ -2059,8 +2068,8 @@
                             const _okRow = !!b.kept;
                             const _half = !!(b && b.partial);
                             const _tone = _okRow ? 'var(--ls-success,#3fb950)' : (_half ? 'var(--ls-warn,#d29922)' : 'var(--ls-danger,#f85149)');
-                            const _mark = _okRow ? '✓ 进' : (_half ? '◐ 半段' : '✕ 裁');
-                            return `<details class="ls-item" data-inj-row="${escAttr(String(b.id))}" data-inj-kept="${_okRow ? '1' : '0'}" data-inj-src="${escAttr(_srcOf(b))}" style="margin:2px 0;border-left:2px solid ${_tone};padding-left:6px;">`
+                            const _mark = _okRow ? '进' : (_half ? '半段' : '裁');
+                            return `<details class="ls-item" data-inj-row="${escAttr(String(b.id))}" data-inj-kept="${_okRow ? '1' : '0'}"${_half ? ' data-inj-partial="1"' : ''} data-inj-src="${escAttr(_srcOf(b))}" style="margin:2px 0;border-left:2px solid ${_tone};padding-left:6px;">`
                                 + `<summary style="cursor:pointer;font-size:12.5px;list-style:none;">`
                                 + `<span style="color:${_tone};font-weight:bold;">${_mark}</span> `
                                 + `<span style="color:var(--ls-text-3,#6e7681);">#${esc(String(b.id))}</span> `
@@ -2076,7 +2085,7 @@
                                 + `</details>`;
                         }).join('');
                         head += `<div class="ls-item" style="margin:6px 0" data-inj-list="1">`
-                            + `<div class="ls-item-meta">🧩 逐条清单 · 候选 ${inj.total} 块 · 进载荷 <span style="color:var(--ls-success,#3fb950);">${_keptN}</span> · `
+                            + `<div class="ls-item-meta"><i class="ls-ico" data-i="puzzle" aria-hidden="true"></i>逐条清单 · 候选 ${inj.total} 块 · 进载荷 <span style="color:var(--ls-success,#3fb950);">${_keptN}</span> · `
                             + `<span style="color:${_dropped.length ? 'var(--ls-warn,#d29922)' : 'var(--ls-text-3,#6e7681)'};">被裁 ${_dropped.length}</span>`
                             + `　·　点每行展开看「凭什么进来」</div>`
                             + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">${_attribLine}</div>`
@@ -2092,7 +2101,7 @@
                                 : '本轮是否裁剪<b>不可测</b>（内联回落 / 回执缺席）—— 不等于「没裁」');
                         const _trimTone = (_trimmed === false) ? 'var(--ls-text-3,#6e7681)' : ((_trimmed === true) ? 'var(--ls-warn,#d29922)' : 'var(--ls-danger,#f85149)');
                         head += `<div class="ls-item" style="margin:6px 0" data-inj-trim="${_trimmed === true ? 'trimmed' : (_trimmed === false ? 'within-budget' : 'unknown')}" data-inj-dropped="${_trimmed === true ? _dropped.length : ''}">`
-                            + `<div class="ls-item-meta" style="color:${_trimTone};">✂️ 预算裁剪读数 · ${_trimPhrase}</div>`
+                            + `<div class="ls-item-meta" style="color:${_trimTone};"><i class="ls-ico" data-i="scissors" aria-hidden="true"></i>预算裁剪读数 · ${_trimPhrase}</div>`
                             + (_dropped.length
                                 ? `<div class="ls-item-text" style="font-size:11.5px;">被裁条目：${_dropped.slice(0, 12).map(b => `<b>${esc(String(b.label || '(无标题)'))}</b>（${esc(_srcOf(b))} · ${Number(b.chars) || 0} 字符 · ${esc(_reasonCn(b.reason))}）`).join(' / ')}${_dropped.length > 12 ? ' …' : ''}</div>`
                                 : '')
@@ -2118,7 +2127,7 @@
                     if (_bs && _bs.ts) {
                         /* [v3.274.0] O4：块级留存数**三态展示**，`keptBlocks` 为 null 时不得参与算术。
                          *   修前这里是「候选总数 − 保留数」自己推一遍：null 被当 0
-                         *   ⇒ 面板报「丢弃 N 块」，而事实是「这一轮块级留存不可测」
+                         *   => 面板报「丢弃 N 块」，而事实是「这一轮块级留存不可测」
                          *   （回执缺席 / 内联回落 / 硬截断无 span）。把「测不了」显示成一个具体的
                          *   丢弃块数，正是本仓最忌的假读数——它看起来与「真丢了 N 块」完全同形。
                          *   判据与来源一并显示：读的人当场知道这组数是真读数还是不可测。 */
@@ -2137,9 +2146,9 @@
                             ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">被切半的块 ${_bs.partialBlocks} 块（硬截断切口落在块内部：半段进了载荷，与「整块被丢」不是一回事）</div>` : '';
                         const _roLine = (Number.isFinite(_bs.residentOverflowOver) && _bs.residentOverflowOver > 0)
                             ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">常驻溢出 ${_bs.residentOverflowOver} 字符（关键事实保护：常驻块优先于预算上限）</div>` : '';
-                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta">📊 预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars} → 实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
+                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta"><i class="ls-ico" data-i="chart" aria-hidden="true"></i>预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
                     }
-                    /* [L14-O3] 生成前计划 ↔ 实际注入对拍：只读消费宿主已落的
+                    /* [L14-O3] 生成前计划 <-> 实际注入对拍：只读消费宿主已落的
                      * materialReconcile，不在面板重算预算/权限；取消、临时排除、预算裁剪、
                      * 权限拒绝、计划外和未知映射保持不同形态。 */
                     const _mr = (_bs && _bs.materialReconcile && typeof _bs.materialReconcile === 'object') ? _bs.materialReconcile : null;
@@ -2159,7 +2168,7 @@
                             return `<div class="ls-item-text" style="border-left:2px solid ${tone};padding-left:6px;"><b style="color:${tone};">${esc(label)}</b> <code>${esc(String(x.materialId || '(无 materialId)'))}</code> · ${esc(String(x.why || ''))}</div>`;
                         }).join('');
                         head += `<div class="ls-item" style="margin:6px 0" data-material-reconcile="${escAttr(String(_mr.status || 'unknown'))}">`
-                            + `<div class="ls-item-meta">🪞 生成材料逐条对拍 · 状态 <b>${esc(String(_mr.status || 'unknown'))}</b> · 可测 ${_mr.measurable === true ? '是' : '否'} · 计划修订 ${esc(String(_mr.planRevision || '未提供'))}</div>`
+                            + `<div class="ls-item-meta"><i class="ls-ico" data-i="copy" aria-hidden="true"></i>生成材料逐条对拍 · 状态 <b>${esc(String(_mr.status || 'unknown'))}</b> · 可测 ${_mr.measurable === true ? '是' : '否'} · 计划修订 ${esc(String(_mr.planRevision || '未提供'))}</div>`
                             + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">${esc(String(_mr.note || ''))}${_mrUnknown.length ? ' · 未知映射 ' + _mrUnknown.length + ' 条（不按文本猜身份）' : ''}</div>`
                             + _mrRows + `</div>`;
                     }
@@ -2175,30 +2184,31 @@
                         const isNew = prevLines && !prevLines.has(trimmed) && !isHeader;
                         if (isNew) newCount++;
                         const newStyle = isNew ? 'border-left:2px solid var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));' : '';
+                        /* [v3.1] data-inj-line：开发者控制台据此排成带行号的差异视图（head / new / same）；旧外观不变 */
                         return isHeader
-                            ? `<div class="ls-item-meta" style="color:var(--ls-success,#3fb950);font-weight:bold;margin-top:6px;">${text}</div>`
-                            : `<div class="ls-item-text" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span style="color:var(--ls-success,#3fb950);font-size:11px;">NEW</span>' : ''}</div>`;
+                            ? `<div class="ls-item-meta" data-inj-line="head" style="color:var(--ls-success,#3fb950);font-weight:bold;margin-top:6px;">${text}</div>`
+                            : `<div class="ls-item-text" data-inj-line="${isNew ? 'new' : 'same'}" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span class="ls-inj-new" style="color:var(--ls-success,#3fb950);font-size:11px;">NEW</span>' : ''}</div>`;
                     }).join('');
-                    const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success,#3fb950);">🆕 本轮新增 ${newCount} 行（绿色标注）</div>` : '';
-                    body = head + diffNote + `<div class="ls-item">${bodyHtml}</div>`;
+                    const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="sparkles" data-tone="info" aria-hidden="true"></i>本轮新增 ${newCount} 行（绿色标注）</div>` : '';
+                    body = head + diffNote + `<div class="ls-item" data-inj-payload="1">${bodyHtml}</div>`;
                 }
                 // [v3.215.0] R2-A：诊断读数**单独一格**，并明写它没有进上下文。
                 //   修前它与真注入共用 `_lastInjection`，面板读不出「这是哪一路」；
                 //   现在即便 `origin === 'dry-run'` 的读数出现在同一屏，也不会被误读成 AI 真实所见。
                 if (_dryRun && (_dryRun.origin === 'dry-run' || _dryRun.id === 'diagnostics')) {
                     const _dryOn = _dryRun.chars > 0;
-                    body += `<div class="ls-item" style="margin-top:8px;border-left:2px solid var(--ls-info,#58a6ff);"><div class="ls-item-meta">🧪 诊断 dry-run（不注入，只验证链路通）· ${_dryOn ? `${_dryRun.chars} 字符 / ${_dryRun.bytes} 字节` : '未产出载荷（召回为空或链路未通）'}</div><div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">这段内容**没有**进入 AI 上下文，不能当作「AI 真实所见」；它只回答「召回→注入这条链路通不通」。实际注入见上方。</div></div>`;
+                    body += `<div class="ls-item" style="margin-top:8px;border-left:2px solid var(--ls-info,#58a6ff);"><div class="ls-item-meta"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>诊断 dry-run（不注入，只验证链路通）· ${_dryOn ? `${_dryRun.chars} 字符 / ${_dryRun.bytes} 字节` : '未产出载荷（召回为空或链路未通）'}</div><div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">这段内容**没有**进入 AI 上下文，不能当作「AI 真实所见」；它只回答「召回<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>注入这条链路通不通」。实际注入见上方。</div></div>`;
                 }
             }
 
             else if (viewType === 'prequel') {
                 // [v3.87] 前情导入（吸收 MyriadKnots recall-prequel）
-                title = '📜 前情导入';
+                title = '前情导入';
                 const pq = s.prequel;
                 /* [v3.444.0 · L13-X9] 跨代传承面（挂在 prequel 视图内 —— 它回答的是
                  *   「上一代留下的东西现在怎样了」，与前情资料同页才看得出上下文）。
                  * 三条纪律（与静音面 / 撤销面同源）：
-                 *   ① 面不可用 ⇒ 报「不可用 + 原因」，绝不说成「没有跨代物件」；
+                 *   ① 面不可用 => 报「不可用 + 原因」，绝不说成「没有跨代物件」；
                  *   ② lost（遗失）与 pending（还没传）分列，永不合并 ——
                  *      合并会让玩家以为「家传玉佩遗失了」，而事实只是「还没走到那一段」；
                  *   ③ 面板不重判：四态一律取自 inheritanceRosterState()，
@@ -2216,10 +2226,10 @@
                     try { return typeof s._inheritanceRosterLine === 'function' ? String(s._inheritanceRosterLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _inhHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;">🏺 跨代传承<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_inhLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>跨代传承<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_inhLine)}</span></div>`;
                     const ruleText = '口径：四态是【已经发生的结果】；「还没传」是【未到结果】，两轴分列（遗失 ≠ 尚未发生）。秘密一律沿用既有知情名单判定：前代未公开的秘密不会自动给这一代看，判不了的单列（不当成「他不知道」）。声明只落在这次转场的既有记录上，可逐条撤销，撤销后回到按记录推导的结果。';
                     if (!_inh || _inh.ok !== true) {
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用（不是「没有跨代物件」，是这个面没装上） · ${esc(String(_inh && _inh.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（不是「没有跨代物件」，是这个面没装上） · ${esc(String(_inh && _inh.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _inh.counts || {};
                     if (!c.total) {
@@ -2236,16 +2246,16 @@
                             return `<button class="ls-btn" data-inh-act="declare" data-inh-tr="${escAttr(String(x.transitionId || ''))}" data-inh-art="${escAttr(String(x.artifactId || ''))}" data-inh-fate="${f[0]}" style="padding:2px 8px;font-size:12px;">${f[1]}</button>`;
                         }).join(' ');
                         const rev = x.declarationsOnly
-                            ? `<button class="ls-btn" data-inh-act="revoke" data-inh-tr="${escAttr(String(x.transitionId || ''))}" data-inh-art="${escAttr(String(x.artifactId || ''))}" style="padding:2px 8px;font-size:12px;">↺ 撤销声明</button>`
+                            ? `<button class="ls-btn" data-inh-act="revoke" data-inh-tr="${escAttr(String(x.transitionId || ''))}" data-inh-art="${escAttr(String(x.artifactId || ''))}" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销声明</button>`
                             : '';
                         const secretNote = x.isSecret
-                            ? `<div class="ls-item-meta" style="color:${x.visibleToSuccessor ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)'};">🔒 秘密 · ${x.visibleToSuccessor ? '这一代已知情（可进载荷）' : (x.secretBoundary === 'undecided' ? ('判不了（' + esc(String(x.secretBoundaryWhy || '')) + '），按不给看处置') : '这一代未获知（遮蔽，不自动继承）')}</div>`
+                            ? `<div class="ls-item-meta" style="color:${x.visibleToSuccessor ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)'};"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密 · ${x.visibleToSuccessor ? '这一代已知情（可进载荷）' : (x.secretBoundary === 'undecided' ? ('判不了（' + esc(String(x.secretBoundaryWhy || '')) + '），按不给看处置') : '这一代未获知（遮蔽，不自动继承）')}</div>`
                             : '';
-                        return `<div class="ls-item"><div class="ls-item-meta"><span style="color:${fateColor};">${esc(String(x.fateLabel || x.fate || '?'))}</span> · ${esc(String(x.eraFrom || '?') + ' → ' + String(x.eraTo || '?'))}${x.declarationsOnly ? ' · <em>人工声明</em>' : ''}</div><div class="ls-item-text">${esc(String(x.label || x.artifactId || ''))}</div><div class="ls-hint" style="font-size:11px;">成因：${esc(String(x.fateCauseText || x.fateCause || ''))}</div>${secretNote}<div style="margin-top:4px;">${btns} ${rev}</div></div>`;
+                        return `<div class="ls-item"><div class="ls-item-meta"><span style="color:${fateColor};">${esc(String(x.fateLabel || x.fate || '?'))}</span> · ${esc(String(x.eraFrom || '?') + ' ' + String(x.eraTo || '?'))}${x.declarationsOnly ? ' · <em>人工声明</em>' : ''}</div><div class="ls-item-text">${esc(String(x.label || x.artifactId || ''))}</div><div class="ls-hint" style="font-size:11px;">成因：${esc(String(x.fateCauseText || x.fateCause || ''))}</div>${secretNote}<div style="margin-top:4px;">${btns} ${rev}</div></div>`;
                     }).join('');
                     const sums = `接纳 ${c.accepted || 0} · 拒绝 ${c.rejected || 0} · 改造 ${c.reformed || 0} · <span style="color:var(--ls-danger,#f85149);">遗失 ${c.lost || 0}</span> · 还没传 ${c.pending || 0}${c.unknown ? (' · <span style="color:var(--ls-warn,#d29922);">判不了 ' + c.unknown + '</span>') : ''}`;
                     const bd = (b.disclosed || b.withheld || b.undecided)
-                        ? `<div class="ls-hint">🔒 秘密断代：这一代可知 ${b.disclosed || 0} · 遮蔽 ${b.withheld || 0}${b.undecided ? (' · <span style="color:var(--ls-warn,#d29922);">判不了 ' + b.undecided + '</span>') : ''}</div>`
+                        ? `<div class="ls-hint"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密断代：这一代可知 ${b.disclosed || 0} · 遮蔽 ${b.withheld || 0}${b.undecided ? (' · <span style="color:var(--ls-warn,#d29922);">判不了 ' + b.undecided + '</span>') : ''}</div>`
                         : '';
                     return `<div class="ls-group">${head}<div class="ls-item-meta">${sums}${_inh.successorActorId ? (' · 这一代：' + esc(String(_inh.successorActorId))) : ' · 这一代未标注（秘密一律按判不了处置）'}</div>${bd}${rows}<div class="ls-hint" style="margin-top:6px;">${esc(ruleText)}</div></div>`;
                 })();
@@ -2253,7 +2263,7 @@
                 body = `<div class="ls-hint">粘贴过去经历的原文资料（旧存档概要/前作剧情/人设背景等）。每次生成时自动切片并按当前对话相关性选段注入（预算为注入预算的 30%，token 上限 1200）；无命中时兜底注入末尾两段。留空保存即清除。</div>
                     <textarea class="ls-textarea" id="ls-pq-text" style="min-height:200px;" placeholder="在此粘贴前情资料…">${esc(cur)}</textarea>
                     <div class="ls-hint" id="ls-pq-stat">当前 ${cur.length} 字符${pq?.importedAt ? ' · 导入于 ' + new Date(pq.importedAt).toLocaleString('zh-CN') : ''}</div>
-                    <button class="ls-btn ls-btn-primary" id="ls-pq-save">💾 保存前情资料</button>` + _inhHtml;
+                    <button class="ls-btn ls-btn-primary" id="ls-pq-save"><i class="ls-ico" data-i="save" aria-hidden="true"></i>保存前情资料</button>` + _inhHtml;
 
                 /* [L14-X5] 资料换版结论重构工作台面板渲染 */
                 const _loreConc = (function () {
@@ -2267,19 +2277,19 @@
                     try { return typeof s._loreConclusionLine === 'function' ? String(s._loreConclusionLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _loreConcHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;">📑 设定换版与结论更新对照工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_loreConcLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>设定换版与结论更新对照工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_loreConcLine)}</span></div>`;
                     if (!_loreConc || _loreConc.ok !== true) {
                         if (_loreConc && _loreConc.state === 'no-docs') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未配置换版段落：当前设定资料尚未发生跨版更新。当设定资料更新后，系统将自动对比段落差异并找出受影响的陈旧结论。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_loreConc && _loreConc.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_loreConc && _loreConc.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _loreConc.counts || {};
                     const concRows = (_loreConc.conclusions || []).map(function (conc) {
                         const isStale = conc.status === 'stale';
                         const badgeColor = isStale ? 'var(--ls-warn,#d29922)' : 'var(--ls-success,#3fb950)';
-                        const statusLabel = isStale ? '⚠️ 陈旧待核验' : (conc.status === 'accepted' ? '✅ 已采纳新版' : (conc.status === 'kept_original' ? '🛡️ 保留人工结论' : '🟢 有效'));
-                        const manualTag = conc.isManuallyEdited ? ' · <span style="color:var(--ls-info,#58a6ff);">✍️ 人工校订保护</span>' : '';
+                        const statusLabel = isStale ? '陈旧待核验' : (conc.status === 'accepted' ? '已采纳新版' : (conc.status === 'kept_original' ? '保留人工结论' : '有效'));
+                        const manualTag = conc.isManuallyEdited ? ' · <span style="color:var(--ls-info,#58a6ff);"><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>人工校订保护</span>' : '';
                         const draftHtml = isStale && conc.reconciledDraft ? `<div class="ls-hint" style="color:var(--ls-text-2,#8b949e);">新版建议草案：${esc(conc.reconciledDraft)}</div>` : '';
                         return `<div class="ls-item">` +
                             `<div class="ls-item-meta"><span style="color:${badgeColor};font-weight:bold;">${esc(statusLabel)}</span>${manualTag} · 结论ID: ${esc(conc.conclusionId)}</div>` +
@@ -2309,12 +2319,12 @@
                     try { return typeof s._eraHandoffDraftLine === 'function' ? String(s._eraHandoffDraftLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _eraHandoffHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;">📜 跨代传承交接草案工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_eraHandoffLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>跨代传承交接草案工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_eraHandoffLine)}</span></div>`;
                     if (!_eraHandoff || _eraHandoff.ok !== true) {
                         if (_eraHandoff && _eraHandoff.state === 'no-drafts') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未登记跨代交接草案：上一代传承物可在此逐项指定继承人与取舍方案，草案未提交前零写入。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">⚠️ 不可用 · ${esc(String(_eraHandoff && _eraHandoff.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_eraHandoff && _eraHandoff.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _eraHandoff.counts || {};
                     const dList = (_eraHandoff.drafts || []).map(d => {
@@ -2331,7 +2341,7 @@
                 body += _eraHandoffHtml;
             }
             else if (viewType === 'memorycenter') {
-                title = '🔍 记忆控制中心';
+                title = '记忆控制中心';
                 /* [v3.310.0 · M-X1] 用户侧记忆控制中心。
                  *   薄接线：**条件与结果全在内核**（memory-center.js）；本块只做两件事 ——
                  *   ① 把内核产出的整页串塞进容器（渲染口径不在面板里重写：重写一次就会出现
@@ -2343,17 +2353,17 @@
                 const d = (typeof s.memoryCenterDescribe === 'function') ? s.memoryCenterDescribe() : null;
                 const bad = !d || d.complete !== true;
                 if (bad) {
-                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 记忆控制中心不可用：'
+                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆控制中心不可用：'
                         + esc(!d ? '模块未加载（memory-center.js）'
                             : (d.reason === 'module-unavailable' ? '模块未加载（memory-center.js）'
                                 : ((d.missing && d.missing.length) ? '依赖缺格：' + (d.missing || []).map((m) => m.key).join('、')
                                     : '界面字段与条件登记表不对齐'))) + '</div>';
                 } else if (typeof s.memoryCenterView !== 'function' || typeof s.memoryCenterSheet !== 'function') {
-                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 宿主未接控制中心出口（memoryCenterView / memoryCenterSheet）</div>';
+                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>宿主未接控制中心出口（memoryCenterView / memoryCenterSheet）</div>';
                 } else {
                     const face = s.memoryCenterView(plugin._memoryCenterState || null, { availableHandlers: Object.keys(plugin._memoryCenterHandlers || {}) });
                     plugin._memoryCenterLastFace = face;
-                    body = '<div class="ls-hint">🔍 本面直读原账**全量**（分页由匹配总数驱动 —— 超过 200 条的历史记录仍能翻到）。'
+                    body = '<div class="ls-hint"><i class="ls-ico" data-i="search" aria-hidden="true"></i>本面直读原账**全量**（分页由匹配总数驱动 —— 超过 200 条的历史记录仍能翻到）。'
                         + '四态分开：有命中 / 确实没有 / 判不了（区间反转 · 翻过头 · 点了不存在的账）/ 面不可用（内核缺席 · 面板空）。'
                         + '保存的是**条件**，不是第二份证据库。</div>' + s.memoryCenterSheet(face);
                 }
@@ -2366,13 +2376,13 @@
                 a.href = URL.createObjectURL(blob);
                 a.download = `lonsha-memory-report-${Date.now()}.md`;
                 a.click();
-                toast('📄 记忆全景报告已导出');
-                body = '<div class="ls-hint">✅ 报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1,#0d1117);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
+                toast('记忆全景报告已导出', 'doc');
+                body = '<div class="ls-hint"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1,#0d1117);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
             /* [v3.303.0 M-O2] 提示必须与**本面板真有可点条目**一致：本函数有 22 个视图，
              *   而带 `data-opkind`（点下去会走 `_memOps`）的只有 9 类条目。
-             *   修前无条件挂这条提示 ⇒ `lockedfacts` / `deltas` / `oplog` 等**一个可点条目都没有**
+             *   修前无条件挂这条提示 => `lockedfacts` / `deltas` / `oplog` 等**一个可点条目都没有**
              *   的视图上也写着「点击条目可操作」，用户按提示点下去毫无反应 ——
              *   这正是本刀要清的形态（把「不可用」说成「可用」，比不提示更坏）。
              *   判据从**已渲染的 HTML 自身**取（`body` 里有没有 `data-opkind=` 标记），
@@ -2382,13 +2392,13 @@
                     ? plugin.engine.memoryLineageReplay({ itemId: targetId })
                     : null;
                 if (!r || !r.ok) {
-                    toast('⚠️ 无法生成沿革：' + ((r && r.reason) || '引擎不可用'));
+                    toast('无法生成沿革：' + ((r && r.reason) || '引擎不可用'), 'warn');
                     return;
                 }
                 const sm = r.summary || {};
                 let html = `<div style="padding:10px;">`
-                    + `<div style="font-weight:bold;margin-bottom:6px;">📜 记忆条目沿革：${esc(r.itemId)}</div>`
-                    + `<div class="ls-hint" style="margin-bottom:8px;">共 ${sm.totalSteps} 步 (创建 ${sm.creates} · 修改 ${sm.updates} · 裁决 ${sm.verdicts} · 撤销 ${sm.revokes}) · ${sm.unavailableCount ? '⚠️ 存在缺失数据层' : '✅ 链路完整'}</div>`;
+                    + `<div style="font-weight:bold;margin-bottom:6px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>记忆条目沿革：${esc(r.itemId)}</div>`
+                    + `<div class="ls-hint" style="margin-bottom:8px;">共 ${sm.totalSteps} 步 (创建 ${sm.creates} · 修改 ${sm.updates} · 裁决 ${sm.verdicts} · 撤销 ${sm.revokes}) · ${sm.unavailableCount ? '<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>存在缺失数据层' : '<i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>链路完整'}</div>`;
                 if (!r.lineage.length) {
                     html += `<div class="ls-hint">该条目暂无历史变动记录。</div>`;
                 } else {
@@ -2397,14 +2407,14 @@
                             <div style="font-size:11px;color:var(--ls-muted,#8b949e);">第 ${step.step} 步 · [${esc(step.kind)}] · ${step.at ? new Date(step.at).toLocaleTimeString() : '初始'} · 由 ${esc(step.by)} 触发</div>
                             <div style="font-size:12px;margin:2px 0;">${esc(step.why)}</div>
                             <div style="font-size:11px;color:var(--ls-muted,#8b949e);">${esc(step.diff?.summary || '')}</div>
-                            ${step.available === false ? `<div style="font-size:10px;color:var(--ls-warn,#d29922);">⚠️ 原始数据缺失（缺层: ${esc(step.missingLayer || '未知')}）</div>` : ''}
+                            ${step.available === false ? `<div style="font-size:10px;color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>原始数据缺失（缺层: ${esc(step.missingLayer || '未知')}）</div>` : ''}
                         </div>
                     `).join('');
                 }
                 html += `</div>`;
-                makeSheet('lonsha-lineage-overlay', '📜 记忆沿革回放', html);
+                makeSheet('lonsha-lineage-overlay', '记忆沿革回放', html);
             };
-            const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;">💡 点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
+            const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
             /* [L13-O3] **根节点**必须带机读态。此前状态只泄在空态那块 hint 上：
              *   满态（ok）根节点完全无属性、机器读不出「这一面是好的」；
              *   且 27 个视图各写各的，新增视图必然漏。这里统一包一层，
@@ -2443,7 +2453,7 @@
                 });
             });
 
-            /* [v3.433.0 · L13-X2] whatif 交互绑定：选锚点 → 只读推演 → 受影响条目可点开核对。
+            /* [v3.433.0 · L13-X2] whatif 交互绑定：选锚点 -> 只读推演 -> 受影响条目可点开核对。
              *   绑定块与视图渲染分离（与 xseries 同口径：先渲染再绑定，改一半必炸）。 */
             if (viewType === 'whatif') {
                 const cfRun = (factId) => {
@@ -2452,14 +2462,14 @@
                         : null;
                     if (!cfCall || !cfCall.ok) {
                         const why = (cfCall && cfCall.reason) || 'engine-unavailable';
-                        toast('⚠️ 推演未生效：' + why);
+                        toast('推演未生效：' + why, 'warn');
                         const box0 = ov.querySelector('#ls-cf-result');
-                        if (box0) box0.innerHTML = '<div class="ls-hint" data-ls-cf-face="absent">⚠️ 不可用 · ' + esc(why) + '</div>';
+                        if (box0) box0.innerHTML = '<div class="ls-hint" data-ls-cf-face="absent"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ' + esc(why) + '</div>';
                         return;
                     }
                     const terms = cfCall.terms || [];
                     const layers = cfCall.layers || {};
-                    let rh = '<div class="ls-hint" data-ls-cf-face="ok" style="margin-bottom:4px;">🔎 假设：<b>「' + esc(String(factId)) + '」没有发生</b>（hypothetical · 未写回）</div>';
+                    let rh = '<div class="ls-hint" data-ls-cf-face="ok" style="margin-bottom:4px;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>假设：<b>「' + esc(String(factId)) + '」没有发生</b>（hypothetical · 未写回）</div>';
                     rh += '<div style="font-size:11px;color:var(--ls-muted,#8b949e);margin-bottom:6px;">扫描 ' + esc(String(cfCall.poolsScanned)) + ' 个数据池 / ' + esc(String(cfCall.scannedCount)) + ' 条 · 锚词: '
                         + terms.slice(0, 5).map(t => esc(t)).join('、') + '</div>';
                     rh += '<div style="font-size:12px;margin-bottom:6px;">受影响 <b>' + esc(String(cfCall.affected.length)) + '</b> 条'
@@ -2509,10 +2519,10 @@
                  *   颜色逐档区分。盲档的正文已在内核行构造时被换成位串；
                  *   这里**不重做剥离**，只把已遮蔽的标记显式化（不同图标与提示）。 */
                 const POV_TIER_STYLE = {
-                    knows:     { icon: '✅', color: 'var(--ls-accent,#58a6ff)' },
-                    suspects:  { icon: '❓', color: 'var(--ls-warn,#d29922)' },
-                    believes:  { icon: '⚠️', color: 'var(--ls-warn,#d29922)' },
-                    blind:     { icon: '🔒', color: 'var(--ls-text-3,#6e7681)' },
+                    knows:     { icon: '', color: 'var(--ls-accent,#58a6ff)' },
+                    suspects:  { icon: '', color: 'var(--ls-warn,#d29922)' },
+                    believes:  { icon: '', color: 'var(--ls-warn,#d29922)' },
+                    blind:     { icon: '', color: 'var(--ls-text-3,#6e7681)' },
                     undecided: { icon: '—', color: 'var(--ls-text-3,#6e7681)' }
                 };
                 const povRow = (row) => {
@@ -2539,12 +2549,12 @@
                     const box = ov.querySelector('#ls-pov-result');
                     if (!box) return;
                     if (!r || r.ok !== true) {
-                        box.innerHTML = '<div class="ls-hint" data-pov-face="absent">⚠️ 不可用 · ' + esc((r && r.reason) || 'unknown') + '</div>';
+                        box.innerHTML = '<div class="ls-hint" data-pov-face="absent"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ' + esc((r && r.reason) || 'unknown') + '</div>';
                         return;
                     }
                     const c = r.counts || {};
                     let h = '<div class="ls-hint" data-pov-face="ok" style="margin-bottom:6px;">'
-                        + '👁️ <b>' + esc(viewer) + '</b> 此刻的眼睛'
+                        + '<i class="ls-ico" data-i="eye" aria-hidden="true"></i><b>' + esc(viewer) + '</b> 此刻的眼睛'
                         + (r.atKnown ? ' · 截至楼层 ' + esc(String(r.at)) : '')
                         + '</div>';
                     /* 五档读数一行报齐——**四档不相加成一个数**。
@@ -2557,7 +2567,7 @@
                         + ' · 判不了 ' + esc(String(c.undecided || 0))
                         + (c.masked ? ' · 已遮蔽 ' + esc(String(c.masked)) + ' 条正文' : '')
                         + '</div>';
-                    if (r.degraded) h += '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 内核自检已降级：这份投影不要拿去写正文。</div>';
+                    if (r.degraded) h += '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>内核自检已降级：这份投影不要拿去写正文。</div>';
                     for (const tier of ['knows', 'suspects', 'believes', 'blind', 'undecided']) {
                         const rows = (r.tiers && r.tiers[tier]) || [];
                         if (!rows.length) continue;
@@ -2579,7 +2589,7 @@
             }
             /* [v3.430.0 · L12-X] 机制面动作绑定。五个动词是**封闭集**（与 xseries 视图里
              *   xbtn 生成的选择器一一对应）：表决通过 / 废止 / 删掉某人理解 / 静音 / 重开。
-             *   ★ 三条口径：① 先写再刷新（刷新走同一视图重建，不就地改 DOM —— 就地改会让
+             *   三条口径：① 先写再刷新（刷新走同一视图重建，不就地改 DOM —— 就地改会让
              *   「面板显示的」与「内核存的」各说一套）；② 内核回 ok:false 时**必须提示原因**
              *   （静默失败会让人以为点没点上），且不刷新；③ 只在本视图挂，别的视图一个都不挂
              *   —— 早先版本把绑定写进了视图块、按钮写在渲染体里，两处各写一半，结果点了没反应。 */
@@ -2620,7 +2630,7 @@
                 ov.querySelectorAll('[data-source-ref]').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const ref = String(btn.dataset.sourceRef || '');
-                        if (!ref) { toast('⚠️ 改绑未生效：缺少证据引用'); return; }
+                        if (!ref) { toast('改绑未生效：缺少证据引用', 'warn'); return; }
                         let preview = null;
                         try {
                             preview = (typeof s.evidenceSourceRebind === 'function')
@@ -2628,11 +2638,11 @@
                                 : { ok: false, reason: 'host-method-missing' };
                         } catch (e) { preview = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
                         if (!preview || preview.ok !== true) {
-                            toast('⚠️ 无法预览改绑：' + ((preview && preview.reason) || 'unknown'));
+                            toast('无法预览改绑：' + ((preview && preview.reason) || 'unknown'), 'warn');
                             return;
                         }
                         const p = preview.preview || {};
-                        const fields = (p.changes || []).map((x) => String(x.field) + ' ' + String(x.from) + ' → ' + String(x.to)).join('；');
+                        const fields = (p.changes || []).map((x) => String(x.field) + ' ' + String(x.from) + ' ' + String(x.to)).join('；');
                         const promptText = '确认把 ' + ref + ' 改绑到第 ' + String(p.newFloor) + ' 楼？' + (fields ? '\\n差异：' + fields : '');
                         if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !window.confirm(promptText)) return;
                         let applied = null;
@@ -2640,10 +2650,10 @@
                             applied = s.evidenceSourceRebind({ ref, confirm: true });
                         } catch (e) { applied = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
                         if (!applied || applied.ok !== true || applied.writes !== true) {
-                            toast('⚠️ 改绑未生效：' + ((applied && applied.reason) || 'unknown'));
+                            toast('改绑未生效：' + ((applied && applied.reason) || 'unknown'), 'warn');
                             return;
                         }
-                        toast('⌖ 已改绑：' + ref + ' → 第' + String((applied.preview || {}).newFloor) + '楼');
+                        toast('已改绑：' + ref + ' 第' + String((applied.preview || {}).newFloor) + '楼', 'scope');
                         ov.remove();
                         plugin.showBrowser('archive');
                     });
@@ -2655,7 +2665,7 @@
                         const fid = btn.dataset.gapRefill || '';
                         ov.remove();
                         plugin.showBrowser('lockedfacts');
-                        toast('✎ 去补证：先把这条的证据原文锁成事实（' + String(fid).slice(0, 24) + '），再回本页复扫');
+                        toast('去补证：先把这条的证据原文锁成事实（' + String(fid).slice(0, 24) + '），再回本页复扫', 'pencil');
                     });
                 });
                 /* 「降级为推测」是本期唯一写入：逐条、走宿主 `evidenceGapDowngrade`。
@@ -2663,7 +2673,7 @@
                 ov.querySelectorAll('[data-gap-down]').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const fid = String(btn.dataset.gapDown || '');
-                        if (!fid) { toast('⚠️ 未生效：条目缺少 factId'); return; }
+                        if (!fid) { toast('未生效：条目缺少 factId', 'warn'); return; }
                         const why = String(btn.dataset.gapWhy || 'thin-evidence');
                         let r = null;
                         try {
@@ -2672,7 +2682,7 @@
                                 : { ok: false, reason: 'host-method-missing' };
                         } catch (e) { r = { ok: false, reason: 'thrown: ' + ((e && e.message) || e) }; }
                         if (!r || r.ok !== true) {
-                            toast('⚠️ 降级未生效：' + ((r && r.reason) || 'unknown'));
+                            toast('降级未生效：' + ((r && r.reason) || 'unknown'), 'warn');
                             return;
                         }
                         /* 如实转述三件：改成什么来源 / 人读侧留痕成没成 / 是否幂等空转。
@@ -2680,9 +2690,9 @@
                         const tail = String(r.delta || '');
                         const dTxt = tail === 'recorded' ? '已留痕（正史增量）'
                             : (tail === 'skipped:already-inferred' ? '同一来源，未重复落笔'
-                                : ('⚠️ 留痕未成 · ' + tail));
-                        toast('↓ 已降级：' + String(r.fromOrigin || '?') + ' → ' + String(r.toOrigin || '?')
-                            + ' · ' + dTxt);
+                                : ('留痕未成 · ' + tail));
+                        toast('已降级：' + String(r.fromOrigin || '?') + ' ' + String(r.toOrigin || '?')
+                            + ' · ' + dTxt, 'arrow-down');
                         ov.remove();
                         plugin.showBrowser('archive');
                     });
@@ -2701,7 +2711,7 @@
                 ov.querySelectorAll('[data-silence-lift]').forEach((btn) => {
                     btn.addEventListener('click', () => {
                         const tid = String(btn.dataset.silenceLift || '');
-                        if (!tid) { toast('⚠️ 未生效：按钮缺少 topicId'); return; }
+                        if (!tid) { toast('未生效：按钮缺少 topicId', 'warn'); return; }
                         let r = null;
                         try {
                             r = (typeof s.silenceLift === 'function')
@@ -2715,10 +2725,10 @@
                                 ? '这条只是本轮上下文静音（本面改不动），要撤掉得重开对话或让调用方移除'
                                 : (why === 'not-muted' ? '这条本来就没静音（可能刚被解除过）'
                                     : ('解除未生效：' + why));
-                            toast('⚠️ ' + human);
+                            toast(human, 'warn');
                             return;
                         }
-                        toast('🔓 已解除：' + tid + '（' + String(r.from || 'mute') + ' → ' + String(r.to || 'embrace') + '，其它静音不受影响）');
+                        toast('已解除：' + tid + '（' + String(r.from || 'mute') + ' ' + String(r.to || 'embrace') + '，其它静音不受影响）', 'unlock');
                         ov.remove();
                         plugin.showBrowser('silence');
                     });
@@ -2735,7 +2745,7 @@
                         if (!text) { toast('请输入事实内容'); return; }
                         const curFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
                         s.lockFact ? s.lockFact(text) : s.summary.addLockedFact(text, curFloor);
-                        toast('🔒 已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''));
+                        toast('已锁定：' + text.slice(0, 30) + (text.length > 30 ? '…' : ''), 'lock');
                         plugin.showBrowser('lockedfacts');
                     };
                     addBtn.addEventListener('click', doAdd);
@@ -2799,7 +2809,7 @@
                             } else {
                                 const r = s.prequel.importPrequel(val);
                                 if (!r.ok) { toast('内容为空'); return; }
-                                toast(r.truncated ? ('✅ 已保存（超长截断至 ' + r.chars + ' 字符）') : ('✅ 已保存 ' + r.chars + ' 字符'));
+                                toast(r.truncated ? ('已保存（超长截断至 ' + r.chars + ' 字符）') : ('已保存 ' + r.chars + ' 字符'), 'success');
                             }
                             const chatId = s.getCurrentChatId?.();
                             if (chatId) await s.storage.save(chatId, s.collectExport());
@@ -2822,7 +2832,7 @@
                         if (!s.summary?.addManualSummary) { toast('引擎版本过旧'); return; }
                         const r = s.summary.addManualSummary(f, t);
                         if (r) {
-                            toast('✅ 已补录第 ' + f + ' 楼摘要');
+                            toast('已补录第 ' + f + ' 楼摘要', 'success');
                             if (eng?.bm25?.rebuild && s.summary?.getActiveSummaries) {
                                 eng.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: 'sum_' + x.floor, text: x.text, floor: x.floor, source: 'bm25'})));
                             }
@@ -2839,27 +2849,27 @@
                         if (!s.summary?.completeMissingFloors) { toast('引擎版本过旧'); return; }
                         let missingN = 0;
                         try { missingN = s.summary.missingFloors((window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1).length; } catch (e) { reportUiError(e, 'nonfatal') }
-                        if (!missingN) { toast('✅ 无缺失楼层'); return; }
+                        if (!missingN) { toast('无缺失楼层', 'success'); return; }
                         if (!confirm('发现 ' + missingN + ' 个缺失楼层（不含番外/用户楼）。\n将调用 LLM 批量补齐（每批最多 5 楼，本批补完后可再次点击续补）。\n继续？')) return;
-                        compBtn.disabled = true; compBtn.textContent = '⏳ 补齐中…';
+                        compBtn.disabled = true; compBtn.textContent = '补齐中…';
                         try {
                             const chat = window.SillyTavern?.getContext?.()?.chat || [];
-                            // [v2026.11 审计修] chatLookup 原样回传 m.mes ⇒ 思维链整段喂给补齐 LLM，
+                            // [v2026.11 审计修] chatLookup 原样回传 m.mes => 思维链整段喂给补齐 LLM，
                             //   设定 echo（题材确认/文风指令）随摘要入库。先剥推理块再交（与主链路同语义）。
                             const _stripThink = (raw) => {
                                 try { if (typeof s.stripThinkingText === 'function') return s.stripThinkingText(raw); } catch (e) { reportUiError(e, 'nonfatal'); }
                                 return String(raw || '');
                             };
                             const r = await s.summary.completeMissingFloors(s.config.config, s.llm, (f) => _stripThink(String(chat?.[f]?.mes || '')), 5);
-                            if (r?.skipped) { toast('⚠️ 上一批仍在进行中'); }
+                            if (r?.skipped) { toast('上一批仍在进行中', 'warn'); }
                             else {
-                                toast('✅ 已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''));
+                                toast('已补齐 ' + (r.done || 0) + ' 楼' + (r.missing ? '（还剩 ' + r.missing + ' 楼）' : ''), 'success');
                                 if (s.bm25?.rebuild && s.summary?.getActiveSummaries) {
                                     s.bm25.rebuild(s.summary.getActiveSummaries().map(x => ({id: "sum_" + x.floor, text: x.text, floor: x.floor, source: "bm25"})));
                                 }
                                 plugin.showBrowser('summaries');
                             }
-                        } catch (e) { toast('❌ 补齐失败：' + (e.message || e)); }
+                        } catch (e) { toast('补齐失败：' + (e.message || e), 'error'); }
                     });
                 }
                 // [v3.79] C: 番外楼标记/取消（替代控制台命令，柏宝书 bbs_omit 的 UI 入口）
@@ -2876,7 +2886,7 @@
                             if (!m) { toast('该楼层不存在'); return; }
                             m.extra = m.extra || {};
                             m.extra.lonsha_omit = mark;
-                            toast(mark ? '🎬 第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '↩️ 第 ' + f + ' 楼已取消番外标记');
+                            toast(mark ? '第 ' + f + ' 楼已标记为番外（引擎将彻底忽略）' : '第 ' + f + ' 楼已取消番外标记', (mark ? 'film' : 'undo'));
                             if (mark && s.summary?.removeByFloor) { try { s.summary.removeByFloor(f); } catch (e) { reportUiError(e, 'nonfatal') } }
                         } catch (e) { toast('操作失败：' + (e.message || e)); }
                     };
@@ -2892,7 +2902,7 @@
                         const dsum = btn.dataset.dsum;
                         const n = s.deltaBook?.confirm?.(dsum) || 0;
                         if (n > 0) {
-                            toast('✅ 已确证 ' + n + ' 条增量事实');
+                            toast('已确证 ' + n + ' 条增量事实', 'success');
                             plugin.showBrowser('deltas');
                         } else {
                             toast('未找到匹配的待定项');
@@ -2909,7 +2919,7 @@
                     const char = btn.dataset.tombChar || '';
                     const id = btn.dataset.tombId || '';
                     const ok = s.charMem?.restoreMemory?.(char, id);
-                    toast(ok ? '↺ 已恢复记忆（原 id 保留）' : '恢复失败：找不到软删条目');
+                    toast(ok ? '已恢复记忆（原 id 保留）' : '恢复失败：找不到软删条目', (ok ? 'undo' : ''));
                     if (ok) { try { plugin._memPersist?.(); } catch (_) {} ov.remove(); plugin.showBrowser('oplog'); }
                 }));
                 ov.querySelectorAll('.ls-tomb-purge').forEach((btn) => btn.addEventListener('click', () => {
@@ -2923,7 +2933,7 @@
             }
             /* ===== [v3.443.0 · L13-X8] 「撤销本轮写入」的交互绑定 =====
              * 二次确认是硬门槛：误点一次就把整轮写入抹掉 —— confirm 必须在这里问，
-             *   内核侧也另有一道 `confirm !== true ⇒ 拒绝`（两层，任一层漏都不至于误删）。
+             *   内核侧也另有一道 `confirm !== true => 拒绝`（两层，任一层漏都不至于误删）。
              * 撤销后必须在本仓审计链（opLog）留一条：否则「谁在什么时候撤了哪一轮」
              *   在账上凭空消失，而这正是本面存在的理由。
              */
@@ -2933,7 +2943,7 @@
                         if (!window.confirm('撤销本轮生成新增的记忆条目？\n\n· 只回滚本轮**新增**的条目；\n· 本轮**修改**过的条目不会被改回去（只标待复核）；\n· 本轮删除过的条目不可恢复（正文未留）。\n\n确认继续？')) return;
                         let removers = null;
                         try { removers = (typeof s._roundRemovers === 'function') ? s._roundRemovers() : null; } catch (_e) { removers = null; }
-                        if (!removers) { toast('⚠️ 撤销未执行：宿主没提供删除口（本面不自己删账）'); return; }
+                        if (!removers) { toast('撤销未执行：宿主没提供删除口（本面不自己删账）', 'warn'); return; }
                         let r = null;
                         try {
                             r = (typeof s.roundUndo === 'function')
@@ -2943,11 +2953,11 @@
                         if (r && r.reason === 'nothing-to-undo') { toast('本轮没有新增条目，没什么可撤的'); return; }
                         const cnt = (r && r.counts) || {};
                         if (!r || r.ok !== true) {
-                            toast('⚠️ 撤销未完成：' + String((r && r.reason) || 'unknown') + '（已撤 ' + (cnt.removed || 0) + ' 条 / 失败 ' + (cnt.failed || 0) + ' 条）');
+                            toast('撤销未完成：' + String((r && r.reason) || 'unknown') + '（已撤 ' + (cnt.removed || 0) + ' 条 / 失败 ' + (cnt.failed || 0) + ' 条）', 'warn');
                         } else {
-                            toast('↩️ 已撤销本轮新增 ' + (cnt.removed || 0) + ' 条（本轮改过的条目保持原样，只标待复核）');
+                            toast('已撤销本轮新增 ' + (cnt.removed || 0) + ' 条（本轮改过的条目保持原样，只标待复核）', 'undo');
                         }
-                        /* ★ 留账：撤了几条 / 失败几条 / 哪一轮。记账本身失败不得回滚已完成的撤销。 */
+                        /* 留账：撤了几条 / 失败几条 / 哪一轮。记账本身失败不得回滚已完成的撤销。 */
                         try {
                             s.opLog?.log('rollback', 'undo-round',
                                 'seq ' + String((r && r.seq) === null || (r && r.seq) === undefined ? '—' : r.seq) + ' · 撤 ' + (cnt.removed || 0) + ' 失败 ' + (cnt.failed || 0),
@@ -2976,13 +2986,13 @@
             }
             // [v3.310.0 · M-X1] 记忆控制中心的交互绑定
             /*   三条纪律（与内核的分工，不在面板里重写）：
-             *   ① **事件 → 内核动作名**，不在这里算条件（条件归一在内核 buildSpec）；
+             *   ① **事件 -> 内核动作名**，不在这里算条件（条件归一在内核 buildSpec）；
              *   ② 处置类动作（`row.*` / `saved.*` / `query.save`）走 `_memoryCenterHandlers`；
-             *      宿主没接的 handler ⇒ 内核已把它降级为 `unavailable`，这里如实提示「未接」，
+             *      宿主没接的 handler => 内核已把它降级为 `unavailable`，这里如实提示「未接」，
              *      **不假装成功**（本仓最贵的老账就是把「不可用」说成「可用」）；
              *   ③ 每次交互都重跑一次 dispatch（界面显示的永远是**这一次**的真结果）。 */
             if (viewType === 'memorycenter') {
-                /* ★ 空白态**取自内核**（`memoryCenterBlankState()`），不在这里手抄字段表 ——
+                /* 空白态**取自内核**（`memoryCenterBlankState()`），不在这里手抄字段表 ——
                  *   手抄一次就是**第二套字段清单**：内核日后加一格条件而面板没跟上，
                  *   界面会静默少一格（本仓治理过多轮的「两份口径」，也是本刀特意单开
                  *   一个宿主出口的理由）。内核不可达时给空壳并把归因留在别处
@@ -3019,9 +3029,9 @@
                     rerender();
                 }));
                 /* [v3.325.0 · M3-O8] 组织层交互（资料页 / 详情进出 / 选区 / 批量档位）。
-                 *   三条纪律与上面同：① 事件 → 内核动作名，不在面板里算；② 状态只从 face.state 回写
+                 *   三条纪律与上面同：① 事件 -> 内核动作名，不在面板里算；② 状态只从 face.state 回写
                  *   （面板不得自己拼一份）；③ 每次交互都重跑一次 dispatch，界面显示的**永远是这一次**的真结果。
-                 *   ★ 「进出详情保留筛选与页码」的保证来自内核 `navigate()`（它只动组织态），
+                 *   「进出详情保留筛选与页码」的保证来自内核 `navigate()`（它只动组织态），
                  *     面板这里**不重建状态**——重建一次就等于把页码与筛选条件丢掉。 */
                 const stepOrg = (action, payload) => {
                     if (typeof s.memoryCenterStep !== 'function') return;
@@ -3063,7 +3073,7 @@
                         if (row.querySelector('[data-mc-inline-editor]')) return;
                         /* 初值必须取 **owner 原文**（face.memoryRows 的 memoryItem.text）：
                          *   `.ls-item-text` 是 memory-center 经 MAX_TEXT=160 截断后的显示串，
-                         *   而 owner slot 允许 200 字。用显示串当初值 ⇒ 编辑长记忆会把尾部
+                         *   而 owner slot 允许 200 字。用显示串当初值 => 编辑长记忆会把尾部
                          *   静默截掉并写回 slot（数据损坏）。face 缺席才退回 DOM，且点名降级。 */
                         const _rows = (plugin._memoryCenterLastFace && Array.isArray(plugin._memoryCenterLastFace.memoryRows))
                             ? plugin._memoryCenterLastFace.memoryRows : [];
@@ -3103,7 +3113,7 @@
                 undoBtn.style.background = 'var(--ls-line,rgba(240,246,252,0.10))';
                 undoBtn.style.color = 'var(--ls-warn,#d29922)';
                 undoBtn.style.marginBottom = '6px';
-                undoBtn.textContent = `↺ 撤销上次修改（剩余可撤销: ${auditCount}）`;
+                undoBtn.textContent = `撤销上次修改（剩余可撤销: ${auditCount}）`;
                 undoBtn.addEventListener('click', async () => {
                     await plugin.undoLastOp();
                     ov.remove();
@@ -3111,7 +3121,7 @@
                 });
                 ov.querySelector('.lonsha-sheet-body').appendChild(undoBtn);
             }
-            back.textContent = '← 返回状态总览';
+            back.textContent = '返回状态总览';
             back.addEventListener('click', () => { ov.remove(); plugin.showStatsPanel(); });
             ov.querySelector('.lonsha-sheet-body').appendChild(back);
         };
@@ -3135,13 +3145,13 @@
                 </label>`;
             const body = `
                 <div class="ls-tabs-nav" role="tablist" aria-label="设置分类">
-                    ${diag ? '' : `<button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-general" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
-                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-narrative" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
-                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-health" class="ls-tab-btn" data-tab="health">🩺 记忆健康</button>
-                    <button type="button" class="ls-tab-btn ls-diag-entry" id="ls-diag-entry" title="引擎开关、算法参数与调校">🔧 高级诊断</button>`}
-                    ${diag ? `<button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-retrieval" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
-                    <button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-advanced" class="ls-tab-btn active" data-tab="advanced">🧪 实验室</button>
-                    <button type="button" class="ls-tab-btn" id="ls-diag-back">← 返回常用</button>` : ''}
+                    ${diag ? '' : `<button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-general" class="ls-tab-btn active" data-tab="general">开始使用</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-narrative" class="ls-tab-btn" data-tab="narrative">人物与故事</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-health" class="ls-tab-btn" data-tab="health">记忆健康</button>
+                    <button type="button" class="ls-tab-btn ls-diag-entry" id="ls-diag-entry" title="引擎开关、算法参数与调校">高级诊断</button>`}
+                    ${diag ? `<button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-retrieval" class="ls-tab-btn" data-tab="retrieval">备份与调校</button>
+                    <button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-advanced" class="ls-tab-btn active" data-tab="advanced">实验室</button>
+                    <button type="button" class="ls-tab-btn" id="ls-diag-back"><- 返回常用</button>` : ''}
                 </div>
                 ${diag ? '' : `
 <div class="ls-tab-pane${diag ? '' : ' active'}" role="tabpanel" id="ls-pane-general" data-tab-pane="general">
@@ -3167,7 +3177,7 @@
                 </div>
 <div class="ls-group">
                     <!-- [v3.423] API 连接前置：玩家第一件事就是连 API，不再埋在第 3 个 tab 里 -->
-                    <div class="ls-group-title">🔗 AI 接口连接</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="link" aria-hidden="true"></i>AI 接口连接</div>
                     <label class="ls-row">
                         <div><div>使用自己的 AI 接口</div><div class="ls-hint">关闭 = 直接用游戏当前对话的接口（推荐，零配置）。开启 = 填下方专用接口。</div></div>
                         <input type="checkbox" data-cfg="apiProviderCustom" ${c.apiProviderCustom ? 'checked' : ''}>
@@ -3178,7 +3188,7 @@
                         <div style="display:flex;gap:6px;">
                             <select class="ls-input" id="ls-model-select" data-cfg-text="apiModel" style="flex:1;display:none;"><option value="${escAttr(c.apiModel || '')}">${esc(c.apiModel || '点击右侧抓取模型')}</option></select>
                             <input type="text" class="ls-input" id="ls-model-input" placeholder="模型名（或点右侧抓取列表）" value="${escAttr(c.apiModel || '')}" style="flex:1;display:block;" autocomplete="off">
-                            <button class="ls-btn" id="ls-fetch-models" type="button" aria-label="获取模型列表" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;">🔄</button>
+                            <button class="ls-btn" id="ls-fetch-models" type="button" aria-label="获取模型列表" style="width:auto;padding:0 14px;margin:5px 0;white-space:nowrap;"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i></button>
                         </div>
                         <div class="ls-hint" id="ls-model-status"></div>
                         <div class="ls-hint">兼容 OpenAI 格式；地址填 base 即可（自动补 /chat/completions）</div>
@@ -3201,7 +3211,7 @@
                     ${ck('debugMode', '调试模式', 'console 显示召回分数与提取详情')}
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🛡️ 用量与保护</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="shield" aria-hidden="true"></i>用量与保护</div>
                     ${ck('extractionLockEnabled', '提取互斥锁', '并发保护：快速连续对话时防止记忆写入冲突')}
                     ${ck('holidayAware', '节日感知', '剧情日期临近节日时召回相关记忆（圣诞/情人节/七夕等）')}
                     <div class="ls-slider-label"><span>注入预算（字符）</span><span class="ls-slider-val" id="ls-v-budget">${c.injectionBudget || 3000}</span></div>
@@ -3266,7 +3276,7 @@
                          v3160/v3161/v34355 三红同源。它只是**标签**：引擎不据此改变任何行为；
                          手动改预设内任一键**不自动清除**它（自动清会让"只差一个键"的微调反复抹掉档位）；
                          空字符串 = 未使用预设（默认），不假装是某一档。 -->
-                    <div class="ls-group-title">🎬 玩法预设标签</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="film" aria-hidden="true"></i>玩法预设标签</div>
                     <label class="ls-row">
                         <div><div>当前玩法预设</div><div class="ls-hint">由 /lonsha-preset 写入的档位标签（mystery_detective / romance / fantasy_ttrpg / ensemble_drama），留空 = 未使用预设。仅作标记，不影响引擎行为；手动微调预设参数不会清除此标签。</div></div>
                         <input type="text" class="ls-input" value="${escAttr(c.gameplayPreset || '')}" data-cfg-text="gameplayPreset" placeholder="留空 = 未使用预设" autocomplete="off" style="max-width:190px;">
@@ -3274,7 +3284,7 @@
                 </div>
 <details class="ls-player-details"><summary>调整人物与故事偏好</summary>
 <div class="ls-group">
-                     <div class="ls-group-title">💗 人物心境与好感</div>
+                     <div class="ls-group-title"><i class="ls-ico" data-i="heart" aria-hidden="true"></i>人物心境与好感</div>
                      ${ck('characterStateEnabled', '角色状态追踪', '提取时记录好感/疲劳/心情等数值变化，注入时展示当前状态')}
                      ${ck('cseEnabled', 'CSE 人物状态引擎', '分层建模人物心理：核心人设/逐渐适应/当下情绪 + toward 对象绑定 + 私密/幕后可见性 + 证据链置信度（待证项注入时标注，防推测当事实）')}
                      ${ck('narrativePulseEnabled', '叙事心电图', '情感极性曲线 + 张力节奏 + 角色弧光阶段 + 自反性节奏建议（连续高压提醒放缓呼吸拍，连续平淡提醒掀起波澜），纯文本启发式零额外 API')}
@@ -3287,14 +3297,14 @@
                      <div class="ls-hint" style="padding:0 8px;">状态变化由 LLM 每轮提取（delta 增减或绝对值），字段用简短中文（好感/疲劳/心情/健康/信任/金钱等）。CSE 引擎另记 cse_states（layer/toward/visibility）。</div>
                  </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🕰️ 私密心事与故事时间线</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>私密心事与故事时间线</div>
                     ${ck('povIsolation', 'POV 私密记忆隔离', '角色私密心事与暗线单独隔离，只展示当前在场角色知晓的事实')}
                     ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">📖 更多故事细节（日记/场景/伏笔/手机联动）· 默认已配置好，展开可微调</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="book" aria-hidden="true"></i>更多故事细节（日记/场景/伏笔/手机联动）· 默认已配置好，展开可微调</summary>
 <div class="ls-group">
-                    <div class="ls-group-title">📔 角色日记与心声</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>角色日记与心声</div>
                     ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
                     ${ck('livingDiary', '第一人称心声日记', '角色真实内心独白与未说出口的秘密，增强角色活人感')}
                     ${ck('diaryChangeDrivenInjection', '变化日记注入', '只将上次注入游标之后、当前登场角色的新日记加入本轮上下文')}
@@ -3309,13 +3319,13 @@
                     <div class="ls-hint" style="padding:0 8px;">日记每N楼批量生成一次（<b>0=每楼</b>），节省 API 额度；生成失败自动跳过不影响主流程。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">📍 场景与在场角色</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="pin" aria-hidden="true"></i>场景与在场角色</div>
                     ${ck('sceneEnabled', '场景地图树', '提取登记地点层级（城市›街区›店铺），注入当前场景链；删楼自动回滚')}
                     ${ck('presenceInjection', '不在场角色提示', '已登场但不在场的角色注入"现在在哪"，防 AI 让人凭空出现')}
                     ${ck('queryRewrite', '查询重写（需API）', '生成前用小模型把剧情改写成检索词，多路召回更准；每轮多一次API调用')}
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🧩 约定与伏笔</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="puzzle" aria-hidden="true"></i>约定与伏笔</div>
                     ${ck('suspenseEnabled', '悬念簿', '约定/伏笔/未解之谜三态追踪（完成/取消/失败），防 AI 把办完的事反复提、把伏笔写丢')}
                     ${ck('relativeTime', '相对时间前缀', '剧情时间线注入时加"3天前·3月12日"式前缀，距离感一目了然；支持架空日历解析')}
                     <div class="ls-slider-label"><span>注入深度（D0/D1/D2）</span><span class="ls-slider-val" id="ls-v-injdepth">${c.injectionDepth || 0}</span></div>
@@ -3326,7 +3336,7 @@
                     <div class="ls-hint" style="padding:0 8px;">超出上限的最旧悬念自动沉降（标记取消），不再注入但保留记录。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">📱 虚拟手机联动（可选）</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="phone" aria-hidden="true"></i>虚拟手机联动（可选）</div>
                     ${ck('rubyPhoneBridge', '回填手机记忆', 'LLM 提取结果（摘要/事件/关系）写入 RubyPhone 手机"记忆"App')}
                     ${ck('rubyPhoneRecall', '手机记忆参与召回', 'RubyPhone 记忆库（感官/空间/时间池）作为一路召回源注入简报')}
                     <div class="ls-slider-label"><span>手机记忆召回条数</span><span class="ls-slider-val" id="ls-v-phone">${c.rubyPhoneRecallTopN ?? 3}</span></div>
@@ -3336,26 +3346,26 @@
 </details>
 </details>
 <div class="ls-group">
-                    <div class="ls-group-title">💾 备份与迁移</div>
-                    <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
-                    <button class="ls-btn" id="ls-import">📥 导入档案</button>
-                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}>♻ 恢复嵌入存档（跨设备迁移）</button>
-                    <button class="ls-btn ls-btn-danger" id="ls-clear">🗑 清空当前对话记忆</button>
-                    <div class="ls-hint" style="padding:0 8px;">🚚 携带背包：打包当前记忆 → 新对话里点"导入携带包"，无缝连载。</div>
-                    <button class="ls-btn" id="ls-carry-pack">🚚 打包当前记忆（跨会话携带）</button>
-                    <button class="ls-btn" id="ls-carry-apply">📥 导入携带包（新故事开局）</button>
-                    <button class="ls-btn" id="ls-migrate-pack">📦 记忆迁移包（按角色打包·可校验）</button>
-                    <button class="ls-btn" id="ls-migrate-apply">🧬 导入迁移包（预检+冲突决策）</button>
-                    <button class="ls-btn" id="ls-migrate-merge">🔀 周目差异挑拣合并（只挑你想带走的）</button>
-                    <button class="ls-btn" id="ls-cf-branch">🧪 反事实分支沙盘（当初若走另一条路）</button>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="save" aria-hidden="true"></i>备份与迁移</div>
+                    <button class="ls-btn" id="ls-export"><i class="ls-ico" data-i="upload" aria-hidden="true"></i>导出档案 (JSON)</button>
+                    <button class="ls-btn" id="ls-import"><i class="ls-ico" data-i="download" aria-hidden="true"></i>导入档案</button>
+                    <button class="ls-btn" id="ls-embedded-restore" ${c._embeddedVaultReady ? '' : 'style="display:none;"'}><i class="ls-ico" data-i="refresh" aria-hidden="true"></i>恢复嵌入存档（跨设备迁移）</button>
+                    <button class="ls-btn ls-btn-danger" id="ls-clear"><i class="ls-ico" data-i="trash" aria-hidden="true"></i>清空当前对话记忆</button>
+                    <div class="ls-hint" style="padding:0 8px;"><i class="ls-ico" data-i="box" aria-hidden="true"></i>携带背包：打包当前记忆<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>新对话里点"导入携带包"，无缝连载。</div>
+                    <button class="ls-btn" id="ls-carry-pack"><i class="ls-ico" data-i="box" aria-hidden="true"></i>打包当前记忆（跨会话携带）</button>
+                    <button class="ls-btn" id="ls-carry-apply"><i class="ls-ico" data-i="download" aria-hidden="true"></i>导入携带包（新故事开局）</button>
+                    <button class="ls-btn" id="ls-migrate-pack"><i class="ls-ico" data-i="box" aria-hidden="true"></i>记忆迁移包（按角色打包·可校验）</button>
+                    <button class="ls-btn" id="ls-migrate-apply"><i class="ls-ico" data-i="flow" aria-hidden="true"></i>导入迁移包（预检+冲突决策）</button>
+                    <button class="ls-btn" id="ls-migrate-merge"><i class="ls-ico" data-i="swap" aria-hidden="true"></i>周目差异挑拣合并（只挑你想带走的）</button>
+                    <button class="ls-btn" id="ls-cf-branch"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>反事实分支沙盘（当初若走另一条路）</button>
                 </div>
 </div>
 `}
                 ${diag ? `
 <div class="ls-tab-pane" role="tabpanel" id="ls-pane-retrieval" data-tab-pane="retrieval">
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">⚙️ 进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
 <div class="ls-group">
-                    <div class="ls-group-title">📜 故事脉络与章节归档</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>故事脉络与章节归档</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
                     <div class="ls-slider-label"><span>卷摘要保留上限</span><span class="ls-slider-val" id="ls-v-volret">${c.volumeRetention || 40}</span></div>
                     <input type="range" class="ls-slider" min="4" max="200" step="2" value="${c.volumeRetention || 40}" data-cfg-num="volumeRetention" oninput="document.getElementById('ls-v-volret').textContent=this.value">
@@ -3383,7 +3393,7 @@
                     <div class="ls-hint" style="padding:0 8px;">摘要超过阈值后，最早的一批会用 LLM 合并成"卷摘要"（早前剧情概括），旧的单条摘要不再参与召回。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🎒 随身物品与钱财记录</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>随身物品与钱财记录</div>
                     ${ck('reflectionEnabled', '反思节点（需额外模型支持）', '每N楼从近期剧情提炼高层洞察（关系趋势/潜在线索）注入，与日记独立节流')}
                     <div class="ls-slider-label"><span>每N楼反思一次</span><span class="ls-slider-val" id="ls-v-rf">${c.reflectEveryFloors || 10}</span></div>
                     <input type="range" class="ls-slider" min="3" max="30" step="1" value="${c.reflectEveryFloors || 10}" data-cfg-num="reflectEveryFloors">
@@ -3392,22 +3402,22 @@
                     ${ck('carryoverContractStrict', '携带契约严格模式', '导入携带包时校验结构是否规范完整，保障跨版本或旧存档向后兼容')}
                     ${ck('ledgerWriteValidationDebug', '台账校验调试日志', '开启后每次写入校验有违规时在控制台 warn 输出逐项原因（默认关）')}
                     ${ck('moneyLedgerEnabled', '钱财账本', '跟踪角色金额与变动流水，注入防凭空暴富；配合下方单笔幅度上限可 clamp 异常改值')}
-                    <div class="ls-slider-label"><span>💰 钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
+                    <div class="ls-slider-label"><span><i class="ls-ico" data-i="wallet" aria-hidden="true"></i>钱财改值幅度上限（0=关）</span><span class="ls-slider-val" id="ls-v-mmd">${c.maxMoneyDelta || 0}</span></div>
                     <input type="range" class="ls-slider" min="0" max="100000" step="1000" value="${c.maxMoneyDelta || 0}" data-cfg-num="maxMoneyDelta" oninput="document.getElementById('ls-v-mmd').textContent=this.value">
                     <div class="ls-hint" style="padding:0 8px;">覆盖式改值与旧金额差超过该上限时按 旧值±上限 clamp（防数值异常突变）；delta 式增减不受限。</div>
-                    <div class="ls-hint" style="padding:0 8px; margin-top:6px;">🎬 番外楼：控制台执行 <code>SillyTavern.getContext().chat[N].extra.lonsha_omit = true</code> 可将该楼排除出记忆系统（小剧场/玩梗楼用）。</div>
-                    <div class="ls-hint" style="padding:0 8px; margin-top:6px;">📦 记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；🗄️ 每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
-                    ${ck('maintenancePipelineEnabled', '维护流水线', '把归档休眠→优化去重→节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
+                    <div class="ls-hint" style="padding:0 8px; margin-top:6px;"><i class="ls-ico" data-i="film" aria-hidden="true"></i>番外楼：控制台执行 <code>SillyTavern.getContext().chat[N].extra.lonsha_omit = true</code> 可将该楼排除出记忆系统（小剧场/玩梗楼用）。</div>
+                    <div class="ls-hint" style="padding:0 8px; margin-top:6px;"><i class="ls-ico" data-i="box" aria-hidden="true"></i>记忆优化：每 ${c.optimizeEveryFloors || 50} 楼自动去重+淘汰最旧（向量上限 ${c.vectorMaxCount || 500} / 摘要上限 ${c.summaryMaxCount || 400}）；<i class="ls-ico" data-i="archive" aria-hidden="true"></i>每 ${c.snapshotEveryFloors || 50} 楼自动快照（保留最近5份，IndexedDB）。</div>
+                    ${ck('maintenancePipelineEnabled', '维护流水线', '把归档休眠->优化去重->节奏分诊编排为一次可诊断流水线：单步失败可重试，长期未维护自动跳回优化补做。默认关（关时走既有逐条维护路径，行为不变）')}
                     <div class="ls-slider-label"><span>维护超期提醒（天）</span><span class="ls-slider-val" id="ls-v-mntd">${c.maintenanceOverdueWarnDays || 45}</span></div>
                     <input type="range" class="ls-slider" min="7" max="120" step="1" value="${c.maintenanceOverdueWarnDays || 45}" data-cfg-num="maintenanceOverdueWarnDays">
-                    <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数 → 流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
-                    ${ck('pristineFetchEnabled', '绕包装取数', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 → 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
+                    <div class="ls-hint" style="padding:0 8px;">距上次维护超过该天数<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>流水线跳回优化步骤补做一次（防长篇长时间挂机后记忆长期未整理）。</div>
+                    ${ck('pristineFetchEnabled', '绕包装取数', '宿主预设脚本（如 Kemini 伴生面板）会 patch 页面 fetch 并改写内部请求的请求体/响应流，轻则混入外来注入文本、重则工具调用被剥且静默发生。打开后内部取数改走「剥离已知包装 -> 专用隐藏同源 iframe 原生 fetch」，拿回未改写的原始响应。默认开：纯传输层防御，不改请求/响应语义，拿不到原生 fetch 时逐字回退全局 fetch')}
                      ${ck('nativeToolExtractEnabled', '原生函数调用协议', '内部模型调用改带 tools 请求，回包里的 tool_calls 被真执行（search_memory 关键词检索 / write_memory 写显式摘要 / vector_search 语义检索）并以 role=tool 回灌，最多 nativeToolMaxRounds 轮后取最终正文。关闭时逐字节走旧文本路径。默认关（实验）')}
                     <div class="ls-slider-label"><span>工具回合上限（1~5）</span><span class="ls-slider-val" id="ls-v-ntmr">${c.nativeToolMaxRounds ?? 3}</span></div>
                     <input type="range" class="ls-slider" min="1" max="5" step="1" value="${c.nativeToolMaxRounds ?? 3}" data-cfg-num="nativeToolMaxRounds" oninput="document.getElementById('ls-v-ntmr').textContent=this.value">
-                    <div class="ls-hint" style="padding:0 8px;">模型在一轮内最多连续调用几次工具（检索→精读→作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
-                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计', '为每次模型调用记录事件链并校验迁移不变量（run_started→model_requested→assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
-                    ${ck('recallArtifactEnabled', '召回产物持久化', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 → 自动拒绝复用陈旧注入。默认关')}
+                    <div class="ls-hint" style="padding:0 8px;">模型在一轮内最多连续调用几次工具（检索<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>精读<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>作答 三轮够用）。引擎侧另夹一道 Math.min(5, …)，此处填超过 5 也不会被采纳。</div>
+                     ${ck('llmEventChainEnabled', 'LLM 调用事件链审计', '为每次模型调用记录事件链并校验迁移不变量（run_started->model_requested->assistant_message/run_failed）。违反只在控制台告警、不中断主链路。默认关')}
+                    ${ck('recallArtifactEnabled', '召回产物持久化', '把每轮召回结果存成带「历史指纹」的产物：重开对话可直接复用注入，且上游楼层被编辑/删楼时指纹变化 -> 自动拒绝复用陈旧注入。默认关')}
                     ${ck('smartTriggerEnabled', '事件性门控', '先判断本楼有没有事件性（关键词/自定义正则/多轮往返/情绪波动/疑似新实体），达不到阈值就跳过 LLM 提取、降级为本地廉价摘要——省下大量平淡楼的 API 调用，绝不丢楼层。默认关')}
                     ${ck('vectorTailRecoveryEnabled', '掉队候选补召回', '把因「无向量/零向量/维度不符」而永远进不了向量检索的条目，低分补进候选池交由正常评分与预算裁剪决定去留（防「记忆在库里却召不回」）。默认关')}
                     ${ck('coverageLedgerEnabled', '覆盖账本重算', '归档隐藏改为「由当前有效覆盖者推导」：卷摘要/折叠被撤销或删除时，被它覆盖的楼层自动恢复可见，不再留下没人认领的孤儿隐藏楼；用户手动隐藏的楼层绝不接管。默认关')}
@@ -3424,7 +3434,7 @@
                     <div class="ls-hint" style="padding:0 8px;">档位只决定**平淡楼**攒批的周期与条数；身份/承诺/物品/关系/事件这五类结构性信号**任何档位都当场抽**（关键事件不因省调用被推到周期楼外）。诊断面「抽取节奏」一行会如实报即时/攒批/错过的楼。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🏷️ 剧情领域与分类记录</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="tag" aria-hidden="true"></i>剧情领域与分类记录</div>
                     ${ck('diaryBridgeEnabled', '日记桥', '本轮提取的日记同步写进手机日记；关闭后日记只留在记忆库')}
                     ${ck('clockSyncEnabled', '剧情时钟权威同步', '正文时间锚点回填手机时钟；关闭后手机时钟不被剧情时间改写')}
                     ${ck('pairMemoryEnabled', '配对记忆', '从 relationships 提取双人关系记忆；关闭后只保留单角色记忆')}
@@ -3440,7 +3450,7 @@
                     <input type="range" class="ls-slider" min="10" max="500" step="10" value="${c.snapshotEveryFloors ?? 50}" data-cfg-num="snapshotEveryFloors">
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🧠 剧情理解与多路联想</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="brain" aria-hidden="true"></i>剧情理解与多路联想</div>
                     <div class="ls-row">
                         <div><div>预算裁剪策略</div><div class="ls-hint">balanced=常驻全保留+触发截断到剩余预算；relevance=触发只保留 RRF 前 60%；recency=触发只保留时间/状态类分区</div></div>
                         <select class="ls-input" data-cfg-text="budgetStrategy">
@@ -3466,7 +3476,7 @@
                     <div class="ls-hint">可选任务键：extract / summarize / embed / select / rerank / rewrite / state。未配的任务回落主通道；JSON 解析失败时保留原值并提示。</div>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">⚖️ 回忆排序与精选权重</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="gauge" aria-hidden="true"></i>回忆排序与精选权重</div>
                     ${ck('rerankEnabled', 'LLM 精排召回结果', '粗召回后用小模型重排候选。更准但每轮多一次API调用；失败自动降级')}
                     <input type="text" class="ls-input" placeholder="精排API地址（留空=用提取API）" value="${c.rerankApiUrl || ''}" data-cfg-text="rerankApiUrl" autocomplete="off">
                     <input type="password" class="ls-input" placeholder="精排Key（留空=用提取Key）" value="${c.rerankApiKey || ''}" data-cfg-text="rerankApiKey" autocomplete="off">
@@ -3475,13 +3485,13 @@
                      <input type="range" class="ls-slider" min="6" max="24" step="2" value="${c.rerankCandidates || 12}" data-cfg-num="rerankCandidates">
                  </div>
 <div class="ls-group">
-                     <div class="ls-group-title">💡 记忆巩固与长效沉淀</div>
-                     ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选→前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
+                     <div class="ls-group-title"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>记忆巩固与长效沉淀</div>
+                     ${ck('aiSelectEnabled', '前置 AI 精选召回', '粗召回候选->前置 AI JSON 精选「本轮真正相关」再注入。减少无关注入、省 token 提精度；失败自动降级本地评分 topN')}
                      <div class="ls-slider-label"><span>精选候选上限</span><span class="ls-slider-val" id="ls-v-aiselcand">${c.aiSelectMaxCandidates || 20}</span></div>
                      <input type="range" class="ls-slider" min="8" max="40" step="4" value="${c.aiSelectMaxCandidates || 20}" data-cfg-num="aiSelectMaxCandidates">
                      <div class="ls-slider-label"><span>AI 精选条数</span><span class="ls-slider-val" id="ls-v-aiselsel">${c.aiSelectMaxSelect || 6}</span></div>
                      <input type="range" class="ls-slider" min="2" max="12" step="1" value="${c.aiSelectMaxSelect || 6}" data-cfg-num="aiSelectMaxSelect">
-                     ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累→达阈值巩固→溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
+                     ${ck('stmLtmEnabled', 'STM/LTM 分层巩固', '短期记忆逐条积累->达阈值巩固->溢出滚入长期摘要。游标断点续跑，新消息从上次进度继续，崩溃可恢复')}
                      <div class="ls-slider-label"><span>巩固触发阈值</span><span class="ls-slider-val" id="ls-v-stmth">${c.stmLtmThreshold || 5}</span></div>
                      <input type="range" class="ls-slider" min="3" max="10" step="1" value="${c.stmLtmThreshold || 5}" data-cfg-num="stmLtmThreshold">
                      <!-- [v3.421.0] 批末主动销项的保底留存：巩固完的 stm 条目该在批末销掉，但销到 0 行等于把可变区清空、下批又从零积。这一格就是「销后至少留几条」。 -->
@@ -3491,56 +3501,56 @@
                      <div class="ls-hint">副API通道（secondaryApis）：可在配置 JSON 中按任务（extract/summarize/select/rerank/rewrite/state）配独立端点，给小任务配便宜模型。STM 巩固摘要已接入 summarize 通道。</div>
                  </div>
 <div class="ls-group">
-                    <div class="ls-group-title">📝 记忆提取规则模板</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="compose" aria-hidden="true"></i>记忆提取规则模板</div>
                     <textarea class="ls-textarea" id="ls-prompt">${c.extractionPrompt}</textarea>
                     <div class="ls-hint">{{CONTENT}} 会替换为消息内容。改坏了解析会失败，届时可点下方恢复默认。</div>
-                    <button class="ls-btn" id="ls-prompt-reset">↩ 恢复默认提示词</button>
+                    <button class="ls-btn" id="ls-prompt-reset"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>恢复默认提示词</button>
                 </div>
 </details>
 </div>
 <div class="ls-tab-pane active" role="tabpanel" id="ls-pane-advanced" data-tab-pane="advanced">
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">🧪 底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
 <div class="ls-lab-searchbar" role="search" aria-label="实验室设置搜索">
     <input type="search" id="ls-lab-search" class="ls-input ls-lab-search" placeholder="搜索：召回、向量、世界线、角色……" autocomplete="off" aria-controls="ls-pane-advanced">
     <button type="button" class="ls-btn ls-lab-clear" id="ls-lab-clear">清空</button>
 </div>
 <div class="ls-lab-result" id="ls-lab-result" role="status" aria-live="polite">显示全部 4 组实验室设置</div>
 <div class="ls-group">
-                    <div class="ls-group-title">🎯 召回、预算与摘要</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>召回、预算与摘要</div>
                     <div class="ls-slider-label"><span>注入记忆条数 (Top-K)</span><span class="ls-slider-val" id="ls-v-topk">${c.vectorTopK ?? 5}</span></div>
                     <input type="range" class="ls-slider" min="1" max="20" step="1" value="${c.vectorTopK ?? 5}" data-cfg-num="vectorTopK">
                     <div class="ls-slider-label"><span>向量权重 α（0=纯图谱，1=纯向量）</span><span class="ls-slider-val" id="ls-v-alpha">${c.hybridAlpha ?? 0.7}</span></div>
                     <input type="range" class="ls-slider" min="0" max="1" step="0.1" value="${c.hybridAlpha ?? 0.7}" data-cfg-num="hybridAlpha">
                     ${ck('hybridMergeWeighted', 'α 检索权重加权融合', '开启后上方 α 滑块参与融合排序（偏向语义检索或图谱检索）；关闭则使用平衡排位融合。默认关。')}
-                    ${ck('resonanceConsolidationEnabled', '🧠 记忆共振巩固', '关联激活扩散与重要度自然演化；高频被唤醒的记忆自动提升热度，形成越用越深刻的长效记忆。零额外 API 消耗。')}
-                    ${ck('pyramidEvolutionEnabled', '🧬 分层演化金字塔', '剧情记忆自动按时间跨度提炼归纳（日记→场景回顾→阶段史记），保持长线脉络清晰。零额外 API 消耗。')}
-                    ${ck('memorySymphonyEnabled', '🎼 全域记忆协调中枢', '将现场感知、多路检索、因果关联与防混淆深度串联，全链路防止记忆错乱。零额外 API 消耗。')}
-                    ${ck('antiConfusionEnabled', '🛡️ 多维角色防混淆与认知锚定', '精确区分他/她/对方等代词指向，锁定各角色专属事实与所有权，严防多角色互动时张冠李戴。')}
-                    ${ck('antiConfusionDirectivesEnabled', '📜 防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
-                    ${ck('psychologicalDefenseEnabled', '🎭 心理防御与潜意识扭曲', '模拟角色在面对压力时的否认、投射与心绪起伏，赋予心智真实的戏剧张力。')}
-                    ${ck('hypergraphCausalEnabled', '🕸️ 复杂因果网络推演中枢', '梳理多因一果与多重连锁反应，深层回溯前因后果，牢牢锁定剧情伏笔与因果链条。')}
-                    ${ck('memoryHealingImmunityEnabled', '💉 设定防冲突与抗幻觉自愈', '自动拦截与已知设定冲突的虚构或死者复生等幻觉，守护剧情既定事实的一致性。')}
-                    ${ck('counterfactualFirewallEnabled', '🧱 假想与真实世界防火墙', '严格隔离角色假设/后悔脑补与正史现实，仅允许合理心绪折射，杜绝记忆污染。')}
-                    ${ck('epistemicParallaxMatrixEnabled', '👥 多视角信息差与心智博弈', '追踪各角色知情、误解、怀疑或被蒙蔽的状态，呈现信息差带来的戏剧张力与保守秘密。')}
-                    ${ck('macroEpochDriftEnabled', '⏳ 时代变迁与风气演进', '长线支持宏观岁月更迭、社会风尚演变与时代习俗变迁，沉淀厚重的故事史诗感。')}
-                    ${ck('covertEspionageEnabled', '🕵️ 双重身份与伪装暴露危机', '模拟角色掩饰身份时的破绽积累与暴露风险，触发掩盖真相与圆谎的紧张情节。')}
-                    ${ck('obsessiveTraumaEnabled', '💔 创伤雷区与情感应激反应', '监控触及心底禁忌雷区后的心理承受度，达临界点时触发情绪失控与生理应激。')}
-                    ${ck('dynamicCovenantEnabled', '📜 契约誓言与违誓代价引擎', '记录结盟立誓与违誓代价，背叛或违背承诺时触发剧情因果反噬与内疚惩戒。')}
-                    ${ck('dreamMetaphorEnabled', '🌌 梦境隐喻与潜意识直觉合成', '睡眠或独处时将白天的经历与未决情绪转化为超现实梦境，带来神秘的直觉启示。')}
-                    ${ck('somaticReflexEnabled', '💓 生理微反应与微表情自律感知', '展现心慌骤停、瞳孔微缩、指尖轻颤等不由自主的细微神态，赋予角色真实肢体质感。')}
-                    ${ck('multiAgentGameTheoryEnabled', '♟️ 多方阵营博弈与利益平衡', '模拟多方势力的利益取舍与立场变迁，呈现阵营间的微妙试探与暗流涌动。')}
-                    ${ck('deepMemoryAtlasEnabled', '🗺️ 核心信念与深层人生阅历提炼', '将零散的过往经历升华为角色的人生信条与行事准则，指引长程人生抉择。')}
-                    ${ck('factionTerritoryEnabled', '🚩 势力版图与地界法度感知', '模拟各地城邦势力的管辖范围与盘查严格度，角色行动受所处地域规矩制约。')}
-                    ${ck('longTailFlashbackEnabled', '⚡ 遥远伏笔唤醒与宿命闪回', '捕捉数十轮前埋下的线索与尘封往事，语境契合时以宿命感闪回，防止伏笔遗忘。')}
-                    ${ck('multiDimensionalReputationEnabled', '👑 多维声望与社会威望地位', '超越单纯好感，综合威名、恶名与江湖声望，决定他人对你的敬畏或警惕态度。')}
-                    ${ck('soulBrandReincarnationEnabled', '🌀 跨周目灵魂羁绊与宿命既视感', '延续上一周目或前世未了的誓约与羁绊，在关键剧情引发心有灵犀的宿命感。')}
-                    ${ck('fateClimaxLoomEnabled', '🧶 命运交织与故事高潮收束', '汇聚各方支线与人物矛盾，在时机成熟时推向破局高潮，迎来震撼的情节收束。')}
-                    ${ck('sleepEvolutionArchival', '😴 睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
+                    ${ck('resonanceConsolidationEnabled', '记忆共振巩固', '关联激活扩散与重要度自然演化；高频被唤醒的记忆自动提升热度，形成越用越深刻的长效记忆。零额外 API 消耗。')}
+                    ${ck('pyramidEvolutionEnabled', '分层演化金字塔', '剧情记忆自动按时间跨度提炼归纳（日记->场景回顾->阶段史记），保持长线脉络清晰。零额外 API 消耗。')}
+                    ${ck('memorySymphonyEnabled', '全域记忆协调中枢', '将现场感知、多路检索、因果关联与防混淆深度串联，全链路防止记忆错乱。零额外 API 消耗。')}
+                    ${ck('antiConfusionEnabled', '多维角色防混淆与认知锚定', '精确区分他/她/对方等代词指向，锁定各角色专属事实与所有权，严防多角色互动时张冠李戴。')}
+                    ${ck('antiConfusionDirectivesEnabled', '防混淆结构化高阶提示约束', '在生成注入私密简报头部自动合流防混淆指令，使模型严格恪守角色身份边界与时空一致性。')}
+                    ${ck('psychologicalDefenseEnabled', '心理防御与潜意识扭曲', '模拟角色在面对压力时的否认、投射与心绪起伏，赋予心智真实的戏剧张力。')}
+                    ${ck('hypergraphCausalEnabled', '复杂因果网络推演中枢', '梳理多因一果与多重连锁反应，深层回溯前因后果，牢牢锁定剧情伏笔与因果链条。')}
+                    ${ck('memoryHealingImmunityEnabled', '设定防冲突与抗幻觉自愈', '自动拦截与已知设定冲突的虚构或死者复生等幻觉，守护剧情既定事实的一致性。')}
+                    ${ck('counterfactualFirewallEnabled', '假想与真实世界防火墙', '严格隔离角色假设/后悔脑补与正史现实，仅允许合理心绪折射，杜绝记忆污染。')}
+                    ${ck('epistemicParallaxMatrixEnabled', '多视角信息差与心智博弈', '追踪各角色知情、误解、怀疑或被蒙蔽的状态，呈现信息差带来的戏剧张力与保守秘密。')}
+                    ${ck('macroEpochDriftEnabled', '时代变迁与风气演进', '长线支持宏观岁月更迭、社会风尚演变与时代习俗变迁，沉淀厚重的故事史诗感。')}
+                    ${ck('covertEspionageEnabled', '双重身份与伪装暴露危机', '模拟角色掩饰身份时的破绽积累与暴露风险，触发掩盖真相与圆谎的紧张情节。')}
+                    ${ck('obsessiveTraumaEnabled', '创伤雷区与情感应激反应', '监控触及心底禁忌雷区后的心理承受度，达临界点时触发情绪失控与生理应激。')}
+                    ${ck('dynamicCovenantEnabled', '契约誓言与违誓代价引擎', '记录结盟立誓与违誓代价，背叛或违背承诺时触发剧情因果反噬与内疚惩戒。')}
+                    ${ck('dreamMetaphorEnabled', '梦境隐喻与潜意识直觉合成', '睡眠或独处时将白天的经历与未决情绪转化为超现实梦境，带来神秘的直觉启示。')}
+                    ${ck('somaticReflexEnabled', '生理微反应与微表情自律感知', '展现心慌骤停、瞳孔微缩、指尖轻颤等不由自主的细微神态，赋予角色真实肢体质感。')}
+                    ${ck('multiAgentGameTheoryEnabled', '多方阵营博弈与利益平衡', '模拟多方势力的利益取舍与立场变迁，呈现阵营间的微妙试探与暗流涌动。')}
+                    ${ck('deepMemoryAtlasEnabled', '核心信念与深层人生阅历提炼', '将零散的过往经历升华为角色的人生信条与行事准则，指引长程人生抉择。')}
+                    ${ck('factionTerritoryEnabled', '势力版图与地界法度感知', '模拟各地城邦势力的管辖范围与盘查严格度，角色行动受所处地域规矩制约。')}
+                    ${ck('longTailFlashbackEnabled', '遥远伏笔唤醒与宿命闪回', '捕捉数十轮前埋下的线索与尘封往事，语境契合时以宿命感闪回，防止伏笔遗忘。')}
+                    ${ck('multiDimensionalReputationEnabled', '多维声望与社会威望地位', '超越单纯好感，综合威名、恶名与江湖声望，决定他人对你的敬畏或警惕态度。')}
+                    ${ck('soulBrandReincarnationEnabled', '跨周目灵魂羁绊与宿命既视感', '延续上一周目或前世未了的誓约与羁绊，在关键剧情引发心有灵犀的宿命感。')}
+                    ${ck('fateClimaxLoomEnabled', '命运交织与故事高潮收束', '汇聚各方支线与人物矛盾，在时机成熟时推向破局高潮，迎来震撼的情节收束。')}
+                    ${ck('sleepEvolutionArchival', '睡眠演化联动归档', '已由演化边指向新节点的旧记忆，在睡眠周期中以 0.6 衰减加速沉淀休眠，保护长局叙事干净。')}
                     <div class="ls-slider-label"><span>摘要最大长度</span><span class="ls-slider-val" id="ls-v-sumlen">${c.maxSummaryLength ?? 200}</span></div>
                     <input type="range" class="ls-slider" min="50" max="500" step="50" value="${c.maxSummaryLength ?? 200}" data-cfg-num="maxSummaryLength">
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🔗 因果、时间与叙事机制</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="link" aria-hidden="true"></i>因果、时间与叙事机制</div>
                     ${ck('hippoDiffusionEnabled', '关键道具与线索联合联想', '将关键道具、地点与在场角色联动唤醒，由物及人触发深层回忆连锁')}
                     ${ck('temporalGraphEnabled', '时态知识图谱（Temporal Graph）', '记录关系的有效区间 [validFrom, validTo]，旧关系演进时自动标记历史，支持往事羁绊追溯')}
                     ${ck('entropyReflectionEnabled', '自适应叙事熵反思', '根据事件重要度与剧情惊奇度动态蓄力，冲顶时提前触发反思提炼，告别机械固定轮数')}
@@ -3548,7 +3558,7 @@
                     ${ck('cacheFriendlyInjection', 'Prompt Cache 友好型分流', '顶槽锁定绝对稳定的史记前缀，动态周记下沉，使 Claude/DeepSeek/Kimi 持续命中 Prefix Caching')}
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">🌌 世界线、分支与跨层隔离</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="globe" aria-hidden="true"></i>世界线、分支与跨层隔离</div>
                     ${ck('worldlineMemoryEnabled', '分层记忆与跨层污染闸', '适用于任何一种「同一角色不止一段人生」的机制：梦境层级、时间循环轮次、平行宇宙、存档读档、位面、世界线……插件不认识任何具体世界观，只认两件抽象事实：① 层标记（当前在哪一层，名字由你的卡自己定）② 切换楼层（第几楼切过去的）。两者合起来叫「纪元」。开启后每条记忆按归属判：同纪元可当事实；异纪元默认挡下（谁都不例外，主角也不给特权）；连楼层都没有的判不了、绝不冒充本纪元。另有一道「未来纪元」闸：起线楼层比你晚的记忆，对任何角色都不可见（防剧透）。默认关。')}
                     <div class="ls-slider-label"><span>当前层标记（名字由你的卡定，如 现实 / 梦一 / 第二轮 / 平行A）</span></div>
                     <input type="text" class="ls-input" placeholder="留空 = 未设定，条目一律判不了" value="${c.worldlineId || ''}" data-cfg-text="worldlineId" autocomplete="off">
@@ -3557,22 +3567,22 @@
                     <div class="ls-slider-label"><span>切换登记表（一条跳线一行：第几楼 · 切到哪一层 · 数字编号可选）</span></div>
                     <!-- [v3.429.0 · L12-O8] 结构化编辑器 + 实时读数。原生 textarea 仍在（同一个
                          data-cfg-text 键、同一个通用保存器），编辑器只是它的**结构化视图**：
-                         增删行/改格子都写回它的 value ⇒ 一个键仍然只有一个控件（A1 不破），
+                         增删行/改格子都写回它的 value => 一个键仍然只有一个控件（A1 不破），
                          而坏行会由宿主解析器点名，不再被静默吞掉。 -->
                     <div id="ls-wl-jumps" style="padding:0 8px;">
-                        <div class="ls-hint" style="padding:1px 0 5px;">每行一条：<b>楼层</b>（消息索引，如 40）→ <b>层标记</b>（这一层的名字，如 梦境一层）→ <b>数字编号</b>（可选）。写错的行会当场标红并说明成因 —— <b>否则闸会悄悄少一个纪元</b>。</div>
+                        <div class="ls-hint" style="padding:1px 0 5px;">每行一条：<b>楼层</b>（消息索引，如 40）<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i><b>层标记</b>（这一层的名字，如 梦境一层）<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i><b>数字编号</b>（可选）。写错的行会当场标红并说明成因 —— <b>否则闸会悄悄少一个纪元</b>。</div>
                         <div id="ls-wl-rows"></div>
                         <div style="display:flex;gap:6px;">
                             <button type="button" class="ls-btn" id="ls-wl-add" style="margin:0;flex:1;padding:8px;font-size:12px;">＋ 加一条跳线</button>
-                            <button type="button" class="ls-btn" id="ls-wl-fixfirst" style="margin:0;flex:1;padding:8px;font-size:12px;">↥ 首跳移到第 1 楼</button>
+                            <button type="button" class="ls-btn" id="ls-wl-fixfirst" style="margin:0;flex:1;padding:8px;font-size:12px;"><i class="ls-ico" data-i="arrow-up" aria-hidden="true"></i>首跳移到第 1 楼</button>
                         </div>
                         <div class="ls-hint" id="ls-wl-readout" data-wl-readout="pending" style="padding:6px 0 2px;">（读数待算）</div>
                         <!-- [L13-O5] 人话解释：随三态变化，各自一句、不做统一模板。
-                             ★ none 态刻意**不出现「安全」二字** —— v3.429.0 的纪律是「没生效」
+                             none 态刻意**不出现「安全」二字** —— v3.429.0 的纪律是「没生效」
                              不能说成「安全」，而此前它只在代码注释里，玩家看不到。 -->
                         <div class="ls-hint" id="ls-wl-plain" data-wl-plain="pending" style="padding:0 0 4px;line-height:1.7;"></div>
                         <div style="display:flex;gap:6px;padding:0 0 6px;">
-                            <button type="button" class="ls-btn" id="ls-wl-affected" data-wl-affected="pending" style="margin:0;flex:1;padding:7px;font-size:12px;">🔍 我受影响的是哪几条（只读）</button>
+                            <button type="button" class="ls-btn" id="ls-wl-affected" data-wl-affected="pending" style="margin:0;flex:1;padding:7px;font-size:12px;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>我受影响的是哪几条（只读）</button>
                         </div>
                         <div class="ls-hint" id="ls-wl-affected-out" style="padding:0 0 4px;"></div>
                         <div class="ls-hint" id="ls-wl-rejects" style="padding:0 0 4px;"></div>
@@ -3606,12 +3616,12 @@
                     <textarea class="ls-textarea" data-cfg-text="worldlineReaders" style="min-height:56px;" placeholder="例：主角名，配角名">${esc(c.worldlineReaders || '')}</textarea>
                     <div class="ls-slider-label"><span>收束事件登记（每行一条：事件键=all 或 事件键=域A,域B）</span></div>
                     <textarea class="ls-textarea" data-cfg-text="worldlineConvergences" style="min-height:72px;" placeholder="例：某人之死=all&#10;某事件=高位">${esc(c.worldlineConvergences || '')}</textarea>
-                    <div class="ls-hint" style="padding:0 8px;">⭐ 未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
+                    <div class="ls-hint" style="padding:0 8px;"><i class="ls-ico" data-i="star" aria-hidden="true"></i>未登记 ≠ 不会发生：没登记的事件一律报「判不了」，不会被静默当成「不收束」。只登记了键不给域的行，等于「登记过但本域不收束」。</div>
                 </div>
 <div class="ls-group">
                     <details id="ls-advanced" style="padding:0 8px;">
-                        <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;">🧪 高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
-                        <div class="ls-hint" style="padding:6px 0 2px;">⚠️ 这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
+                        <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
+                        <div class="ls-hint" style="padding:6px 0 2px;"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
                         <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 2700}</span></div>
                         <input type="range" class="ls-slider" min="200" max="6000" step="100" value="${c.memoryTokenBudget ?? 2700}" data-cfg-num="memoryTokenBudget">
                         <div class="ls-slider-label"><span>最近正文 token 预留</span><span class="ls-slider-val" id="ls-v-krtr">${c.keepRecentTokenReserve ?? 0}</span></div>
@@ -3667,7 +3677,7 @@
                     </details>
                 </div>
 <div class="ls-group">
-                    <div class="ls-group-title">⚙️ 角色、系统与底层开关</div>
+                    <div class="ls-group-title"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>角色、系统与底层开关</div>
                     ${ck('protagonistTracking', '主角档案追踪', '追踪主角客观档案、个人喜好与生活习惯')}
                     ${ck('dualTimeAnchorEnabled', '正文时间锚点', '通过正文内容识别起止时间，推演故事内的时间流逝')}
                     ${ck('charMemEnabled', '角色记忆银行', '两层记忆（短期/长期）按角色隔离')}
@@ -3722,7 +3732,7 @@
                 </div>
             `;
 
-            const overlay = makeSheet('lonsha-settings-overlay', diag ? '🔧 高级诊断' : '⚙ 设置', body, {
+            const overlay = makeSheet('lonsha-settings-overlay', diag ? '高级诊断' : '设置', body, {
                 footerHTML: '<span class="ls-dirty-count" id="ls-dirty-count">已修改 0 项</span>'
                     + '<button type="button" class="ls-btn" id="ls-dirty-reset">还原</button>'
                     + '<button type="button" class="ls-btn ls-btn-primary" id="ls-save">保存并继续</button>',
@@ -4077,7 +4087,7 @@
             _applyLabSearch();
             // [v3.422] 缺陷修复：模式 pill 接线。此前三个 .ls-mode-pill 是纯装饰 div（全文件零监听、active 硬编码），
             //   点击毫无反应。现映射到真实配置 extractionProfile（quality/balanced/low-cost）：
-            //   点击 → 立即写 config + saveConfig 落盘 + 同步「联想与世界」页的档位下拉与 active 高亮，无需再点保存。
+            //   点击 -> 立即写 config + saveConfig 落盘 + 同步「联想与世界」页的档位下拉与 active 高亮，无需再点保存。
             const VALID_PROFILES = ['balanced', 'quality', 'low-cost'];
             // 抽成函数：点击与键盘兜底复用同一条真实路径，避免「鼠标能切、键盘不能切」的双轨实现。
             const applyProfile = (pill, profile) => {
@@ -4103,7 +4113,7 @@
                 // [v3.461.0] 键盘可达兜底。首屏档位由 div 改成原生 button 后，桌面/Android WebView
                 //   理应自己把 Enter/Space 合成 click，但实测本插件所在的 Android WebView 里
                 //   keydown 能派发、click 却不合成（同容器临时插入的对照 button 同样不触发），
-                //   造成「鼠标切得动档、键盘切不动」。这里显式接键盘：Enter / 空格键 → 走 applyProfile，
+                //   造成「鼠标切得动档、键盘切不动」。这里显式接键盘：Enter / 空格键 -> 走 applyProfile，
                 //   Space 同时 preventDefault 以免页面滚动。点击路径不变，不新增任何第二套实现。
                 pill.addEventListener('keydown', (e) => {
                     if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
@@ -4111,21 +4121,21 @@
                     applyProfile(pill, pill.dataset.profile);
                 });
             });
-            // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
+            // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 -> TDZ ReferenceError，设置面板打开即崩）
             overlay.querySelector('#ls-snap-restore')?.addEventListener('click', () => { plugin.showSnapshotRestore(); });
             // [v3.5] 补提取缺失楼层
             overlay.querySelector('#ls-extract-roles')?.addEventListener('click', async () => { plugin.showExtractRoles(); });
             overlay.querySelector('#ls-backfill')?.addEventListener('click', async () => {
                 const engine = plugin.engine;
                 const missing = engine.scanMissingFloors();
-                if (!missing.length) { toast('✅ 没有缺失楼层，记忆全覆盖'); return; }
+                if (!missing.length) { toast('没有缺失楼层，记忆全覆盖', 'success'); return; }
                 const preview = missing.slice(0, 10).join(', ') + (missing.length > 10 ? ` … 共 ${missing.length} 楼` : '');
                 if (!confirm(`发现 ${missing.length} 个楼层无记忆（AI 楼）。补提取将调用 API 逐楼提取，是否继续？\n\n楼层: ${preview}`)) return;
-                toast(`🔧 补提取中…（${Math.min(missing.length, 30)} 楼，需一些时间）`);
+                toast(`补提取中…（${Math.min(missing.length, 30)} 楼，需一些时间）`, 'wrench');
                 const done = await engine.backfillFloors(missing, (idx, d) => {
-                    if ((d.ok + d.fail) % 5 === 0) toast(`🔧 补提取进度: ${d.ok + d.fail}/${Math.min(missing.length, 30)}`);
+                    if ((d.ok + d.fail) % 5 === 0) toast(`补提取进度: ${d.ok + d.fail}/${Math.min(missing.length, 30)}`, 'wrench');
                 });
-                toast(`✅ 补提取完成: ${done.ok} 成功 / ${done.fail} 失败 / ${done.skipped} 跳过`);
+                toast(`补提取完成: ${done.ok} 成功 / ${done.fail} 失败 / ${done.skipped} 跳过`, 'success');
             });
 
             /* ===== [v3.429.0 · L12-O8] 跳跃表结构化编辑器 + 实时读数 =====
@@ -4135,12 +4145,12 @@
              * 本块只做「让口径可摸到」，不新增判定：
              *   ① 结构化编辑器：一条跳线一行三格（楼层 / 层标记 / 数字编号），可增可删；
              *      坏行**当场标红并给出成因**，成因文本来自宿主解析器本身
-             *      （`engine.worldlineJumpDraft` ⇒ 同模块的 `parseJumpsText`）。面板**不另写一套正则**
+             *      （`engine.worldlineJumpDraft` => 同模块的 `parseJumpsText`）。面板**不另写一套正则**
              *      —— 两套口径一旦漂移（面板说没问题、闸默默丢掉），卡作者会被引到错误方向上排查。
              *   ② 实时读数行：当前推算纪元 / `epochAdvance.why` / 冲突 / 前史缺口。
-             *      ★ 三态不同形（同 L12-O4 纪律）：「还没登记」「登记了但前史判不了」「已覆盖」是
+             *      三态不同形（同 L12-O4 纪律）：「还没登记」「登记了但前史判不了」「已覆盖」是
              *      三句不同的话，且**不许**把「判不了」说成「安全」。
-             * 读写纪律：编辑器只改 textarea 的 value（保存仍走既有通用收集器 ⇒ 一个键一个控件）；
+             * 读写纪律：编辑器只改 textarea 的 value（保存仍走既有通用收集器 => 一个键一个控件）；
              *   读数走 `_worldlineState({ worldlineJumps: 草稿 })`，**一个字节都不写配置** ——
              *   「面板里预览的」与「已生效的」必须不同形，否则改坏一行会当场影响召回。 */
             (function () {
@@ -4158,7 +4168,7 @@
                 const eng = () => (plugin && plugin.engine) ? plugin.engine : null;
                 let model = [];
 
-                /* 解析只调宿主（单源）。宿主没接线 ⇒ **不猜、也不装作空表**：置灰并说清原因，
+                /* 解析只调宿主（单源）。宿主没接线 => **不猜、也不装作空表**：置灰并说清原因，
                  *   与「真的没有跳线」不同形（这正是 L12-O4 治过的三态同形）。 */
                 const hostDraft = (text) => {
                     const e = eng();
@@ -4187,27 +4197,27 @@
                 }).join('\n');
 
                 /* 成因字典：`epochAdvance.why` 的每一种取值都要有一句人话。
-                 *   漏一种 ⇒ 面板只显示裸码，作者还是不知道该怎么办。 */
+                 *   漏一种 => 面板只显示裸码，作者还是不知道该怎么办。 */
                 const WHY_TEXT = {
-                    configured: '你手工配了「当前纪元从哪一楼起」⇒ 按你配的算，不再反推',
-                    'own-jump': '当前楼层正好落在一次跳线登记点上 ⇒ 纪元按这一行',
-                    carried: '当前楼层在某次跳线之后 ⇒ 纪元沿用最近那一次',
-                    'no-jumps': '还没登记任何跳线 ⇒ 纪元算不出来（不是「都安全」）',
-                    'no-current-floor': '拿不到当前楼层 ⇒ 不猜纪元',
-                    'module-unavailable': 'worldline-memory.js 未加载 ⇒ 纪元算不出来',
+                    configured: '你手工配了「当前纪元从哪一楼起」=> 按你配的算，不再反推',
+                    'own-jump': '当前楼层正好落在一次跳线登记点上 => 纪元按这一行',
+                    carried: '当前楼层在某次跳线之后 => 纪元沿用最近那一次',
+                    'no-jumps': '还没登记任何跳线 => 纪元算不出来（不是「都安全」）',
+                    'no-current-floor': '拿不到当前楼层 => 不猜纪元',
+                    'module-unavailable': 'worldline-memory.js 未加载 => 纪元算不出来',
                     conflict: '你填的层标记与跳线表在「当前楼层」推出的层标记不一致 —— 要么少登记了一次回跳，要么上面的层标记该更新了（已保留你填的名字）',
-                    threw: '推算时抛错 ⇒ 判不了',
-                    'bad-floor': '当前楼层不是合法数字 ⇒ 判不了',
-                    'no-jump-before': '当前楼层早于所有跳线登记 ⇒ 判不了（把首跳登记在第 1 楼可解）',
-                    'jump-without-line-id': '命中的那一行没有层标记 ⇒ 判不了',
-                    'no-epoch': '推不出纪元 ⇒ 判不了',
+                    threw: '推算时抛错 => 判不了',
+                    'bad-floor': '当前楼层不是合法数字 => 判不了',
+                    'no-jump-before': '当前楼层早于所有跳线登记 => 判不了（把首跳登记在第 1 楼可解）',
+                    'jump-without-line-id': '命中的那一行没有层标记 => 判不了',
+                    'no-epoch': '推不出纪元 => 判不了',
                 };
 
                 const readout = () => {
                     const text = rawEl.value;
                     const draft = hostDraft(text);
                     if (!draft) {
-                        /* ★ 缺席态必须把上一轮的读数**清空**：留着旧 data-wl-epoch 会让读面
+                        /* 缺席态必须把上一轮的读数**清空**：留着旧 data-wl-epoch 会让读面
                          *   在「解析器没了」之后仍显示一个有值的纪元（把缺席读成有数据）。 */
                         readEl.setAttribute('data-wl-readout', 'unwired');
                         readEl.setAttribute('data-wl-epoch', '');
@@ -4215,7 +4225,7 @@
                         readEl.setAttribute('data-wl-floor', '');
                         readEl.setAttribute('data-wl-conflict', '');
                         readEl.setAttribute('data-wl-rejects', '');
-                        readEl.textContent = '⚠️ 宿主未接线 · 读不到解析器（不是「没有跳线」，是这一面没装上）';
+                        readEl.textContent = '宿主未接线 · 读不到解析器（不是「没有跳线」，是这一面没装上）';
                         rejEl.textContent = '';
                         return;
                     }
@@ -4237,24 +4247,24 @@
                         bits.push('依据 <b>' + esc(why || '—') + '</b>' + (WHY_TEXT[why] ? '：' + esc(WHY_TEXT[why]) : ''));
                         if (adv.applied === true) bits.push('（已自动推进）');
                     }
-                    /* ★ 三态不同形：没登记 / 登记了但前史判不了 / 已覆盖。 */
+                    /* 三态不同形：没登记 / 登记了但前史判不了 / 已覆盖。 */
                     const gap = draft.prehistoryGap;
                     let stateMark = 'ok';
                     if (!draft.rows.length) {
                         stateMark = 'none';
-                        bits.push('⚠️ 尚未登记任何跳线 —— 「同号跨纪元不串」这一格整场不会触发（<b>不是「都安全」</b>）');
+                        bits.push('<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>尚未登记任何跳线 —— 「同号跨纪元不串」这一格整场不会触发（<b>不是「都安全」</b>）');
                     } else if (gap) {
                         stateMark = 'gap';
-                        bits.push('⚠️ 前史 ' + esc(String(gap.count)) + ' 楼（第 ' + esc(String(gap.from)) + '–' + esc(String(gap.to)) + ' 楼）推不出纪元 ⇒ 那批条目落「判不了」（<b>信息缺失，不是「安全」</b>）。出路：把首跳登记在第 1 楼，或给条目补 floor');
+                        bits.push('<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>前史 ' + esc(String(gap.count)) + ' 楼（第 ' + esc(String(gap.from)) + '–' + esc(String(gap.to)) + ' 楼）推不出纪元<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>那批条目落「判不了」（<b>信息缺失，不是「安全」</b>）。出路：把首跳登记在第 1 楼，或给条目补 floor');
                     } else {
-                        bits.push('✅ 首跳在第 ' + esc(String(draft.firstFloor)) + ' 楼 ⇒ 前史已覆盖（第 1 楼起都可判纪元）');
+                        bits.push('首跳在第 ' + esc(String(draft.firstFloor)) + ' 楼 => 前史已覆盖（第 1 楼起都可判纪元）');
                     }
                     if (adv && adv.conflict) {
                         stateMark = 'conflict';
-                        bits.push('⛔ 冲突 <b>' + esc(String(adv.conflict)) + '</b>');
+                        bits.push('<i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>冲突 <b>' + esc(String(adv.conflict)) + '</b>');
                     }
                     if (draft.rejects.length) stateMark = 'bad';
-                    /* ★ [v3.429.0 · L12-O8] 读数必须**机器可读**：`data-wl-readout` 是三态标记，
+                    /* [v3.429.0 · L12-O8] 读数必须**机器可读**：`data-wl-readout` 是三态标记，
                      *   `data-wl-epoch` / `data-wl-why` / `data-wl-floor` 是当轮推算结果。
                      *   判据若只靠文本包含（「α线@47」），措辞一改就假绿/假红；
                      *   纪元值与成因码是**同一份**内核读数，逐字可比。 */
@@ -4276,12 +4286,12 @@
                      *     面板不重算纪元（重算就是第二套真源）。 */
                     if (plainEl) {
                         const PLAIN = {
-                            /* none：根本没登记跳线 ⇒ 整格保护不生效。刻意不写「安全」。 */
+                            /* none：根本没登记跳线 => 整格保护不生效。刻意不写「安全」。 */
                             none: '<b style="color:var(--ls-warn,#e3b341);">这段对话还没有世界线跳转记录，所以「跨世界线的记忆不串味」这道保护现在没有生效。</b>'
                                 + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
                                 + '你现在看到的所有记忆，都按同一条线在用 —— 一旦故事里出现回档／换世界线／多层梦境，旧线的记忆会直接串进来。'
                                 + '不想管也可以不管，但别把眼前这个状态理解成「已经护住了」。要开启：上面加一条 <code>1:当前层名字</code>。</div>',
-                            /* gap：登记了但前史那一段判不了 ⇒ 信息缺失。 */
+                            /* gap：登记了但前史那一段判不了 => 信息缺失。 */
                             gap: '<b style="color:var(--ls-warn,#e3b341);">开头有 ' + esc(String(gap ? gap.count : '?')) + ' 楼（第 '
                                 + esc(String(gap ? gap.from : '?')) + '–' + esc(String(gap ? gap.to : '?'))
                                 + ' 楼）分不清属于哪条世界线。</b>'
@@ -4311,17 +4321,17 @@
                     /* 受影响条目按钮随态：先复位成「未点」，避免沿用上一态的读数。 */
                     if (affBtn) {
                         affBtn.setAttribute('data-wl-affected', 'idle');
-                        affBtn.textContent = '🔍 我受影响的是哪几条（只读）';
+                        affBtn.textContent = '我受影响的是哪几条（只读）';
                     }
                     if (affOut) affOut.innerHTML = '';
                     /* 坏行点名：逐行给行号 + 原文 + 成因（面板不猜成因，全部来自解析器）。 */
                     if (draft.rejects.length) {
                         rejEl.setAttribute('data-wl-rejects', 'bad');
-                        rejEl.innerHTML = '⛔ <b>' + esc(String(draft.rejects.length)) + ' 行写坏，闸会丢掉它们</b>：'
+                        rejEl.innerHTML = '<i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i><b>' + esc(String(draft.rejects.length)) + ' 行写坏，闸会丢掉它们</b>：'
                             + draft.rejects.map((r) => '第 ' + esc(String(r.line)) + ' 行「' + esc(r.text) + '」' + esc(r.why)).join('；');
                     } else if (draft.warns.length) {
                         rejEl.setAttribute('data-wl-rejects', 'warn');
-                        rejEl.textContent = '⚠️ ' + draft.warns.length + ' 行有列被忽略（行仍生效）：'
+                        rejEl.textContent = draft.warns.length + ' 行有列被忽略（行仍生效）：'
                             + draft.warns.map((w) => '第 ' + w.line + ' 行 ' + w.why).join('；');
                     } else {
                         rejEl.setAttribute('data-wl-rejects', 'clean');
@@ -4330,7 +4340,7 @@
                 };
 
                 /* 标红不重建：按最新解析结果给现有行加/去红色边框与 class。
-                 *   ★ 刻意不重建 DOM —— 重建会打断正在输入的焦点（每敲一个字光标跳回行首）。 */
+                 *   刻意不重建 DOM —— 重建会打断正在输入的焦点（每敲一个字光标跳回行首）。 */
                 const refreshMarks = () => {
                     const draft = hostDraft(rawEl.value);
                     const badLines = new Set((draft ? draft.rejects : []).map((r) => r.line));
@@ -4351,7 +4361,7 @@
                 };
 
                 /* 逐行绑监听（**不用事件委托**）：本仓 UI 门的 DOM shim 不实现冒泡，
-                 *   委托写法在 shim 里恒静默 ⇒ 「编辑器点不动」会被误读成源码缺陷。 */
+                 *   委托写法在 shim 里恒静默 => 「编辑器点不动」会被误读成源码缺陷。 */
                 const bindRow = (rowEl) => {
                     const i = Number(rowEl.getAttribute('data-wl-i'));
                     if (!Number.isFinite(i)) return;
@@ -4370,7 +4380,7 @@
                 const render = () => {
                     const draft = hostDraft(rawEl.value);
                     if (!draft) {
-                        rowsEl.innerHTML = '<div class="ls-hint">⚠️ 宿主未接线 · 编辑器不可用（不是「没有跳线」）</div>';
+                        rowsEl.innerHTML = '<div class="ls-hint"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>宿主未接线 · 编辑器不可用（不是「没有跳线」）</div>';
                         addBtn.disabled = true;
                         if (fixBtn) fixBtn.disabled = true;
                         readout();
@@ -4384,13 +4394,13 @@
                         const bad = m.t === 'bad' || badLines.has(no);
                         if (m.t === 'blank') return;
                         if (m.t === 'comment') {
-                            parts.push('<div class="ls-hint" data-wl-line="' + no + '">💬 ' + esc(m.text) + '</div>');
+                            parts.push('<div class="ls-hint" data-wl-line="' + no + '"><i class="ls-ico" data-i="message" aria-hidden="true"></i>' + esc(m.text) + '</div>');
                             return;
                         }
-                        const del = '<button type="button" class="ls-btn ls-wl-del" data-wl-del="' + i + '" style="margin:0;padding:6px 8px;font-size:12px;flex:0 0 auto;">✕</button>';
+                        const del = '<button type="button" class="ls-btn ls-wl-del" data-wl-del="' + i + '" style="margin:0;padding:6px 8px;font-size:12px;flex:0 0 auto;"><i class="ls-ico" data-i="xmark" aria-hidden="true"></i></button>';
                         if (m.t === 'bad') {
                             parts.push('<div class="ls-wl-row' + (bad ? ' ls-wl-row-bad' : '') + '" data-wl-line="' + no + '" style="display:flex;gap:4px;align-items:center;margin:3px 0;">'
-                                + '<div style="flex:1;min-width:0;color:var(--ls-danger,#f87171);font-size:12px;word-break:break-all;">⛔ 第 ' + no + ' 行「' + esc(m.text) + '」</div>' + del + '</div>');
+                                + '<div style="flex:1;min-width:0;color:var(--ls-danger,#f87171);font-size:12px;word-break:break-all;"><i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>第 ' + no + ' 行「' + esc(m.text) + '」</div>' + del + '</div>');
                             return;
                         }
                         const bc = bad ? 'border-color:var(--ls-danger,#f87171);' : '';
@@ -4419,11 +4429,11 @@
                     refreshMarks();
                 };
 
-                /* ★ [v3.429.0 · L12-O8 自纠] `<textarea>` 的**初始值**必须显式赋值：
+                /* [v3.429.0 · L12-O8 自纠] `<textarea>` 的**初始值**必须显式赋值：
                  *   真浏览器里 `<textarea>${esc(x)}</textarea>` 的内容会成为 value，但本仓 UI 门的
                  *   最小 DOM shim 只认 `value` 属性（不把元素内容反射成 value）。两条路径都要对，
                  *   所以就地把配置值写进 value —— 真浏览器里是同值 no-op，shim 里才是真初值。
-                 *   不这么写，编辑器在 shim 里恒读到空表 ⇒ 「面板说没有跳线」而闸里其实有。 */
+                 *   不这么写，编辑器在 shim 里恒读到空表 => 「面板说没有跳线」而闸里其实有。 */
                 if (!rawEl.value) rawEl.value = String(c.worldlineJumps === undefined || c.worldlineJumps === null ? '' : c.worldlineJumps);
                 /* 空文本**不是**「一行空行」：split('') 会给出一条 blank 项，导致序列化回写出前导换行。
                  *   故空配置一律建成空模型。 */
@@ -4436,7 +4446,7 @@
                 addBtn.addEventListener('click', () => {
                     const draft = hostDraft(rawEl.value);
                     const last = (draft && draft.rows.length) ? draft.rows[draft.rows.length - 1].floor : 0;
-                    /* 新行刻意**留空层标记**（⇒ 解析器判坏行并当场点名）：
+                    /* 新行刻意**留空层标记**（=> 解析器判坏行并当场点名）：
                      *   预填一个猜出来的楼层会变成一条真跳线，那比留空更坏。 */
                     model.push({ t: 'row', floor: String(last + 1), lineId: '', div: '' });
                     render();
@@ -4452,7 +4462,7 @@
                             if (m.t === 'row' && String(m.floor).trim() === firstFloor) { m.floor = '1'; break; }
                         }
                         render();
-                        toast('↥ 首跳已移到第 1 楼（点「保存配置」才生效）');
+                        toast('首跳已移到第 1 楼（点「保存配置」才生效）', 'arrow-up');
                     });
                 }
                 /* ===== [L13-O5] 「我受影响的是哪几条」只读入口 =====
@@ -4468,20 +4478,20 @@
                         catch (err) { reportUiError(err, 'worldlineAffected'); r = null; }
                         if (!r) {
                             affBtn.setAttribute('data-wl-affected', 'unwired');
-                            affOut.innerHTML = '⚠️ 取数读口没接上（worldlineAffected 缺席）⇒ 说不了「哪几条受影响」，不是「一条都没有」';
+                            affOut.innerHTML = '取数读口没接上（worldlineAffected 缺席）=> 说不了「哪几条受影响」，不是「一条都没有」';
                             return;
                         }
                         affBtn.setAttribute('data-wl-affected', String(r.state || 'unknown'));
                         if (r.state === 'no-source') {
-                            affOut.innerHTML = '⚠️ 取不到条目清单 ⇒ 说不了「哪几条受影响」（<b>不是「一条都没有」</b>）';
+                            affOut.innerHTML = '<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取不到条目清单<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>说不了「哪几条受影响」（<b>不是「一条都没有」</b>）';
                             return;
                         }
                         if (r.state === 'failed') {
-                            affOut.innerHTML = '⚠️ 闸门读数取不回来（' + esc(String(r.reason || 'thrown')) + '）⇒ 判不了，可以再点一次';
+                            affOut.innerHTML = '闸门读数取不回来（' + esc(String(r.reason || 'thrown')) + '）=> 判不了，可以再点一次';
                             return;
                         }
                         if (r.state === 'disabled') {
-                            affOut.innerHTML = '⚠️ 世界线闸当前<b>没开</b> ⇒ 这 ' + esc(String(r.count))
+                            affOut.innerHTML = '<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>世界线闸当前<b>没开</b><i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>这 ' + esc(String(r.count))
                                 + ' 条一条都没被判定过（<b>不是「都没有问题」</b>）。先打开上方「分层记忆与跨层污染闸」再回来看。';
                             return;
                         }
@@ -4543,33 +4553,33 @@
                 const url = overlay.querySelector('[data-cfg-text="apiUrl"]').value.trim();
                 const key = overlay.querySelector('[data-cfg-text="apiKey"]').value.trim();
                 const status = overlay.querySelector('#ls-model-status');
-                if (!url) { status.textContent = '⚠️ 请先填 API 地址'; return; }
-                if (!key) { status.textContent = '⚠️ 请先填 API Key'; return; }
-                status.textContent = '⏳ 抓取中...';
+                if (!url) { status.textContent = '请先填 API 地址'; return; }
+                if (!key) { status.textContent = '请先填 API Key'; return; }
+                status.textContent = '抓取中...';
                 try {
                     const r = await this.engine.llm.fetchModels(url, key);
                     const models = Array.isArray(r) ? r : (r && r.models) || [];
-                    if (!models.length) { status.textContent = '⚠️ 列表为空（端点没返回任何模型）'; return; }
+                    if (!models.length) { status.textContent = '列表为空（端点没返回任何模型）'; return; }
                     const srcTag = (r && r.source === 'proxy') ? '（经酒馆后端代理）' : (r && r.source === 'direct') ? '（直连）' : '';
                     const sel = overlay.querySelector('#ls-model-select');
                     sel.innerHTML = models.map(m => `<option value="${m}">${m}</option>`).join('');
                     if (models.includes(this.engine.config.config.apiModel)) sel.value = this.engine.config.config.apiModel;
                     sel.style.display = 'block';
                     overlay.querySelector('#ls-model-input').style.display = 'none';
-                    status.textContent = `✅ 已加载 ${models.length} 个模型${srcTag}；换手填请刷新页面`;
+                    status.textContent = `已加载 ${models.length} 个模型${srcTag}；换手填请刷新页面`;
                 } catch (e) {
-                    status.textContent = '❌ 抓取失败: ' + e.message;
+                    status.textContent = '抓取失败: ' + e.message;
                 }
             });
 
-            // [v2.3] 携带背包: 打包 → localStorage + 文件下载; 导入 → 应用到当前对话
+            // [v2.3] 携带背包: 打包 -> localStorage + 文件下载; 导入 -> 应用到当前对话
             overlay.querySelector('#ls-carry-pack')?.addEventListener('click', () => {
                 const pack = this.engine.packCarryover();
                 if (!pack) { toast('打包失败'); return; }
                 // [v3.77] B: 携带预览（确认后落盘下载）
                 try {
                     const c = pack.counts || {};
-                    const prevMsg = '🚚 携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
+                    const prevMsg = '携带包预览\n\n摘要 ' + (c.summaries ?? pack.summaries?.length ?? 0) + ' 条\n悬念 ' + (c.suspense ?? pack.suspense?.length ?? 0) + ' 条\n图谱节点 ' + (c.graphNodes ?? 0) + '\n日记 ' + (c.diaries ?? 0) + '\n向量 ' + (c.vectors ?? 0) + '\n\n确认打包？（打包后新对话点「导入携带包」无缝续写）';
                     if (!confirm(prevMsg)) { toast('已取消打包'); return; }
                 } catch (e) { reportUiError(e, 'nonfatal') }
                 try {
@@ -4590,7 +4600,7 @@
                         const chatId = this.engine.getCurrentChatId();
                         // [v3.11] 存盘统一走 collectExport（原 '2.7.0' 块缺 reflection/scene/echo/itemOps）
                         if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                        toast('✅ 携带包已导入，剧情无缝衔接');
+                        toast('携带包已导入，剧情无缝衔接', 'success');
                     } else toast('导入失败');
                 };
                 if (pack && pack.summaries) { apply(pack); return; }
@@ -4608,12 +4618,12 @@
             overlay.querySelector('#ls-migrate-pack')?.addEventListener('click', () => {
                 let r = null;
                 try { r = this.engine.exportMigratePack(); } catch (e) { reportUiError(e, 'ls-migrate-pack'); return; }
-                if (!r || !r.ok) { toast('❌ 打包失败: ' + ((r && r.reason) || '未知原因')); return; }
+                if (!r || !r.ok) { toast('打包失败: ' + ((r && r.reason) || '未知原因'), 'error'); return; }
                 try {
                     const c = r.pack.counts || {};
                     const ident = r.pack.meta?.identity || {};
                     const sk = (r.pack.skipped || []).length;
-                    const prevMsg = '📦 迁移包预览\n\n来源 chat ' + (ident.chatId || '未知') + '\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
+                    const prevMsg = '迁移包预览\n\n来源 chat ' + (ident.chatId || '未知') + '\n条目 ' + (c.entries ?? 0) + ' 条（核心 ' + (c.layers?.core ?? 0) + ' / 近期 ' + (c.layers?.recent ?? 0) + '）\n角色 ' + (c.chars ?? 0) + ' 个'
                         + (sk ? '\n跳过 ' + sk + ' 条（缺 id/text 或超长）' : '')
                         + '\n\n确认打包？（此后在目标对话点「导入迁移包」）';
                     if (!confirm(prevMsg)) { toast('已取消打包'); return; }
@@ -4625,10 +4635,10 @@
                     a.href = URL.createObjectURL(blob);
                     a.download = `lonsha-migrate-pack-${Date.now()}.json`;
                     a.click();
-                    toast(`✅ 迁移包已生成：${r.pack.counts?.entries ?? 0} 条 / ${r.pack.counts?.chars ?? 0} 角色（本地+文件双备份，headSha 校验随包）`);
-                } catch (e) { toast('❌ 打包失败: ' + e.message); }
+                    toast(`迁移包已生成：${r.pack.counts?.entries ?? 0} 条 / ${r.pack.counts?.chars ?? 0} 角色（本地+文件双备份，headSha 校验随包）`, 'success');
+                } catch (e) { toast('打包失败: ' + e.message, 'error'); }
             });
-            // [v3.445.0 · L13-X5] 迁移包：导入（先文件预检 → 冲突逐条决策 → applyMigrateImport → 存盘）
+            // [v3.445.0 · L13-X5] 迁移包：导入（先文件预检 -> 冲突逐条决策 -> applyMigrateImport -> 存盘）
             overlay.querySelector('#ls-migrate-apply')?.addEventListener('click', () => {
                 const input = document.createElement('input');
                 input.type = 'file'; input.accept = '.json';
@@ -4637,18 +4647,18 @@
                     const r = new FileReader();
                     r.onload = async () => {
                         let pack = null;
-                        try { pack = JSON.parse(r.result); } catch (e) { toast('❌ 文件解析失败'); return; }
+                        try { pack = JSON.parse(r.result); } catch (e) { toast('文件解析失败', 'error'); return; }
                         let pre = null;
                         try { pre = this.engine.precheckMigrateImport(pack); } catch (e) { reportUiError(e, 'ls-migrate-apply'); return; }
                         if (!pre || !pre.ok) {
                             const why = (pre && pre.reason) || '损坏或格式不符';
                             const idText = pre?.identity?.mismatches?.length ? '（身份不符: ' + pre.identity.mismatches.join('/') + '）' : '';
-                            toast('❌ 迁移包预检拒绝：' + why + idText + '，原记忆保持不变'); return;
+                            toast('迁移包预检拒绝：' + why + idText + '，原记忆保持不变', 'error'); return;
                         }
                         const sm = pre.summary || pre.counts || {};
                         const replay = pre.replayed ? '\n该包已在此会话完成过，重复导入不会重放写入。' : '';
-                        if (!confirm('🧬 迁移包预检\n\n新增 ' + (sm.add || 0) + ' / 冲突 ' + (sm.conflict || 0) + ' / 相同 ' + (sm.identical || 0) + ' / 未知 ' + (sm.unrecognized || 0) + ' / 墓碑 ' + (sm.tombstoned || 0) + replay + '\n\n继续处理冲突？')) return;
-                        if (pre.identical.length === pre.counts.total && pre.counts.total > 0) { toast('ℹ️ 包内全部条目与本地相同，无需导入'); return; }
+                        if (!confirm('迁移包预检\n\n新增 ' + (sm.add || 0) + ' / 冲突 ' + (sm.conflict || 0) + ' / 相同 ' + (sm.identical || 0) + ' / 未知 ' + (sm.unrecognized || 0) + ' / 墓碑 ' + (sm.tombstoned || 0) + replay + '\n\n继续处理冲突？')) return;
+                        if (pre.identical.length === pre.counts.total && pre.counts.total > 0) { toast('包内全部条目与本地相同，无需导入', 'info'); return; }
                         const decisions = Object.fromEntries((pre.recovery?.decisionsApplied || []).map((x) => [x.key, x.decision]));
                         for (const cf of (pre.conflicts || [])) {
                             const localText = (cf.local && cf.local.text) || '';
@@ -4665,18 +4675,18 @@
                         }
                         let out = null;
                         try { out = this.engine.applyMigrateImport(pack, decisions); } catch (e) { reportUiError(e, 'ls-migrate-apply'); return; }
-                        if (!out || !out.ok) { toast('❌ 导入失败: ' + ((out && out.reason) || '未知原因')); return; }
+                        if (!out || !out.ok) { toast('导入失败: ' + ((out && out.reason) || '未知原因'), 'error'); return; }
                         try {
                             const chatId = this.engine.getCurrentChatId();
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                             const rp = out.report || {};
                             const pend = (out.pending || []).length;
-                            toast('✅ 迁移包导入：新增 ' + (rp.added || 0) + ' / 替换 ' + (rp.replaced || 0)
+                            toast('迁移包导入：新增 ' + (rp.added || 0) + ' / 替换 ' + (rp.replaced || 0)
                                 + ' / 保留本地 ' + (rp.keptLocal || 0) + ' / 两存 ' + (rp.keptBoth || 0)
                                 + ' / 相同 ' + (rp.identical || 0)
                                 + (rp.unrecognized ? ' / 未知 ' + rp.unrecognized : '')
                                 + (rp.tombstoned ? ' / 墓碑 ' + rp.tombstoned : '')
-                                + (pend ? ' / 待决 ' + pend : ''));
+                                + (pend ? ' / 待决 ' + pend : ''), 'success');
                         } catch (e) { reportUiError(e, 'ls-migrate-apply'); }
                     };
                     r.readAsText(f);
@@ -4692,14 +4702,14 @@
                     const rd = new FileReader();
                     rd.onload = async () => {
                         let pack = null;
-                        try { pack = JSON.parse(rd.result); } catch (e) { toast('❌ 文件解析失败'); return; }
+                        try { pack = JSON.parse(rd.result); } catch (e) { toast('文件解析失败', 'error'); return; }
                         let pre = null;
                         try { pre = this.engine.precheckMigrateImport(pack); } catch (e) { reportUiError(e, 'ls-migrate-merge'); return; }
-                        if (!pre || !pre.ok) { toast('❌ 预检拒绝：' + ((pre && pre.reason) || '损坏或格式不符') + '，原记忆保持不变'); return; }
+                        if (!pre || !pre.ok) { toast('预检拒绝：' + ((pre && pre.reason) || '损坏或格式不符') + '，原记忆保持不变', 'error'); return; }
                         const conflicts = pre.conflicts || [];
-                        if (!conflicts.length) { toast('ℹ️ 没有需要挑拣的冲突（新增/相同条目走「导入迁移包」即可）'); return; }
+                        if (!conflicts.length) { toast('没有需要挑拣的冲突（新增/相同条目走「导入迁移包」即可）', 'info'); return; }
                         const lines = conflicts.slice(0, 8).map((cf, i) => (i + 1) + '. ' + (cf.char || '?') + ' · ' + (cf.layer || '?') + ' · ' + ((cf.item && cf.item.id) || '?'));
-                        const tip = '🔀 周目差异挑拣合并\n\n以下 ' + conflicts.length + ' 条与本地冲突（' + (lines.length < conflicts.length ? '仅列前 8 条' : '全列') + '）：\n'
+                        const tip = '周目差异挑拣合并\n\n以下 ' + conflicts.length + ' 条与本地冲突（' + (lines.length < conflicts.length ? '仅列前 8 条' : '全列') + '）：\n'
                             + lines.join('\n')
                             + '\n\n输入要「用包内版本覆盖」的序号（逗号分隔，如 1,3）；直接确定 = 一条都不覆盖（全保留本地）。';
                         const ans = String(prompt(tip, '') || '').trim();
@@ -4714,7 +4724,7 @@
                         }
                         let res = null;
                         try { res = this.engine.compareAndMergeMigrate(pack, Array.from(picked)); } catch (e) { reportUiError(e, 'ls-migrate-merge'); return; }
-                        if (!res || !res.ok) { toast('❌ 合并失败：' + ((res && res.reason) || '未知原因')); return; }
+                        if (!res || !res.ok) { toast('合并失败：' + ((res && res.reason) || '未知原因'), 'error'); return; }
                         try {
                             const dr = res.diffReport || {};
                             const ap = (res.applied && res.applied.report) || {};
@@ -4722,8 +4732,8 @@
                                 const chatId = this.engine.getCurrentChatId();
                                 if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                             }
-                            toast('✅ 挑拣合并：覆盖 ' + picked.size + ' 条 / 保留本地 ' + Math.max(0, (dr.conflicts || []).length - picked.size)
-                                + ' 条' + (ap.added ? ' / 顺带新增 ' + ap.added : '') + (picked.size ? '（已存盘）' : '（未改动，未存盘）'));
+                            toast('挑拣合并：覆盖 ' + picked.size + ' 条 / 保留本地 ' + Math.max(0, (dr.conflicts || []).length - picked.size)
+                                + ' 条' + (ap.added ? ' / 顺带新增 ' + ap.added : '') + (picked.size ? '（已存盘）' : '（未改动，未存盘）'), 'success');
                         } catch (e) { reportUiError(e, 'ls-migrate-merge'); }
                     };
                     rd.readAsText(f);
@@ -4732,7 +4742,7 @@
             });
             // [v3.459.0] 反事实分支沙盘（evaluateCounterfactualBranch 宿主入口此前零引用）
             overlay.querySelector('#ls-cf-branch')?.addEventListener('click', () => {
-                const road = String(prompt('🧪 反事实分支沙盘\n\n写下「当初没走的那条路」（一句即可）：', '') || '').trim();
+                const road = String(prompt('反事实分支沙盘\n\n写下「当初没走的那条路」（一句即可）：', '') || '').trim();
                 if (!road) { toast('已取消'); return; }
                 const actual = String(prompt('实际发生的抉择（可留空）：', '') || '').trim();
                 const scene = String(prompt('当前场景描述（用来判断是否被触景唤起，可留空）：', '') || '').trim();
@@ -4746,33 +4756,33 @@
                         imaginedConsequence: road
                     }, scene);
                 } catch (e) { reportUiError(e, 'ls-cf-branch'); return; }
-                if (!res || !res.ok) { toast('❌ 沙盘不可用：' + ((res && res.reason) || '未知原因')); return; }
+                if (!res || !res.ok) { toast('沙盘不可用：' + ((res && res.reason) || '未知原因'), 'error'); return; }
                 const aw = res.awakening;
                 toast(aw && aw.internalEchoPrompt
-                    ? '🧪 已记录这条「另一条路」，且当前场景触发了心境共鸣：\n' + aw.internalEchoPrompt.slice(0, 120)
-                    : '🧪 已记录这条「另一条路」（当前场景未触发共鸣，日后再遇相关情境会唤起）');
+                    ? '已记录这条「另一条路」，且当前场景触发了心境共鸣：\n' + aw.internalEchoPrompt.slice(0, 120)
+                    : '已记录这条「另一条路」（当前场景未触发共鸣，日后再遇相关情境会唤起）', 'flask');
             });
-            // [v3.138] CP-L2: 嵌入存档恢复闭环——v3.23 起只写 _embeddedVaultReady 标志、toast 指路“设置→导入恢复”，
+            // [v3.138] CP-L2: 嵌入存档恢复闭环——v3.23 起只写 _embeddedVaultReady 标志、toast 指路“设置->导入恢复”，
             // 但按钮从未存在，跨设备迁移恢复路径断裂。按钮由 checkEmbeddedMigration 按检测结果显示。
             overlay.querySelector('#ls-embedded-restore')?.addEventListener('click', async () => {
                 try {
                     const eng = self.engine;
-                    const _sk = eng.storage.STORAGE_KEY;   // [v3.140] 真键（engine 实例上无此属性 → 旧实现读到 undefined 键）
+                    const _sk = eng.storage.STORAGE_KEY;   // [v3.140] 真键（engine 实例上无此属性 -> 旧实现读到 undefined 键）
                     const _ext = window.SillyTavern?.getContext?.()?.chatMetadata?.extensions;
                     const emb = _ext?.[_sk]?.embeddedVault || _ext?.undefined?.embeddedVault;
                     if (!emb || typeof emb !== 'object') { toast('未发现嵌入存档'); return; }
                     // [v3.142] CP 两阶段：先只读预检（零副作用），确认有可恢复内容且结构代际可接受，才真正应用
                     const _pre = eng.restoreFromPayload(emb, { source: 'embedded-vault', dryRun: true });
-                    if (!_pre.count) { toast('\u274c 嵌入存档无可恢复内容，保持原状（未清理副本）'); return; }
-                    if (_pre.schemaWarning) { toast('\u26a0\ufe0f ' + _pre.schemaWarning + '——已中止恢复'); return; }
+                    if (!_pre.count) { toast('嵌入存档无可恢复内容，保持原状（未清理副本）', 'error'); return; }
+                    if (_pre.schemaWarning) { toast(_pre.schemaWarning + '——已中止恢复', 'warn'); return; }
                     const _rr = eng.restoreFromPayload(emb, { source: 'embedded-vault', snapshot: true });   // [v3.146] 部分失败自动回滚
                     const chatId = eng.getCurrentChatId();
                     if (chatId) await eng.storage.save(chatId, eng.collectExport());
                     try { eng.clearEmbeddedVaultMeta(); } catch (e) { reportUiError(e, 'nonfatal') }
                     try { delete eng.config.config._embeddedVaultReady; eng.config.saveConfig(); } catch (e) { reportUiError(e, 'nonfatal') }
                     const _pf = _rr.failed.length ? `（失败 ${_rr.failed.map(f => f.key).join('/')}）` : '';
-                    toast((_rr.ok ? '✅ ' : '⚠️ 部分恢复: ') + `已恢复 ${_rr.count} 个字段${_pf}`);
-                    if (!_rr.count) { toast('❌ 嵌入存档无可恢复内容，保持原状'); return; }
+                    toast((_rr.ok ? '' : '部分恢复: ') + `已恢复 ${_rr.count} 个字段${_pf}`);
+                    if (!_rr.count) { toast('嵌入存档无可恢复内容，保持原状', 'error'); return; }
                 } catch (e) { reportUiError(e, 'ls-embedded-restore'); toast('恢复失败: ' + e.message); }
             });
             // 恢复默认提示词
@@ -4814,15 +4824,15 @@
                             // [v3.142] CP 原子性：恢复前先只读取回原存档（preserveRuntime 不写运行时），供部分失败时紧急备份留退路
                             const _prev = chatId ? await this.engine.storage.load(chatId, { preserveRuntime: true }) : null;
                             const _rn = this.engine.restoreFromPayload(data, { source: 'file-import', snapshot: true });   // [v3.146] 部分失败自动回滚
-                            if (!_rn.count) { toast('❌ 存档无可恢复内容，原记忆保持不变（未落盘）'); return; }   // [v3.142] 空恢复不得覆盖原存档
+                            if (!_rn.count) { toast('存档无可恢复内容，原记忆保持不变（未落盘）', 'error'); return; }   // [v3.142] 空恢复不得覆盖原存档
                             if (_rn.failed.length) {
                                 // [v3.142] 部分失败：运行时已半改，落盘前先把改前的完整存档送进紧急备份（面板可回滚）
                                 try { if (_prev) await window.LonShaMemory?.emergency?.save(chatId, `部分导入前原存档（失败 ${_rn.failed.map(f => f.key).join('/')}）`, _prev, { restored: _rn.count, failed: _rn.failed.length }); } catch (e) { reportUiError(e, 'nonfatal') }
                             }
                             // [v3.11] 存盘统一走 collectExport（原 version '1.3.0' 块只存 4 字段——导入后新子系统记忆全丢）
                             if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
-                            toast((_rn.ok ? '✅ ' : '⚠️ 部分导入: ') + `已恢复 ${_rn.count} 个字段` + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}，原存档已存紧急备份）` : '') + (_rn.unknown?.length ? `（未知键 ${_rn.unknown.length} 个已保留）` : '') + (_rn.missing?.length ? `（引擎缺模块 ${_rn.missing.length}）` : ''));
-                        } catch (e) { toast('❌ 导入失败: ' + e.message); }
+                            toast((_rn.ok ? '' : '部分导入: ') + `已恢复 ${_rn.count} 个字段` + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}，原存档已存紧急备份）` : '') + (_rn.unknown?.length ? `（未知键 ${_rn.unknown.length} 个已保留）` : '') + (_rn.missing?.length ? `（引擎缺模块 ${_rn.missing.length}）` : ''));
+                        } catch (e) { toast('导入失败: ' + e.message, 'error'); }
                     };
                     reader.readAsText(file);
                 };
@@ -4843,20 +4853,20 @@
                 // [v3.11] 存盘统一走 collectExport（原 '2.0.0' 块字段不全——itemOps/reflection/suspense/scene/echo 残留）
                 if (chatId) await this.engine.storage.save(chatId, this.engine.collectExport());
                 // 播报三态：失败必须点名（否则「有面没清干净」与「全清干净」在 UI 上同形）
-                if (!_cr.ok) toast('⚠️ 已清空 ' + _cr.count + ' 面，' + _cr.failed.length + ' 面失败：' + _cr.failed.map(f => f.label || f.id).join('/'));
-                else if (_cr.skipped.length) toast('✅ 已清空 ' + _cr.count + ' 面（' + _cr.skipped.length + ' 面本机未加载，跳过错开）');
-                else toast('✅ 已清空 ' + _cr.count + ' 面');
-                /* [v3.236.0] R4-B：**清空面 ↔ 恢复面的覆盖核对**（可机检读数的消费点）。
+                if (!_cr.ok) toast('已清空 ' + _cr.count + ' 面，' + _cr.failed.length + ' 面失败：' + _cr.failed.map(f => f.label || f.id).join('/'), 'warn');
+                else if (_cr.skipped.length) toast('已清空 ' + _cr.count + ' 面（' + _cr.skipped.length + ' 面本机未加载，跳过错开）', 'success');
+                else toast('已清空 ' + _cr.count + ' 面', 'success');
+                /* [v3.236.0] R4-B：**清空面 <-> 恢复面的覆盖核对**（可机检读数的消费点）。
                  *   清空是「把运行时按面抹掉」，恢复是按面装上；两面清单必须互为闭包。
                  *   修前这两份清单各自手抄、无人对账（缺口 3 的形状），所以这里不打印数字了事，
                  *   而是把**漏掉的面逐个点名** —— 「已清空」这句话必须能被证伪。 */
                 const _cov = (typeof this.engine.snapshotClearCoverage === 'function') ? this.engine.snapshotClearCoverage() : null;
-                if (_cov && !_cov.ok) toast('⚠️ 清空覆盖未对齐，这些面没有清空动作：' + _cov.missingInClear.join('/'));
+                if (_cov && !_cov.ok) toast('清空覆盖未对齐，这些面没有清空动作：' + _cov.missingInClear.join('/'), 'warn');
                 /* [v3.236.0] R4-B：**「没查过」必须与「查过没问题」分开说**（三态口径）。
-                 *   修前只播报失败态，于是「本会话一次都没恢复过 ⇒ 覆盖无从谈起」与
+                 *   修前只播报失败态，于是「本会话一次都没恢复过 => 覆盖无从谈起」与
                  *   「恢复面全被清空面覆盖」在用户侧同样**静默**（两者都是没有提示）。
                  *   `everRestored` 的存在让这句话有第三个答案，而不是把两种情形挤进同一个「没提示」。 */
-                else if (_cov && !_cov.everRestored) toast('ℹ️ 本会话尚无任何面被恢复过，「清空覆盖」无从核对（清空本身已按面登记执行）');
+                else if (_cov && !_cov.everRestored) toast('本会话尚无任何面被恢复过，「清空覆盖」无从核对（清空本身已按面登记执行）', 'info');
             });
 
             // 保存
@@ -4906,7 +4916,7 @@
                     if (arr.length >= 3) {
                         this.engine.config.config.pyramidTiers = arr;
                         markChanged('pyramidTiers');
-                    } else toast('⚠️ 金字塔层级至少 3 层，已保留原值');
+                    } else toast('金字塔层级至少 3 层，已保留原值', 'warn');
                 }
                 const rolesEl = overlay.querySelector('#ls-roles-prompt');
                 if (rolesEl && rolesEl.value.trim()) {
@@ -4920,12 +4930,12 @@
                         if (v && typeof v === 'object' && !Array.isArray(v)) {
                             this.engine.config.config.secondaryApis = v;
                             markChanged('secondaryApis');
-                        } else toast('⚠️ 副API通道需为 JSON 对象，已保留原值');
-                    } catch (e) { toast('⚠️ 副API通道 JSON 解析失败，已保留原值'); }
+                        } else toast('副API通道需为 JSON 对象，已保留原值', 'warn');
+                    } catch (e) { toast('副API通道 JSON 解析失败，已保留原值', 'warn'); }
                 }
                 this.engine.config.saveConfig();
                 const effectText = effectFeedback(Array.from(savedKeys));
-                toast('✅ 设置已保存：' + effectText);
+                toast('设置已保存：' + effectText, 'success');
                 closeOverlay('lonsha-settings-overlay');
             });
         };
@@ -4933,14 +4943,14 @@
         // [v3.77] A: 版本更新检测
         plugin.checkUpdate = async function() {
             const cur = plugin.VERSION || '3.77.0';
-            toast('🔄 正在检查更新...');
+            toast('正在检查更新...', 'pending');
             try {
                 const url = 'https://raw.githubusercontent.com/LonSha/lonsha-memory-plugin/main/manifest.json?t=' + Date.now();
                 const res = await fetch(url, { cache: 'no-store' });
-                if (!res.ok) { toast('❌ 检查失败：HTTP ' + res.status); return; }
+                if (!res.ok) { toast('检查失败：HTTP ' + res.status, 'error'); return; }
                 const mf = await res.json();
                 const latest = String(mf.version || '');
-                if (!latest) { toast('❌ 远端版本号缺失'); return; }
+                if (!latest) { toast('远端版本号缺失', 'error'); return; }
                 const isNewer = (a, b) => {
                     const pa = a.split('.').map(n => parseInt(n, 10) || 0);
                     const pb = b.split('.').map(n => parseInt(n, 10) || 0);
@@ -4951,9 +4961,9 @@
                     }
                     return false;
                 };
-                if (isNewer(latest, cur)) toast(`🆕 发现新版本 ${latest}（当前 ${cur}）`);
-                else toast(`✅ 已是最新版本 ${cur}`);
-            } catch (e) { toast('❌ 检查失败：' + (e.message || e)); }
+                if (isNewer(latest, cur)) toast(`发现新版本 ${latest}（当前 ${cur}）`, 'info');
+                else toast(`已是最新版本 ${cur}`, 'success');
+            } catch (e) { toast('检查失败：' + (e.message || e), 'error'); }
         };
 
         // ========== FAB 快捷菜单 ==========
@@ -4984,7 +4994,7 @@
                     </div>
                 </div>
                 <div class="ls-home-section">
-                    <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span>◷ 最近发生的事</span><span class="ls-home-more" data-home-jump="timeline" style="font-size:12px;cursor:pointer;">故事时间线 ›</span></div>
+                    <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span><i class="ls-ico" data-i="clock" aria-hidden="true"></i>最近发生的事</span><span class="ls-home-more" data-home-jump="timeline" style="font-size:12px;cursor:pointer;">故事时间线 ›</span></div>
                     ${recent.length === 0 ? '<div class="ls-hint">还没有故事记录。继续聊天，这里会自动写下发生过的事。</div>'
                       : recent.map(m => `<div class="ls-home-event" data-home-jump="timeline" style="cursor:pointer;">${esc(String(m.text || m.summary || '').slice(0, 70))}${String(m.text || m.summary || '').length > 70 ? '…' : ''}<span class="ls-home-event-meta">第 ${m.floor ?? '?'} 楼</span></div>`).join('')}
                 </div>
@@ -4992,23 +5002,23 @@
                     const sus = s.suspense?.openItems?.() || [];
                     if (!sus.length) return '';
                     return `<div class="ls-home-section">
-                        <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span>🤝 未完约定与悬念</span><span class="ls-home-more" data-home-jump="suspense" style="font-size:12px;cursor:pointer;">${sus.length} 条约定 ›</span></div>
+                        <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span><i class="ls-ico" data-i="people" aria-hidden="true"></i>未完约定与悬念</span><span class="ls-home-more" data-home-jump="suspense" style="font-size:12px;cursor:pointer;">${sus.length} 条约定 ›</span></div>
                         ${sus.slice(0, 3).map(item => `<div class="ls-home-event" data-home-jump="suspense" style="cursor:pointer;border-left:3px solid var(--ls-accent,#58a6ff);"><span style="font-weight:600;">「${esc(item.title || item.text || '')}」</span><span class="ls-home-event-meta">${item.floor ? '第 ' + item.floor + ' 楼起' : '履约中'}</span></div>`).join('')}
                     </div>`;
                 })()}
                 <div class="ls-home-section">
-                    <div class="ls-home-title">◈ 这里的人 <span class="ls-home-more" data-home-jump="status">${chars.length} 人 ›</span></div>
+                    <div class="ls-home-title"><i class="ls-ico" data-i="info" aria-hidden="true"></i>这里的人 <span class="ls-home-more" data-home-jump="status">${chars.length} 人 ›</span></div>
                     ${chars.length === 0 ? '<div class="ls-hint">登场人物出现后会自动记录。</div>'
                       : chars.slice(0, 6).map(n => `<div class="ls-home-chip" data-home-jump="status">${esc(n)}</div>`).join('')}
                 </div>
                 <div class="ls-home-actions">
-                    <button class="ls-btn" data-home-act="overview">📖 记忆总览</button>
-                    <button class="ls-btn" data-home-act="timeline">◷ 故事时间线</button>
-                    <button class="ls-btn ls-btn-primary" data-home-act="settings">⚙ 设置</button>
+                    <button class="ls-btn" data-home-act="overview"><i class="ls-ico" data-i="book" aria-hidden="true"></i>记忆总览</button>
+                    <button class="ls-btn" data-home-act="timeline"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>故事时间线</button>
+                    <button class="ls-btn ls-btn-primary" data-home-act="settings"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>设置</button>
                 </div>
-                <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3,#64748b);">⚑ 时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3,#64748b);">↻ 检查更新</span></div>
+                <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="flag" aria-hidden="true"></i>时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="refresh" aria-hidden="true"></i>检查更新</span></div>
             `;
-            const ov = makeSheet('lonsha-home-overlay', '🧠 记忆', body);
+            const ov = makeSheet('lonsha-home-overlay', '记忆', body);
             const profileWrite = (profile) => {
                 if (!['balanced','quality','low-cost'].includes(profile)) return;
                 this.engine.config.config.extractionProfile = profile;
@@ -5017,7 +5027,7 @@
                     p.classList.toggle('active', p.dataset.homeProfile === profile);
                     p.setAttribute('aria-pressed', String(p.dataset.homeProfile === profile));
                 });
-                toast('✅ 已切换到「' + {balanced:'平衡（推荐）',quality:'细致记录','low-cost':'轻量省流'}[profile] + '」');
+                toast('已切换到「' + {balanced:'平衡（推荐）',quality:'细致记录','low-cost':'轻量省流'}[profile] + '」', 'success');
             };
             ov.querySelectorAll('[data-home-profile]').forEach(p => p.addEventListener('click', () => profileWrite(p.dataset.homeProfile)));
             ov.querySelectorAll('[data-home-jump]').forEach(el => el.addEventListener('click', () => {
@@ -5049,9 +5059,9 @@
          *   面板只负责塞进 popup 与把结局播报出来。
          *
          * 三态**不同形**（本仓老账 ①，直接写进这个函数的形状里）：
-         *   · 清单读不到（引擎返回 `null`）⇒ 明说「读不到」，**不**说「还没有检查点」；
-         *   · 清单为空（返回空串）⇒ 说「还没有检查点」并给出存第一份的指引；
-         *   · 有记录 ⇒ 渲染行，每行两个动作（预览 / 删除），底部两个动作（存一份 / 并排对照）。
+         *   · 清单读不到（引擎返回 `null`）=> 明说「读不到」，**不**说「还没有检查点」；
+         *   · 清单为空（返回空串）=> 说「还没有检查点」并给出存第一份的指引；
+         *   · 有记录 => 渲染行，每行两个动作（预览 / 删除），底部两个动作（存一份 / 并排对照）。
          */
         plugin.showCheckpoints = function() {
             const engine = plugin.engine;
@@ -5059,16 +5069,16 @@
             if (!chatId) { toast('无可用对话'); return; }
 
             const open = (html, onClick) => {
-                const ov = makeSheet('lonsha-ckpt-overlay', '◷ 时间轴检查点', html);
+                const ov = makeSheet('lonsha-ckpt-overlay', '时间轴检查点', html);
                 onClick(ov);
                 return ov;
             };
             /* [v3.239.0] 三个互斥分支共用同一个「存一份」按钮字面量：
              *   DOM id 在静态扫描里按出现次数判重（v3162 [1b]），写三遍会被判成
-             *   「同一 id 出现多次 ⇒ getElementById 只返回第一个」——虽然分支互斥、
+             *   「同一 id 出现多次 => getElementById 只返回第一个」——虽然分支互斥、
              *   运行期不会真的重复，但**判据看不到互斥**，且将来加入第四分支时
              *   更容易真的重复。收成一处是唯一不会漂移的形状。 */
-            const SAVE_BTN = '<button class="ls-btn ls-btn-primary" id="ls-ckpt-save">🔖 存一份检查点</button>';
+            const SAVE_BTN = '<button class="ls-btn ls-btn-primary" id="ls-ckpt-save"><i class="ls-ico" data-i="bookmark" aria-hidden="true"></i>存一份检查点</button>';
             const bodyHTML = () => {
                 const menu = engine.checkpointMenuItems();
                 /* 读不到 ≠ 空：三种处境分别给三句话。 */
@@ -5087,9 +5097,9 @@
                     + menu
                     + '<div style="display:flex;gap:6px;margin:10px 0 0;">'
                     + SAVE_BTN
-                    + '<button class="ls-btn" style="flex:1;" id="ls-ckpt-diff">⇄ 并排对照</button>'
+                    + '<button class="ls-btn" style="flex:1;" id="ls-ckpt-diff"><i class="ls-ico" data-i="swap" aria-hidden="true"></i>并排对照</button>'
                     + '</div>'
-                    + '<button class="ls-btn ls-btn-danger" id="ls-ckpt-drop">🗑 删除某一份…</button>'
+                    + '<button class="ls-btn ls-btn-danger" id="ls-ckpt-drop"><i class="ls-ico" data-i="trash" aria-hidden="true"></i>删除某一份…</button>'
                     + '<div style="padding:4px 8px;color:var(--ls-text-3,#6e7681);font-size:11px;">'
                     + '点一行 = 看「恢复后会差什么」（只预览，不执行）；删除必须报出名字，不做批量清空。</div>';
             };
@@ -5101,8 +5111,8 @@
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (nm === null || nm === undefined) return;
                     const r = engine.saveCheckpoint(nm);
-                    if (!r || r.ok !== true) { toast('❌ 存检查点失败：' + String((r && r.reason) || '未知')); return; }
-                    let msg = '✅ 已存「' + String(r.name) + '」' + (Number.isFinite(Number(r.at)) ? '' : '');
+                    if (!r || r.ok !== true) { toast('存检查点失败：' + String((r && r.reason) || '未知'), 'error'); return; }
+                    let msg = '已存「' + String(r.name) + '」' + (Number.isFinite(Number(r.at)) ? '' : '');
                     msg += r.overwritten ? ('（覆盖了同名旧份' + (Number.isFinite(Number(r.previousAt)) ? '，旧份时间 ' + new Date(Number(r.previousAt)).toLocaleString() : '') + '）') : '';
                     if (Array.isArray(r.evicted) && r.evicted.length) msg += '（超限淘汰：' + r.evicted.join('、') + '）';
                     toast(msg);
@@ -5116,8 +5126,8 @@
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (!a || !b) return;
                     const lines = engine.checkpointBranchesDiffLines(a, b);
-                    /* 任一侧缺失 ⇒ 引擎返回 null（不拿空载荷冒充「那边是空的」），面板如实说。 */
-                    if (lines === null) { toast('❌ 对照失败：至少有一份不存在，或载荷已损坏（拿不到可选）'); return; }
+                    /* 任一侧缺失 => 引擎返回 null（不拿空载荷冒充「那边是空的」），面板如实说。 */
+                    if (lines === null) { toast('对照失败：至少有一份不存在，或载荷已损坏（拿不到可选）', 'error'); return; }
                     /* [v3.252.0] F7 首阶段：键面之上再给一层**内容级**对照。
                      *   为什么必须由面板**真调用**（而不是只留引擎出口）：R4-C 的教训就是
                      *   「建好不消费 = 功能级失效」—— 出口存在但用户点不到，等于没做。
@@ -5133,9 +5143,9 @@
                     catch (e) { toast('当前环境不支持输入框'); return; }
                     if (!nm) return;
                     const r = engine.dropCheckpoint(nm);
-                    if (!r || r.ok !== true) { toast('❌ 删除失败：' + String((r && r.reason) || '未知')); return; }
+                    if (!r || r.ok !== true) { toast('删除失败：' + String((r && r.reason) || '未知'), 'error'); return; }
                     /* 删除幂等：不存在也报 ok:true + existed:false —— 面板如实分形播报。 */
-                    toast(r.existed ? ('🗑 已删除「' + String(nm) + '」') : ('ℹ️ 没有叫「' + String(nm) + '」的检查点（未改动任何东西）'));
+                    toast(r.existed ? ('已删除「' + String(nm) + '」') : ('没有叫「' + String(nm) + '」的检查点（未改动任何东西）'), (r.existed ? 'trash' : 'info'));
                     ov.remove();
                     plugin.showCheckpoints();
                 });
@@ -5143,13 +5153,13 @@
                     item.addEventListener('click', () => {
                         const nm = item.getAttribute('data-name');
                         const detail = engine.checkpointDetailLines(nm);
-                        if (detail === null) { toast('❌ 这份检查点读不到或记录已损坏'); return; }
+                        if (detail === null) { toast('这份检查点读不到或记录已损坏', 'error'); return; }
                         const lines = engine.checkpointRestorePreviewLines(nm);
-                        if (lines === null) { toast('❌ 预览失败：这份检查点读不到或载荷已损坏'); return; }
+                        if (lines === null) { toast('预览失败：这份检查点读不到或载荷已损坏', 'error'); return; }
                         if (!confirm(detail + '\n\n── 恢复后会差什么 ──\n' + lines
-                            + '\n\n（这只是预览，不会改动当前记忆；真要恢复请用「设置 → 快照恢复」那一条管线）')) return;
+                            + '\n\n（这只是预览，不会改动当前记忆；真要恢复请用「设置 -> 快照恢复」那一条管线）')) return;
                         /* 预览归预览：这里**刻意不执行恢复** —— 真落地只走 restoreFromPayload 单真源。 */
-                        toast('ℹ️ 以上为预览；本面板不执行恢复');
+                        toast('以上为预览；本面板不执行恢复', 'info');
                     });
                 });
             };
@@ -5168,18 +5178,18 @@
             const menu = document.createElement('div');
             menu.id = 'lonsha-snap-menu';
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">◷ 快照还原（选择要恢复的楼层）</div>
+                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>快照还原（选择要恢复的楼层）</div>
                 ${body}
                 <!-- [v3.238.0] R4-D：恢复是**破坏性动作**，故在这里给「先留一手」的入口 —— 检查点面板 -->
-                <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));">🔖 先存一份检查点再恢复…</div>
+                <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));"><i class="ls-ico" data-i="bookmark" aria-hidden="true"></i>先存一份检查点再恢复…</div>
                 <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 260px; max-height: 60vh; overflow-y: auto; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }</style>`;
             menu.querySelectorAll('.lsm-item').forEach(item => {
                 item.addEventListener('click', async () => {
                     const floor = Number(item.dataset.floor);
-                    /* [v3.236.0] R4-B 缺口 1：**整条流程下沉到引擎**（读快照 → 两阶段恢复 → 落盘）。
+                    /* [v3.236.0] R4-B 缺口 1：**整条流程下沉到引擎**（读快照 -> 两阶段恢复 -> 落盘）。
                      *   面板在这里只做两件事：把楼层交出去、把结局播报出来。
                      *   修前形状（留痕，别改回去）：面板手抄 14 行 `engine.X.import(data.X)`，
-                     *   而 `restoreFromPayload` 登记着 42 面 ⇒ 用户点「快照恢复」后 13 面回到快照、
+                     *   而 `restoreFromPayload` 登记着 42 面 => 用户点「快照恢复」后 13 面回到快照、
                      *   其余 29 面维持现值，再经全量序列化落盘成一份「半套状态」。
                      *   为什么连读与写也要一起下沉：留一段在面板，就留了一处「流程谁说了算」的暗面；
                      *   而 `snapshotPrecheckEnabled` 的消费点必须落在**有调用者**的方法内
@@ -5187,11 +5197,11 @@
                     let _fr;
                     try { _fr = await engine.restoreSnapshotFlow(chatId, floor); }
                     catch (e) { toast('恢复失败: ' + e.message); return; }
-                    if (!_fr.ok) { toast('❌ ' + _fr.reason); return; }
-                    if (!_fr.applied) { toast('❌ ' + _fr.reason); return; }
+                    if (!_fr.ok) { toast(_fr.reason, 'error'); return; }
+                    if (!_fr.applied) { toast(_fr.reason, 'error'); return; }
                     const _rn = _fr.result;
                     menu.remove();
-                    toast((_rn.ok ? '✅ ' : '⚠️ 部分恢复: ') + `已恢复到快照（楼层 ${floor}） · 恢复 ${_rn.count} 个字段`
+                    toast((_rn.ok ? '' : '部分恢复: ') + `已恢复到快照（楼层 ${floor}） · 恢复 ${_rn.count} 个字段`
                         + (_rn.failed.length ? `（失败 ${_rn.failed.map(f => f.key).join('/')}` + (_rn.rolledBack ? '，已自动回滚原状态）' : '，未回滚（保留半套，可紧急备份恢复））') : '')
                         + (_rn.unknown?.length ? `（未知键 ${_rn.unknown.length} 个已保留）` : '')
                         + (_rn.missing?.length ? `（引擎缺模块 ${_rn.missing.length}）` : '')
@@ -5218,7 +5228,7 @@
             const t = document.createElement("div");
             t.className = "ls-toast";
             t.style.background = ok ? "var(--ls-success,#3fb950)" : "var(--ls-danger,#f85149)";
-            t.textContent = msg;
+            t.setAttribute("data-kind", ok ? "success" : "error"); t.innerHTML = '<i class="ls-ico" data-i="' + (ok ? "check-circle" : "warning") + '" aria-hidden="true"></i>' + String(msg).replace(/&/g, "&amp;").replace(/</g, "&lt;");   /* v3.1：前导图标随 ok 走，消息里不再带 emoji */
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
         };
@@ -5238,7 +5248,7 @@
          *   范围与条件归一在内核、落笔在 owner —— 面板重写一次就会出现第二套口径。
          * ──────────────────────────────────────────────────────────────── */
         plugin._memoryCenterHandlers = plugin._memoryCenterHandlers || {};
-        /** 纠错面板：圈范围 → 提案 → 逐项选/拒 → 确认落笔 → 分别撤销。 */
+        /** 纠错面板：圈范围 -> 提案 -> 逐项选/拒 -> 确认落笔 -> 分别撤销。 */
         plugin.showCorrectionPanel = function (seed) {
             const self = this;
             const s = this.engine;
@@ -5247,7 +5257,7 @@
             /* 面板**不自持提案**：每次重跑都现取（缓存一份提案就是第二份证据库）。 */
             let last = null;
             const body = `
-                <div class="ls-hint">本面板走的是**原生出口**：圈定范围 → 看新旧对照 → 逐项选/拒 → 确认落笔。
+                <div class="ls-hint">本面板走的是**原生出口**：圈定范围<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>看新旧对照<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>逐项选/拒<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>确认落笔。
                 未圈范围不产提案；未选中的项**一个字节不动**；撤配置与撤事实是两个 token。</div>
                 <div class="ls-row"><div><div>楼层范围</div><div class="ls-hint">起点与终点都填（或只填起点＝单楼）</div></div>
                     <div style="display:flex;gap:6px;align-items:center;">
@@ -5262,7 +5272,7 @@
                 <div id="ls-cp-out"></div>
                 <div id="ls-cp-undo"></div>
             `;
-            const ov = makeSheet('lonsha-correction-sheet', '⬡ 记忆审计与自愈', body);
+            const ov = makeSheet('lonsha-correction-sheet', '记忆审计与自愈', body);
             const out = ov.querySelector('#ls-cp-out');
             const undoBox = ov.querySelector('#ls-cp-undo');
             const applyBtn = ov.querySelector('#ls-cp-apply');
@@ -5277,13 +5287,13 @@
             const render = (plan) => {
                 last = plan;
                 if (!plan || plan.ok !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ '
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>'
                         + esc2('提案不可用：' + ((plan && plan.reason) || 'unknown')) + '</div>';
                     return;
                 }
                 if (plan.scoped !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 范围未圈定（'
-                        + esc2(plan.scope && plan.scope.reason) + '）⇒ **不产全量提案**：'
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>范围未圈定（'
+                        + esc2(plan.scope && plan.scope.reason) + '）<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>**不产全量提案**：'
                         + esc2(plan.why) + '</div>';
                     return;
                 }
@@ -5292,8 +5302,8 @@
                     const b4 = it.before ? esc2(it.before.value) : '（无）';
                     return '<div class="ls-item" data-cpkey="' + esc2(it.key) + '">'
                         + '<div class="ls-item-meta">' + esc2(it.outcome) + ' · 楼层 ' + esc2(it.floor == null ? '—' : it.floor)
-                        + ' · ' + esc2(it.key) + (it.evidenceComplete ? '' : ' · ⚠️ 出处不全') + '</div>'
-                        + '<div class="ls-item-text">改前：' + b4 + '　→　改后：' + esc2(it.after && it.after.value) + '</div>'
+                        + ' · ' + esc2(it.key) + (it.evidenceComplete ? '' : ' · 出处不全') + '</div>'
+                        + '<div class="ls-item-text">改前：' + b4 + '　<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>改后：' + esc2(it.after && it.after.value) + '</div>'
                         + '<div class="ls-mc-actions">'
                         + '<button class="ls-btn' + (d === 'selected' ? ' ls-btn-primary' : '') + '" data-cppick="selected">选</button>'
                         + '<button class="ls-btn' + (d === 'rejected' ? ' ls-btn-danger' : '') + '" data-cppick="rejected">拒</button>'
@@ -5319,7 +5329,7 @@
                 const src = (typeof s.correctionSourceFacts === 'function') ? s.correctionSourceFacts(rng) : { ok: false, reason: 'host-absent', facts: [] };
                 const nf = (typeof s.correctionReextractFacts === 'function') ? s.correctionReextractFacts({ range: rng, newFacts: sd.newFacts }) : { ok: false, reason: 'host-absent', facts: [] };
                 if (nf.ok !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);">⚠️ 取不到新提取结果（'
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取不到新提取结果（'
                         + esc2(nf.reason) + '）—— **不拿旧账冒充新结果**。夹具可经 newFacts 直给。</div>';
                     return;
                 }
@@ -5341,25 +5351,25 @@
                     range: rng, oldFacts: src.facts, newFacts: nf.facts, selections: sel
                 });
                 if (!r) { toast('落笔降级（模块缺席 / 异常）'); return; }
-                out.innerHTML = '<div class="ls-hint">回执：' + esc2(r.ok ? '✅ 完成' : ('⚠️ ' + (r.reason || '部分失败')))
+                out.innerHTML = '<div class="ls-hint">回执：' + esc2(r.ok ? '完成' : ((r.reason || '部分失败')))
                     + ' · 选中 ' + r.selected + ' 拒 ' + r.rejected
                     + ' · 落笔 ' + r.applied + ' 项 / 核到原数据 ' + r.verified + ' 项'
                     + ' · 落盘回读 ' + (r.readback === true ? '真' : (r.readback === false ? '假' : '**没尝试**'))
-                    + (r.stale ? ' · ⚠️ 代际已变（本批作废）' : '') + '</div>'
+                    + (r.stale ? ' · 代际已变（本批作废）' : '') + '</div>'
                     + (r.items || []).map((x) => '<div class="ls-item"><div class="ls-item-meta">' + esc2(x.outcome)
                         + ' · ' + esc2(x.status) + (x.reason ? ' · ' + esc2(x.reason) : '')
                         + (x.replayed ? ' · 幂等命中（未重复落）' : '') + '</div></div>').join('');
                 const u = r.undo || {};
                 const btns = [];
-                if (u.factUndo) btns.push('<div class="ls-btn ls-btn-danger" data-cpundo="fact" data-token="' + esc2(u.factUndo.token) + '">↺ 撤销本次事实变更</div>');
-                if (u.configUndo) btns.push('<div class="ls-btn ls-btn-danger" data-cpundo="config" data-token="' + esc2(u.configUndo.token) + '">↺ 撤销本次配置变更</div>');
+                if (u.factUndo) btns.push('<div class="ls-btn ls-btn-danger" data-cpundo="fact" data-token="' + esc2(u.factUndo.token) + '"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本次事实变更</div>');
+                if (u.configUndo) btns.push('<div class="ls-btn ls-btn-danger" data-cpundo="config" data-token="' + esc2(u.configUndo.token) + '"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本次配置变更</div>');
                 undoBox.innerHTML = btns.length
                     ? '<div class="ls-hint">两路撤销**分开**：' + esc2(u.note || '') + '</div><div style="display:flex;gap:8px;">' + btns.join('') + '</div>'
                     : '<div class="ls-hint">本次无可撤销项（没落新条目）。</div>';
                 undoBox.querySelectorAll('[data-cpundo]').forEach((b) => b.addEventListener('click', async () => {
                     const ur = s.undoCorrection({ kind: b.dataset.cpundo, token: b.dataset.token });
                     const ok = ur && ur.ok === true;
-                    toast(ok ? ('↺ 已撤销 ' + ur.reverted + ' 项') : ('撤销失败：' + ((ur && ur.reason) || 'unknown')));
+                    toast(ok ? ('已撤销 ' + ur.reverted + ' 项') : ('撤销失败：' + ((ur && ur.reason) || 'unknown')), (ok ? 'undo' : ''));
                     if (ok) {
                         const persistedOk = await self._memPersist();
                         if (!persistedOk) toast('撤销已生效但存盘失败', false);
@@ -5399,7 +5409,7 @@
                 } });
             }
             const persisted = await this._memPersist();
-            toast(persisted ? '✅ 已修改记忆正文' : '⚠️ 已修改但存盘失败');
+            toast(persisted ? '已修改记忆正文' : '已修改但存盘失败', (persisted ? 'success' : 'warn'));
             if (persisted) this.showBrowser('memorycenter');
         };
         plugin._memoryCenterHandlers['row.pin'] = async function (ctx) {
@@ -5418,7 +5428,7 @@
                 } });
             }
             const persisted = await this._memPersist();
-            toast(persisted ? (next ? '📌 已置顶记忆' : '已取消置顶') : '⚠️ 已变更但存盘失败');
+            toast(persisted ? (next ? '已置顶记忆' : '已取消置顶') : '已变更但存盘失败', (persisted ? (next ? 'pin' : '') : 'warn'));
             if (persisted) this.showBrowser('memorycenter');
         };
         plugin._memoryCenterHandlers['row.forget'] = async function (ctx) {
@@ -5435,7 +5445,7 @@
                 } });
             }
             const persisted = await this._memPersist();
-            toast(persisted ? '🪦 已遗忘记忆（可从 OpLog 恢复）' : '⚠️ 已遗忘但存盘失败');
+            toast(persisted ? '已遗忘记忆（可从 OpLog 恢复）' : '已遗忘但存盘失败', (persisted ? 'archive' : 'warn'));
             if (persisted) this.showBrowser('memorycenter');
         };
         plugin._memoryCenterHandlers['row.revoke'] = function (ctx) {
@@ -5448,8 +5458,8 @@
             const eng = this.engine;
             if (!eng || typeof eng.memoryCenterRevoke !== 'function') { toast('宿主未接单条撤回出口'); return; }
             const r = eng.memoryCenterRevoke(id, 'center-row-revoke');
-            toast(r && r.ok ? (r.replayed ? '该条此前已撤回（幂等）' : '↺ 已撤回该条')
-                : ('撤回失败：' + ((r && r.reason) || 'unknown')));
+            toast(r && r.ok ? (r.replayed ? '该条此前已撤回（幂等）' : '已撤回该条')
+                : ('撤回失败：' + ((r && r.reason) || 'unknown')), (r && r.ok ? (r.replayed ? '' : 'undo') : ''));
             if (r && r.ok) this.showBrowser('memorycenter');
         };
         plugin._memoryCenterHandlers['row.dispute'] = function () {
@@ -5510,7 +5520,7 @@
                 if (typeof op?.undo === 'function') {
                     await op.undo();
                     const ok = await this._memPersist();
-                    this._memToast(`↺ 已撤销: ${op.desc || '上一步操作'}`, ok);
+                    this._memToast(`已撤销: ${op.desc || '上一步操作'}`, ok);
                     return ok;
                 }
             } catch (e) {
@@ -5529,8 +5539,8 @@
              *   life/suspense 是各自 `id` 生成式）——一旦两侧类型不同，`===` 恒 false，
              *   于是 `find` 恒落空、函数**静默 return**，表现为「条目点得动但面板永远不弹」。
              *   真宿主实测（probe flow5，真 ST 1.19.0 + Chromium 131）：
-             *     `_memOps('summary','3')` ⇒ panelOpen=false；`_memOps('summary',3)` ⇒ panelOpen=true
-             *     （同函数、同数据、只差 id 类型）⇒ 根因是**两侧类型不同**，不是数据没造出来。
+             *     `_memOps('summary','3')` => panelOpen=false；`_memOps('summary',3)` => panelOpen=true
+             *     （同函数、同数据、只差 id 类型）=> 根因是**两侧类型不同**，不是数据没造出来。
              *   读侧口径必须与写侧同源：在寻址口**一次性**归一成字符串（`String()` 在写侧
              *   同样是规范化口，见 `addManualSummary` / `addLockedFact` 的 `String(floor)`），
              *   各分支的比对表达式相应改为 `.id === key` / `.floor === key` —— 不做逐处 `Number()`
@@ -5542,8 +5552,8 @@
                 if (!e) return;
                 label = esc(e.text).substring(0, 60);
                 actions = [
-                    { t: "⭐ 提升重要度", fn: () => { e.importance = Math.min(10, (e.importance || 5) + 2); return "重要度→" + e.importance; } },
-                    { t: "🗑 删除该条", fn: () => { eng.timeline.entries = eng.timeline.entries.filter(x => x.id !== key); return "已删除"; }, danger: true },
+                    { t: "提升重要度", fn: () => { e.importance = Math.min(10, (e.importance || 5) + 2); return "重要度->" + e.importance; } },
+                    { t: "删除该条", fn: () => { eng.timeline.entries = eng.timeline.entries.filter(x => x.id !== key); return "已删除"; }, danger: true },
                 ];
             }
             else if (kind === "summary") {
@@ -5551,18 +5561,18 @@
                 if (!m) return;
                 label = esc(m.text).substring(0, 60);
                 actions = [
-                    { t: "✏ 编辑该摘要", fn: () => {
+                    { t: "编辑该摘要", fn: () => {
                         const nt = prompt('编辑第 ' + id + ' 楼摘要（可直接修改文本）：', m.text);
                         if (nt === null) return;
                         if (!eng.summary?.updateSummaryText) { toast('引擎版本过旧'); return; }
                         if (eng.summary.updateSummaryText(Number(key), nt)) {
-                            toast('✅ 摘要已更新');
+                            toast('摘要已更新', 'success');
                             if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
                                 eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
                             }
                         } else { toast('更新失败'); }
                     } },
-                    { t: "🗑 删除该摘要", fn: () => {
+                    { t: "删除该摘要", fn: () => {
                         eng.summary.summaries = eng.summary.summaries.filter(x => String(x.floor) !== key);
                         if (eng.bm25?.rebuild && eng.summary?.getActiveSummaries) {
                             eng.bm25.rebuild(eng.summary.getActiveSummaries().map(s => ({id: 'sum_' + s.floor, text: s.text, floor: s.floor, source: 'bm25'})));
@@ -5575,7 +5585,7 @@
                 if (!p) return;
                 label = esc(p.content).substring(0, 60);
                 actions = [
-                    { t: "🗑 删除该私密记忆", fn: () => { eng.pov.povs = eng.pov.povs.filter(x => x.id !== key); return "已删除POV"; }, danger: true },
+                    { t: "删除该私密记忆", fn: () => { eng.pov.povs = eng.pov.povs.filter(x => x.id !== key); return "已删除POV"; }, danger: true },
                 ];
             }
             else if (kind === "vector") {
@@ -5583,7 +5593,7 @@
                 if (!v) return;
                 label = esc((v.text || "").substring(0, 60));
                 actions = [
-                    { t: "🗑 删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== key); return "已删除向量"; }, danger: true },
+                    { t: "删除该向量", fn: () => { eng.vector.vectors = eng.vector.vectors.filter(x => x.id !== key); return "已删除向量"; }, danger: true },
                 ];
             } else if (kind === "todo") {
                 const parts = String(id).split("|||");
@@ -5592,7 +5602,7 @@
                 if (!rec) return;
                 label = esc(ch) + " · 待办: " + esc(text);
                 actions = [
-                    { t: "✅ 标记完成（删除）", fn: () => { rec.todos = (rec.todos || []).filter(x => x.text !== text); return "待办已移除"; } },
+                    { t: "标记完成（删除）", fn: () => { rec.todos = (rec.todos || []).filter(x => x.text !== text); return "待办已移除"; } },
                 ];
             }
             else if (kind === "field") {
@@ -5602,7 +5612,7 @@
                 if (!rec) return;
                 label = esc(ch) + " · " + esc(field) + " = " + esc(String(rec.fields?.[field] ?? ""));
                 actions = [
-                    { t: "✏️ 修改数值", fn: () => {
+                    { t: "修改数值", fn: () => {
                         const cur = rec.fields?.[field] ?? 0;
                         let nv = null;
                         try { nv = prompt("新值（支持 +5 / -3 / 绝对值 / 文本）:", String(cur)); } catch (e) { console.warn("prompt unavailable:", e); }
@@ -5612,9 +5622,9 @@
                             const base = Number(rec.fields[field]) || 0;
                             rec.fields[field] = Math.round((base + Number(val)) * 100) / 100;
                         } else rec.fields[field] = val;
-                        return field + " → " + rec.fields[field];
+                        return field + " " + rec.fields[field];
                     } },
-                    { t: "🗑 删除该字段", fn: () => { delete rec.fields[field]; return "字段已删除"; }, danger: true },
+                    { t: "删除该字段", fn: () => { delete rec.fields[field]; return "字段已删除"; }, danger: true },
                 ];
             }
             else if (kind === "protagonist_field") {
@@ -5623,9 +5633,9 @@
                 const labels = { gender: "性别", age: "年龄", identity: "身份", appearance: "体貌", outfit: "当前着装", condition: "生理/伤病状况" };
                 const field = String(id);
                 if (!labels[field]) return;
-                label = "🧍 " + labels[field] + " = " + esc(String(p[field] || "（未登记）"));
+                label = labels[field] + " = " + esc(String(p[field] || "（未登记）"));
                 actions = [
-                    { t: "✏️ 编辑", fn: () => {
+                    { t: "编辑", fn: () => {
                         let nv = null;
                         try { nv = prompt(labels[field] + "（留空清除）:", String(p[field] || "")); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
@@ -5646,10 +5656,10 @@
                     return { label: "已" + name, desc: "生活小档案层级还原", undo: () => { ld.tier = old; } };
                 };
                 actions = [
-                    { t: "📌 置顶常驻", fn: setTier("pinned", "置顶") },
-                    { t: "🔹 常规", fn: setTier("active", "设为常规") },
-                    { t: "📦 沉降", fn: setTier("archive", "沉降") },
-                    { t: "✏️ 编辑内容", fn: () => {
+                    { t: "置顶常驻", fn: setTier("pinned", "置顶") },
+                    { t: "常规", fn: setTier("active", "设为常规") },
+                    { t: "沉降", fn: setTier("archive", "沉降") },
+                    { t: "编辑内容", fn: () => {
                         let nv = null;
                         try { nv = prompt("编辑生活小档案:", ld.text); } catch (e) { console.warn("prompt unavailable:", e); }
                         if (nv === null) return null;
@@ -5659,7 +5669,7 @@
                         ld.text = next;
                         return { label: "已更新", desc: "生活小档案内容还原", undo: () => { ld.text = old; } };
                     } },
-                    { t: "🗑 删除该条", fn: () => {
+                    { t: "删除该条", fn: () => {
                         const backup = { ...ld };
                         const idx2 = (eng.status.lifeDetails || []).indexOf(ld);
                         eng.status.lifeDetails = eng.status.lifeDetails.filter(x => x.id !== key);
@@ -5672,16 +5682,16 @@
                 if (!it) return;
                 label = esc(it.content).substring(0, 60);
                 actions = [
-                    { t: "✅ 标记完成", fn: () => { eng.suspense.resolve(id, "done", "（手动了结）"); return "悬念已了结"; } },
-                    { t: "🚫 标记取消", fn: () => { eng.suspense.resolve(id, "cancelled", "（手动取消）"); return "悬念已取消"; } },
-                    { t: "🗑 删除该条", fn: () => { eng.suspense.items = eng.suspense.items.filter(x => x.id !== key); return "已删除悬念"; }, danger: true },
+                    { t: "标记完成", fn: () => { eng.suspense.resolve(id, "done", "（手动了结）"); return "悬念已了结"; } },
+                    { t: "标记取消", fn: () => { eng.suspense.resolve(id, "cancelled", "（手动取消）"); return "悬念已取消"; } },
+                    { t: "删除该条", fn: () => { eng.suspense.items = eng.suspense.items.filter(x => x.id !== key); return "已删除悬念"; }, danger: true },
                 ];
             } else if (kind === "item") {
                 const rec = (eng.items?.records || []).find(x => x.name === key);
                 if (!rec) return;
                 label = esc(rec.name) + "（" + esc(rec.holder || "无主") + " · " + esc(rec.state || "完好") + "）";
                 actions = [
-                    { t: "👤 变更持有者", fn: () => {
+                    { t: "变更持有者", fn: () => {
                         let nh = null;
                         try { nh = prompt("新持有者名称（置空填 '地上'）:", String(rec.holder || "")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (nh === null) return null;
@@ -5692,7 +5702,7 @@
                         eng.rebuildItems();
                         const oldH = rec.holder || "地上";
                         return {
-                            label: "持有者 → " + holder,
+                            label: "持有者 -> " + holder,
                             desc: `物品【${rec.name}】持有者还原为 ${oldH}`,
                             undo: () => {
                                 eng.itemOps.push({ action: "update", name: rec.name, holder: oldH, floor: eng.summary?.summaries?.length || 0 });
@@ -5700,7 +5710,7 @@
                             }
                         };
                     } },
-                    { t: "📦 变更状态", fn: () => {
+                    { t: "变更状态", fn: () => {
                         let ns = null;
                         try { ns = prompt("新状态（完好 / 损坏 / 消耗完毕 / 丢失）:", String(rec.state || "完好")); } catch (e) { reportUiError(e, 'nonfatal') }
                         if (ns === null) return null;
@@ -5711,7 +5721,7 @@
                         eng.rebuildItems();
                         const oldS = rec.state || "完好";
                         return {
-                            label: "状态 → " + state,
+                            label: "状态 -> " + state,
                             desc: `物品【${rec.name}】状态还原为 ${oldS}`,
                             undo: () => {
                                 eng.itemOps.push({ action: "update", name: rec.name, state: oldS, floor: eng.summary?.summaries?.length || 0 });
@@ -5719,7 +5729,7 @@
                             }
                         };
                     } },
-                    { t: "🗑 标记丢弃/移除", fn: () => {
+                    { t: "标记丢弃/移除", fn: () => {
                         eng.itemOps = eng.itemOps || [];
                         const currentFloor = eng.summary?.summaries?.length || 0;
                         eng.itemOps.push({ action: "remove", name: rec.name, state: "丢弃", floor: currentFloor });
@@ -5746,7 +5756,7 @@
             const ov = document.createElement("div");
             ov.id = ovId;
             ov.className = "lonsha-overlay";
-            ov.innerHTML = `<div class="lonsha-sheet" style="max-width:400px;"><div class="lonsha-sheet-header"><span>✏️ 记忆操作</span><span class="lonsha-sheet-close" id="memops-close">✕</span></div><div class="lonsha-sheet-body"><div class="ls-item" style="margin-bottom:10px;"><div class="ls-item-text">${label}</div></div>${actions.map((a, i) => `<div class="ls-btn ${a.danger ? "ls-btn-danger" : ""}" data-ai="${i}" style="margin:6px 0;">${a.t}</div>`).join("")}</div></div>`;
+            ov.innerHTML = `<div class="lonsha-sheet" style="max-width:400px;"><div class="lonsha-sheet-header"><span><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>记忆操作</span><span class="lonsha-sheet-close" id="memops-close"><i class="ls-ico" data-i="xmark" aria-hidden="true"></i></span></div><div class="lonsha-sheet-body"><div class="ls-item" style="margin-bottom:10px;"><div class="ls-item-text">${label}</div></div>${actions.map((a, i) => `<div class="ls-btn ${a.danger ? "ls-btn-danger" : ""}" data-ai="${i}" style="margin:6px 0;">${a.t}</div>`).join("")}</div></div>`;
             document.body.appendChild(ov);
             /* [v3.445.0] 第二条 overlay 路径同样硬化：本面板的“按钮”是
              * div.ls-btn（不是 button 元素），宿主那条 button 选择器管不到它们，
@@ -5773,7 +5783,7 @@
                     // validated above
                     ov.remove();
                     const ok = await plugin._memPersist();
-                    plugin._memToast(ok ? "✅ " + msg : "⚠️ 已改但存盘失败", ok);
+                    plugin._memToast(ok ? msg : "已改但存盘失败", ok);
                     if (ok && typeof onDone === "function") onDone();
                 });
             });
@@ -5786,41 +5796,47 @@
             let r;
             /* [v3.303.0 M-O2] **`esc` 必须在本函数内可见**：本档是一个 IIFE，里面每个 `show*`
              *   各定义一个局部的 `const esc`；本函数原先**漏了这一行**，而下面构造错误行的
-             *   模板串里用了 6 处 `esc(...)` ⇒ 一进 HTML 构造即 `ReferenceError: esc is not defined`。
+             *   模板串里用了 6 处 `esc(...)` => 一进 HTML 构造即 `ReferenceError: esc is not defined`。
              *   形态定性：这条路径**只在真有诊断数据时**才走到 —— 空数据下 `r.errors` 为空、
              *   `r.pipeline` / `r.schema` 缺席都会跳开用 `esc` 的那几行，故「新档空跑一次」看不出来。
              *   真宿主实测（probe flow3 / flow5，真 ST 1.19.0 + Chromium 131）：
-             *   `showDiagnose()` ⇒ `threw = "esc is not defined"`、诊断面板 **未落 DOM**。
+             *   `showDiagnose()` => `threw = "esc is not defined"`、诊断面板 **未落 DOM**。
              *   静态普查（/tmp/mo2/esc_scope2.py；模板串内 `${...}` 插值按代码词法处理）：
              *   全档 4 处 `const esc =` / 80 处使用点 / **3 处不可达**，全部落在这个函数体内。 */
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
             try { r = await engine.selfCheck(); } catch (e) { toast('诊断失败: ' + e.message); return; }
+            /* [v3.1 · 开发者控制台] 诊断页改为带类名的结构（修前全部是内联 style，开发者控制台无从排版）：
+             *   检查项 = 状态列表（.ls-dg-check[data-sev] + 严重度徽标），统计 = 键值表（dl.ls-dg-stats），
+             *   错误 = 等宽日志（ol.ls-dg-log）。旧外观由 css/dev-console-v3.css 的 A 段给出（不随开关），
+             *   文案、数据来源与 esc 的使用点与修前一致。 */
+            const _sev = (lv) => '<span class="ls-dg-badge">' + ({ ok: '正常', warn: '注意', crit: '严重' }[lv] || lv) + '</span>';
+            const _arrow = '<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>';
             const errRows = (r.errors || []).slice(-15).reverse().map(e2 =>
-                `<div style="padding:6px 8px;font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">
-                    <div style="display:flex;justify-content:space-between;">
-                        <span style="color:var(--ls-danger,#f85149);font-weight:bold;">[${esc(e2.tag)}]</span>
-                        <span style="color:var(--ls-text-2,#9da7b3);">${new Date(e2.t).toLocaleTimeString()}</span>
+                `<li class="ls-dg-log-row" data-sev="crit">
+                    <div class="ls-dg-log-head">
+                        <span class="ls-dg-tag">[${esc(e2.tag)}]</span>
+                        <time class="ls-dg-time">${new Date(e2.t).toLocaleTimeString()}</time>
                     </div>
-                    <div style="color:var(--ls-text,#e6edf3);font-size:12px;margin:3px 0;">${esc(e2.msg || '').substring(0, 150)}</div>
-                    ${e2.hint ? `<div style="color:var(--ls-warn,#d29922);font-size:11px;background:var(--ls-bg-1,#0d1117);padding:4px 8px;border-radius:4px;margin-top:4px;border-left:3px solid var(--ls-warn,#d29922);">💡 诊断指引：${esc(e2.hint)}</div>` : ''}
-                </div>`).join('') || '<div style="padding:8px;color:var(--ls-success,#3fb950);font-size:12px;">✓ 无错误记录</div>';
-            const statRows = (r.stats || []).map(s => `<div style="display:flex;justify-content:space-between;padding:5px 8px;font-size:13px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));">
-                <span style="color:var(--ls-text-2,#9da7b3);">${s.k}</span><span>${s.v}</span></div>`).join('');
+                    <div class="ls-dg-msg">${esc(e2.msg || '').substring(0, 150)}</div>
+                    ${e2.hint ? `<div class="ls-dg-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>诊断指引：${esc(e2.hint)}</div>` : ''}
+                </li>`).join('') || '<li class="ls-dg-log-empty"><i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>无错误记录</li>';
+            const statRows = (r.stats || []).map(s => `<div class="ls-dg-kv">
+                <dt>${s.k}</dt><dd>${s.v}</dd></div>`).join('');
             const p = r.pipeline;
             const pipeHTML = p ? (p.ok
-                ? `<div style="padding:6px 8px;font-size:12px;color:var(--ls-success,#3fb950);">✓ 管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字 → 命中[${(p.routes || []).join(' ')}] → 合并${p.merged}条 → 注入${p.injLen}字</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:var(--ls-warn,#d29922);">⚠️ ${esc(p.note || '管线异常')}${p.hint ? `<br><span style="color:var(--ls-text,#e6edf3);font-size:11px;">💡 ${esc(p.hint)}</span>` : ''}</div>`) : '';
+                ? `<li class="ls-dg-check" data-sev="ok" data-dg="pipeline">${_sev('ok')}<div class="ls-dg-check-main"><div class="ls-dg-check-title">召回管线</div><div class="ls-dg-check-text">管线通畅 ${p.ms}ms ｜ 查询${p.queryLen}字${_arrow}命中[${(p.routes || []).join(' ')}]${_arrow}合并${p.merged}条${_arrow}注入${p.injLen}字</div></div></li>`
+                : `<li class="ls-dg-check" data-sev="warn" data-dg="pipeline">${_sev('warn')}<div class="ls-dg-check-main"><div class="ls-dg-check-title">召回管线</div><div class="ls-dg-check-text">${esc(p.note || '管线异常')}</div>${p.hint ? `<div class="ls-dg-check-sub"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>${esc(p.hint)}</div>` : ''}</div></li>`) : '';
             const sc = r.schema;
             const schemaHTML = sc ? (sc.ok
-                ? `<div style="padding:6px 8px;font-size:12px;color:var(--ls-success,#3fb950);">✓ 存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div>`
-                : `<div style="padding:6px 8px;font-size:12px;color:var(--ls-danger,#f85149);">✗ 缺失字段: ${(sc.missing || []).join('、')}${sc.hint ? `<br><span style="color:var(--ls-warn,#d29922);font-size:11px;">💡 ${esc(sc.hint)}</span>` : ''}</div>`) : '';
-            const body = `
-                <div style="padding:4px 8px;font-size:11px;color:var(--ls-text-2,#9da7b3);">${r.time} ｜ v${r.version}</div>
-                <div style="margin:6px 0;">${statRows}</div>
-                ${pipeHTML}${schemaHTML}
-                <div style="padding:6px 8px;font-size:12px;color:var(--ls-text-2,#9da7b3);border-top:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));margin-top:6px;">最近错误（环形缓冲，最多50条）</div>
-                <div style="max-height:30vh;overflow-y:auto;">${errRows}</div>`;
-            const overlay = makeSheet('lonsha-diag-overlay', '⚙ 记忆内核全景诊断', body);
+                ? `<li class="ls-dg-check" data-sev="ok" data-dg="schema">${_sev('ok')}<div class="ls-dg-check-main"><div class="ls-dg-check-title">存档结构</div><div class="ls-dg-check-text">存档完整（非空: ${(sc.nonEmpty || []).join('、') || '暂无数据'}）</div></div></li>`
+                : `<li class="ls-dg-check" data-sev="crit" data-dg="schema">${_sev('crit')}<div class="ls-dg-check-main"><div class="ls-dg-check-title">存档结构</div><div class="ls-dg-check-text">缺失字段: ${(sc.missing || []).join('、')}</div>${sc.hint ? `<div class="ls-dg-check-sub"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>${esc(sc.hint)}</div>` : ''}</div></li>`) : '';
+            const body = `<div class="ls-dg">
+                <div class="ls-dg-meta"><span>${r.time}</span><span>v${r.version}</span></div>
+                <dl class="ls-dg-stats">${statRows}</dl>
+                ${(pipeHTML || schemaHTML) ? `<div class="ls-dg-section-title">检查项</div><ul class="ls-dg-checks">${pipeHTML}${schemaHTML}</ul>` : ''}
+                <div class="ls-dg-section-title">最近错误（环形缓冲，最多50条）</div>
+                <div class="ls-dg-logbox"><ol class="ls-dg-log">${errRows}</ol></div></div>`;
+            const overlay = makeSheet('lonsha-diag-overlay', '记忆内核全景诊断', body);
         };
 
         /* ========== 楼层记忆徽章：把“记住了什么”搬回动作发生的地方 ==========
@@ -5851,7 +5867,7 @@
                 const tip = n > 0 ? ('本轮注入了 ' + n + ' 条记忆，点击看明细') : '本轮没有注入记忆，点击看状态';
                 badge.setAttribute('title', tip);
                 badge.setAttribute('aria-label', tip);
-                badge.textContent = '🧠 记忆 ' + n;
+                badge.textContent = '记忆 ' + n;
                 badge.addEventListener('click', () => {
                     try { plugin.showStatsPanel(); } catch (e) { reportUiError(e, 'badge.open'); }
                 });
@@ -5880,7 +5896,7 @@
             }
         } catch (e) { reportUiError(e, 'badge.subscribe'); }
 
-        console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');
+        console.log('[LonSha记忆引擎] 设置面板模块已挂载（点悬浮记忆按钮，再选「设置」）');
     };
 
     if (document.readyState === 'loading') {

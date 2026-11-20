@@ -51,7 +51,7 @@
     const ACTION_KINDS = Object.freeze(['read', 'preview', 'write', 'unavailable']);
     /** 宿主须提供的依赖面（缺哪个、缺了会怎样，由 `describe()` 逐条回答）。 */
     const REQUIRED_DEPS = Object.freeze([
-        { key: 'query', why: '内核结构化查询（evidence-query.query）；缺席 ⇒ 整面不可用（error/module-absent）' },
+        { key: 'query', why: '内核结构化查询（evidence-query.query）；缺席 => 整面不可用（error/module-absent）' },
         { key: 'normalizeSpec', why: '条件归一（**单一真源**：不许本模块另写一份）' },
         { key: 'upsertSaved', why: '保存条件（纯函数：传入旧表、返回新表）' },
         { key: 'removeSaved', why: '删除保存的条件' },
@@ -67,11 +67,11 @@
      *   缺席时逐一给具名 reason（lifecycle-absent / versionsOf-absent），不假装可预览。
      */
     const OPTIONAL_DEPS = Object.freeze([
-        { key: 'FACT_LIFECYCLE', why: '批量影响面（RULES / ACTION_SPEC 单一真源）；缺席 ⇒ batchPreview 落 unavailable/' },
-        { key: 'FACT_STATE', why: '五态读面（active/superseded/revoked/disputed/unknown）；缺席 ⇒ 链上 state 列留空，不编一个 active' },
-        { key: 'versionsOf', why: '换代链（fact-version.versionsOf）；缺席 ⇒ 只报 counter 浅链，不拿它冒充 versioned' },
-        { key: 'factState', why: '宿主事实账读口（换代链的数据面）；缺席 ⇒ 链报 factState-absent，**不报「没有版本」**' },
-        { key: 'textSource', why: '本行**真原文**读口 ref → {ok,text,field}|{ok:false,reason}（「看原文」的落点）；缺席 ⇒ 正文退回投影面摘要并标 projection' }
+        { key: 'FACT_LIFECYCLE', why: '批量影响面（RULES / ACTION_SPEC 单一真源）；缺席 => batchPreview 落 unavailable/' },
+        { key: 'FACT_STATE', why: '五态读面（active/superseded/revoked/disputed/unknown）；缺席 => 链上 state 列留空，不编一个 active' },
+        { key: 'versionsOf', why: '换代链（fact-version.versionsOf）；缺席 => 只报 counter 浅链，不拿它冒充 versioned' },
+        { key: 'factState', why: '宿主事实账读口（换代链的数据面）；缺席 => 链报 factState-absent，**不报「没有版本」**' },
+        { key: 'textSource', why: '本行**真原文**读口 ref -> {ok,text,field}|{ok:false,reason}（「看原文」的落点）；缺席 => 正文退回投影面摘要并标 projection' }
     ]);
     /** 界面字段 → 条件键（**只声明映射，不另立口径**）。 */
     const UI_FIELDS = Object.freeze([
@@ -266,7 +266,7 @@
         if (typeof d.query !== 'function') {
             base.view = 'error';
             base.reason = 'module-absent';
-            base.notes.push('结构化查询内核不在场（evidence-query.query 未注入）⇒ 报 error/module-absent，**不报空数据**');
+            base.notes.push('结构化查询内核不在场（evidence-query.query 未注入）=> 报 error/module-absent，**不报空数据**');
             return base;
         }
         let q;
@@ -280,7 +280,7 @@
         } catch (_e) {
             base.view = 'error';
             base.reason = 'thrown';
-            base.notes.push('查询内核抛错 ⇒ 报 error/thrown（不把「抛了」读成「没有」）');
+            base.notes.push('查询内核抛错 => 报 error/thrown（不把「抛了」读成「没有」）');
             return base;
         }
         const v = viewOfOf(q, st, d);
@@ -310,7 +310,7 @@
             ? buildProfiles(base.rows, { kinds: o.profileKinds })
             : { kind: 'memory-center-profiles', total: 0, count: 0, kinds: PROFILE_KINDS.slice(),
                 bucketSize: TIME_BUCKET, pages: [], personCount: 0, technicalCount: 0,
-                note: '无命中 ⇒ 无资料页（不是「归不了类」）' };
+                note: '无命中 => 无资料页（不是「归不了类」）' };
         /* ── 详情与修订链：`state.detail` 指到**本页**才产出；指到别页 / 不存在的 ref ⇒ 具名说明，
          *   不得渲染一张空详情（那与「这条没有任何证据」同形）。 */
         if (st.detail) {
@@ -325,7 +325,7 @@
                 base.detailFace = detailOf(dhit, { fullText: o.fullText, source: src });
                 base.revisionChain = revisionChain(dhit.ref, d, { row: dhit, state: o.factState, subject: o.subject, predicate: o.predicate });
             } else {
-                base.detailNote = '详情位指到「' + st.detail + '」，但该条**不在本页**（翻页 / 条件变过）⇒ 不渲染空详情（「不在本页」不等于「这条不存在」）';
+                base.detailNote = '详情位指到「' + st.detail + '」，但该条**不在本页**（翻页 / 条件变过）=> 不渲染空详情（「不在本页」不等于「这条不存在」）';
             }
         }
         /* 批量预览：选区**默认取自状态**（故「失败后未完成选择还在」是可验的）；调用方显式传
@@ -353,7 +353,7 @@
             if (declared && declared.indexOf(a.id) < 0) {
                 row.kind = 'unavailable';
                 row.unavailable = true;
-                row.note = '宿主未提供该 handler（' + a.id + '）⇒ 降级为 unavailable，不得当作可用';
+                row.note = '宿主未提供该 handler（' + a.id + '）=> 降级为 unavailable，不得当作可用';
             }
             out.push(row);
         }
@@ -500,8 +500,8 @@
             note: masked ? '受限正文保持遮蔽（' + bodyState + '）'
                 : (textChannel === 'ledger-source' ? '取的是本行**真原文**（字段 ' + text(sb.field, 40) + '）'
                     : (textChannel === 'explicit-fulltext' ? '调用方显式给的原文'
-                        : (textChannel === 'source-failed' ? '原文读口**取不到**（' + text(sb.reason, 60) + '）⇒ 退回投影摘要'
-                            : '未接原文读口 ⇒ 显示的是投影面摘要（**不是全文**）')))
+                        : (textChannel === 'source-failed' ? '原文读口**取不到**（' + text(sb.reason, 60) + '）=> 退回投影摘要'
+                            : '未接原文读口 => 显示的是投影面摘要（**不是全文**）')))
         };
     }
     /**
@@ -619,7 +619,7 @@
         if (!FL || !FL.RULES || !FL.ACTION_SPEC) {
             out.state = 'unavailable';
             out.reason = 'lifecycle-absent';
-            out.note = '影响面登记表不在场 ⇒ 说「预览不可用」，**不编一个影响面**';
+            out.note = '影响面登记表不在场 => 说「预览不可用」，**不编一个影响面**';
             return out;
         }
         const rule = FL.RULES[spec.disposition] || null;
@@ -726,7 +726,7 @@
                 parts.push('<div class="ls-hint">换代链**判不了**：' + esc(ch.reason) + '（不拿浅链冒充换代信息）</div>');
             }
         }
-        parts.push('<button class="ls-btn" data-mc="detail-back">← 回到列表（保留筛选与页码）</button>');
+        parts.push('<button class="ls-btn" data-mc="detail-back"><i class="ls-ico" data-i="chevron-left" aria-hidden="true"></i>回到列表（保留筛选与页码）</button>');
         parts.push('</div>');
         return parts.join('');
     }
@@ -755,7 +755,7 @@
         parts.push('<span class="ls-mc-total">命中 ' + esc(p.total) + ' 条</span>');
         if (p.page > 1) parts.push('<button class="ls-btn" data-mc="page" data-page="' + escAttr(p.page - 1) + '">上一页</button>');
         if (p.pages && p.page < p.pages) parts.push('<button class="ls-btn" data-mc="page" data-page="' + escAttr(p.page + 1) + '">下一页</button>');
-        if (p.outOfRange) parts.push('<span class="ls-mc-warn">⚠️ 翻过头（不回落第一页）</span>');
+        if (p.outOfRange) parts.push('<span class="ls-mc-warn"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>翻过头（不回落第一页）</span>');
         parts.push('</div>');
         return parts.join('');
     }
@@ -780,7 +780,7 @@
         return rows.map((r) => {
             const meta = [r.ledgerLabel || r.ledger, '楼层 ' + (r.floor == null ? '—' : r.floor), r.status || '']
                 .filter(Boolean).join(' · ');
-            const masked = r.masked === true ? '<span class="ls-mc-masked">🔒 正文已遮蔽（' + esc(r.scope || '判不了') + '）</span>' : '';
+            const masked = r.masked === true ? '<span class="ls-mc-masked"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>正文已遮蔽（' + esc(r.scope || '判不了') + '）</span>' : '';
             const picked = face.selection && face.selection.indexOf(r.ref) >= 0;
             return '<div class="ls-item ls-mc-row' + (picked ? ' ls-mc-picked' : '') + '" data-ref="' + escAttr(r.ref) + '">'
                 + '<label class="ls-mc-pickbox"><input type="checkbox" data-mc="select" data-ref="' + escAttr(r.ref) + '"'
@@ -788,16 +788,16 @@
                 + '<div class="ls-item-meta">' + esc(meta) + ' · <span class="ls-mc-ref">' + esc(r.ref) + '</span></div>'
                 + '<div class="ls-item-text">' + esc(r.title) + (r.detail ? ' — ' + esc(r.detail) : '') + '</div>'
                 + masked
-                + '<div class="ls-mc-actions">' + '<button class="ls-btn ls-btn-sm ls-mc-lineage-btn" data-mc="lineage" data-ref="' + escAttr(r.ref) + '">📜 沿革</button> ' + actionButtons(face.actions, 'row', r.ref, r.memory === true) + '</div>'
+                + '<div class="ls-mc-actions">' + '<button class="ls-btn ls-btn-sm ls-mc-lineage-btn" data-mc="lineage" data-ref="' + escAttr(r.ref) + '"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>沿革</button> ' + actionButtons(face.actions, 'row', r.ref, r.memory === true) + '</div>'
                 + '</div>';
         }).join('');
     }
     function memoryRowsHtml(face) {
         const rows = Array.isArray(face && face.memoryRows) ? face.memoryRows : [];
         if (!rows.length) return '';
-        return '<div class="ls-group ls-mc-memory-bank"><div class="ls-group-title">🧠 角色记忆银行（单条编辑）</div>' + rows.map((r) => {
+        return '<div class="ls-group ls-mc-memory-bank"><div class="ls-group-title"><i class="ls-ico" data-i="brain" aria-hidden="true"></i>角色记忆银行（单条编辑）</div>' + rows.map((r) => {
             const meta = ['角色记忆', r.detail || '', '楼层 ' + (r.floor == null ? '—' : r.floor), r.status || ''].filter(Boolean).join(' · ');
-            const pinned = r.memoryItem && r.memoryItem.pinned === true ? ' · 📌已置顶' : '';
+            const pinned = r.memoryItem && r.memoryItem.pinned === true ? ' · 已置顶' : '';
             return '<div class="ls-item ls-mc-row" data-ref="' + escAttr(r.ref) + '" data-memory="true">'
                 + '<div class="ls-item-meta">' + esc(meta + pinned) + ' · <span class="ls-mc-ref">' + esc(r.ref) + '</span></div>'
                 + '<div class="ls-item-text">' + esc(r.title) + '</div>'
@@ -1043,7 +1043,7 @@
             present: REQUIRED_DEPS.length - missing.length, total: REQUIRED_DEPS.length,
             missing: missing, keysAligned: ka.ok, keysUnaligned: ka, complete: missing.length === 0 && ka.ok && UI_FIELDS.length > 0,
             writesNothing: true,
-            note: missing.length ? '缺依赖 ⇒ 相应能力不可用（逐条见 missing）' : '依赖齐备'
+            note: missing.length ? '缺依赖 => 相应能力不可用（逐条见 missing）' : '依赖齐备'
         };
     }
 
@@ -1089,7 +1089,7 @@
             const saved = Array.isArray(f.saved) ? f.saved.length : 0;
             if (saved) parts.push('保存条件 ' + saved + ' 条');
             const un = (f.actions || []).filter((a) => a.unavailable).length;
-            if (un) parts.push('⚠️ 不可用动作 ' + un);
+            if (un) parts.push('不可用动作 ' + un);
             return parts.join(' · ');
         } catch (_e) { return '—（控制中心异常）'; }
     }

@@ -71,8 +71,13 @@ test('B3 旁路纪律：无 #chat 时返回 false 且不抛', () => {
 test('B4 样式在册且低噪音', () => {
     assert.ok(/\.ls-mem-badge\s*\{/.test(CSSF), '徽章样式必须在册');
     const block = CSSF.slice(CSSF.indexOf('.ls-mem-badge {'));
-    assert.match(block, /opacity:\s*\.?0?\.55|opacity:\s*0?\.55/, '默认必须低不透明度：它不该和正文抢注意力');
-    assert.match(block, /border-radius:\s*999px/, '胶囊形态：与面板的方块语言区分，读作「附注」而不是「控件」');
+    /* 低噪音判据的范围化：0.5–0.75 都算「不和正文抢注意力」，但浅色酒馆主题上 0.55 的对比度不够（
+       0.7 是设计侧可读性下限）。上限仍需 < 1：悬停前不得与正文同权重。 */
+    const _op = /\.ls-mem-badge[^}]*?opacity:\s*(0?\.\d+)/.exec(block);
+    assert.ok(_op, '徽章必须声明默认不透明度');
+    const _opv = Number(_op[1]);
+    assert.ok(_opv >= 0.5 && _opv <= 0.75, '默认不透明度须落在 0.5–0.75（实测 ' + _opv + '）：够低调，但浅色主题上也读得清');
+    assert.match(block, /border-radius:\s*(999px|var\(--ls-r-pill)/, '胶囊形态：与面板的方块语言区分，读作「附注」而不是「控件」');
     assert.match(block, /:focus-visible/, '键盘用户必须能到达（焦点可见）');
 });
 

@@ -34,7 +34,7 @@ class MemoryVisualizer {
         panel.id = 'lonsha-viz-panel';
         panel.innerHTML = `
             <div class="lonsha-viz-header">
-                <h2>🧠 LonSha记忆可视化</h2>
+                <h2><i class="ls-ico" data-i="brain" aria-hidden="true"></i>LonSha记忆可视化</h2>
                 <button class="lonsha-viz-close">×</button>
             </div>
             <div class="lonsha-viz-tabs">
@@ -370,42 +370,42 @@ class MemoryVisualizer {
         container.innerHTML = `
             <div class="lonsha-stats-grid">
                 <div class="stat-card">
-                    <div class="stat-icon">📊</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="chart" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.nodes}</div>
                     <div class="stat-label">图谱节点</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">🔗</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="link" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.edges}</div>
                     <div class="stat-label">关系边</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">👥</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="people" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.characters}</div>
                     <div class="stat-label">角色数</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">⚡</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="bolt" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.events}</div>
                     <div class="stat-label">事件数</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">📝</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="compose" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.summaries}</div>
                     <div class="stat-label">摘要数</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">📖</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="book" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.diaries}</div>
                     <div class="stat-label">日记数</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">🧮</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="table" aria-hidden="true"></i></div>
                     <div class="stat-value">${stats.vectors}</div>
                     <div class="stat-label">向量数</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon">💾</div>
+                    <div class="stat-icon"><i class="ls-ico" data-i="save" aria-hidden="true"></i></div>
                     <div class="stat-value">${this.estimateSize()} KB</div>
                     <div class="stat-label">存储占用</div>
                 </div>

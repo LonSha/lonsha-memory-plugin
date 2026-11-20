@@ -44,15 +44,21 @@ function putMirror(tmp, rel) {
   try { fs.linkSync(src, dst); } catch { fs.copyFileSync(src, dst); }
 }
 /** 生产面全镜像：根目录其余 .js（含 docs/ 下的计划探针）逐字搬入夹具。 */
+/* 平台残骸过滤：这台机器的存储层会在仓里留下 `.l2s.<name>0001` 这类残片
+ *   （有时是自指链接、有时是断链）。它们既不在 git 里，也不参与任何读数，
+ *   但「整树镜像」会把它们一起拷 —— 断链一拷就 ENOENT，把负控制做成假红。
+ *   口径与 tests/_fixture_sync.mjs 的 PLATFORM_JUNK_RE 同一条：按名字前缀排除。 */
+const PLATFORM_JUNK_RE = /(^|\/)[.]l2s[.]/;
 function mirrorProd(tmp) {
   const copied = new Set(['manifest.json', 'index.js', 'optional-engine-registry.js']);
   for (const f of fs.readdirSync(REPO)) {
-    if (!f.endsWith('.js') || copied.has(f)) continue;
+    if (!f.endsWith('.js') || copied.has(f) || PLATFORM_JUNK_RE.test(f)) continue;
     putMirror(tmp, f);
   }
   const walk = (rel) => {
     for (const d of fs.readdirSync(path.join(REPO, rel), { withFileTypes: true })) {
       const r = rel + '/' + d.name;
+      if (PLATFORM_JUNK_RE.test(r)) continue;
       if (d.isDirectory()) walk(r); else if (d.isFile()) putMirror(tmp, r);
     }
   };

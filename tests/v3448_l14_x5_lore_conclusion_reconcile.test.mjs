@@ -173,7 +173,7 @@ test('L14-X5: cross-layer vertical integration (diagnostic lines, injection pipe
   const uiSrc = fs.readFileSync('settings-ui.js', 'utf-8');
   assert.ok(uiSrc.includes('loreConclusionState'), 'settings-ui must call loreConclusionState');
   assert.ok(uiSrc.includes('_loreConclusionLine'), 'settings-ui must call _loreConclusionLine');
-  assert.ok(uiSrc.includes('📑 设定换版与结论更新对照工作台'), 'settings-ui must render lore reconcile title');
+  assert.ok(uiSrc.includes('设定换版与结论更新对照工作台'), 'settings-ui must render lore reconcile title');
 
   // 4. 负控制：模拟破坏注入逻辑或面板入口
   const brokenPipeSrc = (await fs.promises.readFile('engine-injection-pipeline.js', 'utf-8'))

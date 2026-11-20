@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-20T01:54:39.213Z",
-  "extra_js_count": 433,
+  "generated_at": "2026-11-20T21:36:13.115Z",
+  "extra_js_count": 437,
   "host_injected_count": 252,
-  "total_modules": 434,
+  "total_modules": 438,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 434,
+  "active_count": 438,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -1829,6 +1829,54 @@
       ],
       "load_surface_callers": []
     },
+    "dashboard-shell.js": {
+      "module": "dashboard-shell.js",
+      "surface": [
+        "LonShaDashboardShell"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "dashboard-v2.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "settings-ui.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "dashboard-v2.js": {
+      "module": "dashboard-v2.js",
+      "surface": [
+        "LonShaDashboardV2"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "dashboard-shell.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "dev-console-v3.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "data-migration-matrix.js": {
       "module": "data-migration-matrix.js",
       "surface": [
@@ -1958,6 +2006,25 @@
           "file": "index.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "dev-console-v3.js": {
+      "module": "dev-console-v3.js",
+      "surface": [
+        "LonShaDevConsole"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "dashboard-shell.js",
+          "count": 1,
+          "type": "exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -4463,12 +4530,27 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 39,
-      "business_call_sites": 39,
+      "prod_call_sites": 46,
+      "business_call_sites": 46,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "dashboard-shell.js",
+          "count": 4,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "dashboard-v2.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "dev-console-v3.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
         {
           "file": "engine-injection-pipeline.js",
           "count": 1,
@@ -4513,21 +4595,6 @@
           "file": "memory-organs.js",
           "count": 6,
           "type": "exclusive_global"
-        },
-        {
-          "file": "modules_combined.js",
-          "count": 3,
-          "type": "exclusive_global"
-        },
-        {
-          "file": "pristine-fetch.js",
-          "count": 1,
-          "type": "exclusive_global"
-        },
-        {
-          "file": "privacy-forgetting-proof.js",
-          "count": 1,
-          "type": "file_binding"
         }
       ],
       "load_surface_callers": []
@@ -5229,6 +5296,30 @@
         }
       ]
     },
+    "lonsha-icons.js": {
+      "module": "lonsha-icons.js",
+      "surface": [
+        "LonShaIcons"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "dashboard-shell.js",
+          "count": 2,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "dashboard-v2.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "loose-json.js": {
       "module": "loose-json.js",
       "surface": [
@@ -5726,12 +5817,17 @@
       "surface": [
         "LonShaMemoryConfig"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "dev-console-v3.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
         {
           "file": "index.js",
           "count": 2,

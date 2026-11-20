@@ -95,7 +95,7 @@ test('v3.142 missing 与 skipped 分离：有数据但引擎无模块不再被�
     assert.deepEqual(calls, ['graph', 'summary']);
 });
 test('v3.142 导入侧原子性：空恢复不落盘、部分失败先紧急备份、两阶段预检已接线', () => {
-    assert.match(ui, /if \(!_rn\.count\) \{ toast\('\u274c 存档无可恢复内容，原记忆保持不变（未落盘）'\); return; \}/, '空恢复不得覆盖原存档');
+    assert.match(ui, /if \(!_rn\.count\) \{ toast\('存档无可恢复内容，原记忆保持不变（未落盘）', 'error'\); return; \}/, '空恢复不得覆盖原存档');
     assert.match(ui, /storage\.load\(chatId, \{ preserveRuntime: true \}\)/, '恢复前只读取回原存档（不写运行时）');
     assert.match(ui, /emergency\?\.save\(chatId, `部分导入前原存档/, '部分失败落盘前留紧急备份退路');
     assert.match(ui, /dryRun: true \}\);/, '嵌入恢复走两阶段预检');

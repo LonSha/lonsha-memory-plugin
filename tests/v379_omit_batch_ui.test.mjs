@@ -19,7 +19,7 @@ const mlSrc = readFileSync(`${REPO_ROOT}/memory-ledgers.js`, 'utf-8');
 test('=== 1. A: 批量补齐 UI 入口（v3.76 管线首次可触达） ===', () => {
     // 按钮
     assert.ok(su.includes('id="ls-ms-complete"'), '批量补齐按钮');
-    assert.ok(su.includes('🔧 批量补齐'), '按钮文案');
+    assert.ok(su.includes('批量补齐'), '按钮文案');
     // 绑定
     assert.ok(su.includes("const compBtn = ov.querySelector('#ls-ms-complete');"), '绑定获取');
     assert.ok(su.includes('s.summary.completeMissingFloors(s.config.config, s.llm'), '管线调用');
@@ -78,8 +78,8 @@ test('=== 3. C: 番外楼标记 UI（bbs_omit 的 UI 入口） ===', () => {
     assert.ok(su.includes('id="ls-omit-floor"'), '楼层输入框');
     assert.ok(su.includes('id="ls-omit-mark"'), '标记按钮');
     assert.ok(su.includes('id="ls-omit-unmark"'), '取消按钮');
-    assert.ok(su.includes('🎬 标记番外'), '标记文案');
-    assert.ok(su.includes('↩️ 取消番外'), '取消文案');
+    assert.ok(su.includes('标记番外'), '标记文案');
+    assert.ok(su.includes('取消番外'), '取消文案');
     // 绑定逻辑
     assert.ok(su.includes("m.extra.lonsha_omit = mark;"), '写入标记');
     assert.ok(su.includes('该楼层不存在'), '不存在守卫');

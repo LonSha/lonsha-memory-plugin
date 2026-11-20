@@ -26,28 +26,28 @@
                 panelTitle: "心智与记忆微观概览",
                 humanizedCards: [
                     {
-                        badge: "🌡️",
+                        badge: "",
                         label: "当前心境温度",
                         valueText: `${moodTemp}°C`,
                         statusTone: moodTemp > 75 ? "热情奔放" : moodTemp < 35 ? "清冷克制" : "温润平和",
                         description: "反映角色当前对话中的情感活跃度与情绪余震强度。"
                     },
                     {
-                        badge: "💞",
+                        badge: "",
                         label: "情感羁绊黏性",
                         valueText: `${bondPercent}%`,
                         statusTone: bondPercent > 70 ? "心领神会" : "尚存戒备",
                         description: "双方经历重大事件、互助与承诺积累的信任厚度。"
                     },
                     {
-                        badge: "📚",
+                        badge: "",
                         label: "记忆库存沉淀",
                         valueText: `${memoryCount} 条`,
                         statusTone: "检索秒达",
                         description: "已分层提炼为三层金字塔，核心誓约永久驻留免遗忘。"
                     },
                     {
-                        badge: "🛡️",
+                        badge: "",
                         label: "系统运转状态",
                         valueText: systemHealthy ? "流畅如初" : "轻微过载",
                         statusTone: "无技术黑话",

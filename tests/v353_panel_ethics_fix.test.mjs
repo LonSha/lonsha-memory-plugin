@@ -54,7 +54,7 @@ const src = srcRaw + String.fromCharCode(10) + readFileSync(new URL('../memory-c
 const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8');
 
 test('=== 1. P13 诊断面板命中率卡片验证 ===', () => {
-    assert.ok(suSrc.includes('📈 召回源命中率'), 'P13: 命中率卡片标题');
+    assert.ok(suSrc.includes('召回源命中率'), 'P13: 命中率卡片标题');
     assert.ok(suSrc.includes('s._recallSourceStats && s._recallSourceStats.total > 0'), 'P13: 统计守卫');
     assert.ok(suSrc.includes("b[1].hits - a[1].hits"), 'P13: 按命中次数排序');
     assert.ok(suSrc.includes('200 轮半衰'), 'P13: 半衰说明');

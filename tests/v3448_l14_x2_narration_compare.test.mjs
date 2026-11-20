@@ -160,7 +160,7 @@ test('L14-X2: vertical integration across diagnostics, injection, and settings U
     const settingsUiSrc = fs.readFileSync('settings-ui.js', 'utf8');
     assert.ok(settingsUiSrc.includes("s.narrationCompareState"), 'settings-ui 必须调用 narrationCompareState');
     assert.ok(settingsUiSrc.includes("s._narrationCompareLine"), 'settings-ui 必须调用 _narrationCompareLine');
-    assert.ok(settingsUiSrc.includes("🗣️ 往事讲述多方对照"), 'settings-ui 必须渲染工作台标题');
+    assert.ok(settingsUiSrc.includes("往事讲述多方对照"), 'settings-ui 必须渲染工作台标题');
 
     // 4. Negative controls: break code and assert failure
     const mutatedSrc = settingsUiSrc.replaceAll("s.narrationCompareState", "s.nonExistentState");

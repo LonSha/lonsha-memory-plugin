@@ -47,11 +47,11 @@ const suSrc = readFileSync(new URL('../settings-ui.js', import.meta.url), 'utf-8
 
 test('=== 1. OpLog 审计浏览器视图验证 ===', () => {
     assert.ok(suSrc.includes("viewType === 'oplog'"), 'oplog 视图分发');
-    assert.ok(suSrc.includes("title = '🔍 事件审计链（OpLog）'"), '视图标题');
+    assert.ok(suSrc.includes("title = '事件审计链（OpLog）'"), '视图标题');
     assert.ok(suSrc.includes('opLog.recent(80)'), '最近 80 条渲染');
     assert.ok(suSrc.includes('const st = opLog.stats()'), '统计头');
     assert.ok(suSrc.includes('环形 500'), '环形说明');
-    assert.ok(suSrc.includes('rollback: \'↩️回滚\''), '回滚类型中文化');
+    assert.ok(suSrc.includes('rollback: \'回滚\''), '回滚类型中文化');
     // XSS 防护（esc 转义）
     assert.ok(suSrc.includes('${esc(e.ref)}') && suSrc.includes('${esc(e.op)}'), '条目字段转义');
     console.log('✓ OpLog 审计浏览器视图验证通过');

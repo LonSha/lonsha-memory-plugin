@@ -62,7 +62,7 @@ const A_PEND_GATE = "                } else if (chosen && applied) {";
 const A_LOST_BRANCH = "                    fate = INHERITANCE_FATE.LOST;\n                    cause = 'lost:dropped-in-transition';";
 const A_SECRET_LESS = "                else if (!secRef) bd = { boundary: 'undecided', why: 'secret-ref-missing' };";
 const A_UI_JOIN = '                    <button class="ls-btn ls-btn-primary" id="ls-pq-save">'
-    + String.fromCodePoint(0x1F4BE) + ' 保存前情资料</button>` + _inhHtml;';
+    + '<i class="ls-ico" data-i="save" aria-hidden="true"></i>保存前情资料</button>` + _inhHtml;';
 
 const occ = (s, sub) => (sub === '' ? -1 : s.split(sub).length - 1);
 
@@ -557,8 +557,13 @@ test('H3: 宿主 libs 注入 + 四转发桩；诊断层接收口与调用点同�
 test('H4: 面板 prequel 视图挂上传承清单，且**不提供**「声明为 pending」', () => {
     /* ★ 口径说明：标题里的 emoji 在源码里是**字面字符**（不是转义序列）。
      *   断言用 code point 现场拼，避免「我以为是这个码点」的猜。 */
-    const TITLE = String.fromCodePoint(0x1F3FA) + ' 跨代传承';
-    assert.equal(occ(UI_SRC, TITLE), 1, '传承清单标题恰一处（实码点 U+1F3FA）');
+    /* v3.1 起标题前缀由字符图标（U+1F3FA）换成 <i class="ls-ico">，判据改为：
+       标题文本恰一处，且在 .ls-group-title 位（图标化不等于可以不出现）。 */
+    /* 按标题边界计数：清单标题「跨代传承」后紧跟 <span（副标题），而另一个面是
+       「跨代传承交接草案工作台」——两者不能算同一个标题。 */
+    const _titles = UI_SRC.match(/[>]跨代传承<span/g) || [];
+    assert.equal(_titles.length, 1, '传承清单标题恰一处（「跨代传承」+ 副标题 span，实测 ' + _titles.length + '）');
+    assert.match(UI_SRC, /class="ls-group-title"[^\n]{0,120}data-i="archive"[^\n]{0,60}跨代传承<span/, '标题仍在分组标题位且带图标');
     assert.equal(occ(UI_SRC, 's.inheritanceRosterState()'), 1, '面板必须走宿主方法取数（不自己算）');
     assert.equal(occ(UI_SRC, 'data-inh-fate="pending"'), 0,
         '面板不许给「声明为 pending」的按钮（那等于把遗失改写成还没传）');

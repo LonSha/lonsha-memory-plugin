@@ -144,8 +144,8 @@ test('[2b] the settings panel really renders those controls (behavioural)', () =
         for (const c of cands) { const i = sui.indexOf(c); if (i !== -1) return i; }
         return -1;
     };
-    const startIdx = pick(['🏷️ 剧情领域与分类记录', '[DOMAIN] 分类记录', '🧩 记忆域开关']);
-    const endIdx = pick(['🧠 剧情理解与多路联想', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
+    const startIdx = pick(['剧情领域与分类记录', '[DOMAIN] 分类记录', '🧩 记忆域开关']);
+    const endIdx = pick(['剧情理解与多路联想', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
     const group = sui.slice(startIdx, endIdx);
     assert.ok(group.length > 0, 'the new group is present');
     for (const k of ['diaryBridgeEnabled', 'clockSyncEnabled', 'pairMemoryEnabled', 'conflictBookEnabled',

@@ -69,7 +69,10 @@ function mirror(mut) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v3427-gt-'));
     fs.cpSync(ROOT, dir, {
         recursive: true,
-        filter: (src) => !/[\\/](\.git|node_modules|\.tmp)([\\/]|$)/.test(src),
+        /* 顺手跳过平台镜像层（L2S）留下的 `.l2s.*` 残片：那是自指链接，cpSync 一 stat 就 ELOOP。
+         *   它是环境产物、不在 git 里，也不参与任何判据读数 —— 复制时跳过它才是「复制这棵树」的本意。 */
+        filter: (src) => !/[\\/](\.git|node_modules|\.tmp)([\\/]|$)/.test(src)
+            && !/[\\/]\.l2s\./.test(src),
     });
     if (mut) mut(dir);
     return dir;
@@ -221,7 +224,8 @@ test('v3427 N1. ★★ 负控制：把 seam 门禁的在场率守卫写死成常
     try {
         fs.cpSync(ROOT, dir, {
             recursive: true,
-            filter: (s) => !/[\\/](\.git|node_modules|\.tmp)([\\/]|$)/.test(s),
+            filter: (s) => !/[\\/](\.git|node_modules|\.tmp)([\\/]|$)/.test(s)
+                && !/[\\/]\.l2s\./.test(s),   // 同上：平台 L2S 残片不进镜像
         });
         fs.writeFileSync(path.join(dir, 'tests', 'audit', 'scan_extra_js_seam.mjs'), broken, 'utf8');
         deleteRootJs(dir);

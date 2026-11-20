@@ -2,7 +2,7 @@
   "file": "tests/audit/freshness_ledger.json",
   "generator": "tools/gen_freshness_report.mjs（由它写；判据 --check 逐字节比对，手改即红）",
   "note": "L23-O9 冻结读数新鲜度台账。三态口径来自 tests/audit/_freshness_judge.mjs（阈值单一真源）。`ageDays` 是整岁天数；版本式时间戳（measured_at）按该版本提交日计龄。expired 的读数**不得再作依据**，refresh 一列给出可复制的刷新命令。",
-  "judged_at": "2026-11-20T04:25:16.441Z",
+  "judged_at": "2026-11-20T21:36:15.408Z",
   "counts": {
     "fresh": 6,
     "stale": 4
@@ -58,8 +58,8 @@
       "producer": "tests/v3227_gate_isolation_and_timing.test.mjs",
       "producer_verified": false,
       "state": "stale",
-      "ageDays": 55,
-      "why": "读数已 55 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "ageDays": 56,
+      "why": "读数已 56 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
       "refresh": "node tests/v3227_gate_isolation_and_timing.test.mjs"
     },
     {
@@ -76,8 +76,8 @@
       "producer": "tests/v3231_snapshot_scale_evidence.test.mjs",
       "producer_verified": false,
       "state": "stale",
-      "ageDays": 45,
-      "why": "读数已 45 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "ageDays": 46,
+      "why": "读数已 46 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
       "refresh": "node tests/v3231_snapshot_scale_evidence.test.mjs"
     },
     {

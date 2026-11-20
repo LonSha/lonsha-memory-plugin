@@ -43,9 +43,9 @@ test('v34230 A. 玩家主页落地且旧菜单退役', () => {
 
 /* ---------- B. API 前置到「常用」页顶部 ---------- */
 test('v34230 B. AI 接口连接前置 + Embedding 三键在场', () => {
-    assert.ok(SUI.includes('🔗 AI 接口连接'), 'API 组新标题在场');
+    assert.ok(SUI.includes('AI 接口连接'), 'API 组新标题在场');
     assert.ok(!SUI.includes('[API] 专用接口配置'), '旧 API 组标题退役');
-    const apiIdx = SUI.indexOf('🔗 AI 接口连接');
+    const apiIdx = SUI.indexOf('AI 接口连接');
     const genTab = SUI.indexOf('data-tab-pane="general"');
     assert.ok(apiIdx > 0 && genTab > 0 && genTab < apiIdx && apiIdx - genTab < 12000,
         'API 组在 general tab 首屏附近（前置，不再埋在 retrieval）');
@@ -77,10 +77,10 @@ test('v34230 C. 组标题全面玩家语言', () => {
     // ② 每个**静态**组标题都必须含中文（结构性禁黑话）。
     //    模板字面量标题（`📓 ${esc(name)}` / `'\n + b.cls + ...'` 这类拼接）不在此判：
     //    它们的中文来自运行时变量，静态扫描看不见，强行点名只会让判据自己假红。
-    const titles = [...SUI.matchAll(/class="ls-group-title"[^>]*>([^<]*)/g)]
+    const titles = [...SUI.matchAll(/class="ls-group-title"[^>]*>(?:<i [^>]*><\/i>)?([^<]*)/g)]
         .map((m) => m[1].trim())
         .filter((t) => t && !/[$`'\n]/.test(t));
-    assert.ok(titles.length >= 20, '静态组标题样本量足够（实测 ' + titles.length + '）');
+    assert.ok(titles.length >= 20, '静态组标题样本量足够（实测 ' + titles.length + '；允许标题前有 <i class="ls-ico"> 图标前缀）');
     const noHan = titles.filter((t) => !/[\u4e00-\u9fa5]/.test(t));
     assert.deepStrictEqual(noHan, [], '静态组标题必须含中文白话（实测黑话残留：' + JSON.stringify(noHan) + '）');
     // ③ 四个 tab 覆盖玩家三件事 + 高级面
@@ -114,8 +114,8 @@ test('v34230 C. 组标题全面玩家语言', () => {
         assert.ok(!/^[\[A-Za-z0-9 _\-\]]+$/.test(r.label), 'tab 不得是纯英文/方括号黑话：' + r.label);
         assert.ok(/[\u4e00-\u9fa5]/.test(r.label), 'tab 必须含中文：' + r.label);
     }
-    assert.ok(SUI.includes("'⚙ 设置'"), '设置面板标题翻新');
-    assert.ok(SUI.includes("'📖 记忆总览'"), '总览面板标题翻新');
+    assert.ok(SUI.includes("'设置'"), '设置面板标题翻新');
+    assert.ok(SUI.includes("'记忆总览'"), '总览面板标题翻新');
 });
 
 /* ---------- D. 上一轮两缺陷的修复不因重构丢失 ---------- */

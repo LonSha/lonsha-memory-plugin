@@ -326,7 +326,7 @@
         var head = [
             "# 图谱对比" + (o.title ? "：" + String(o.title) : ""),
             "新增 " + Number(c.added || 0) + " 条 / 消失 " + Number(c.removed || 0) + " 条 / 未变 " + Number(c.same || 0) + " 条",
-            o.fromAt || o.toAt ? "时点：" + String(o.fromAt || "?") + " → " + String(o.toAt || "?") : ""
+            o.fromAt || o.toAt ? "时点：" + String(o.fromAt || "?") + " " + String(o.toAt || "?") : ""
         ].filter(function (x) { return x.length > 0; });
         var body = rows.map(function (r) {
             var dir = r.kind === "added" ? "+" : "-";

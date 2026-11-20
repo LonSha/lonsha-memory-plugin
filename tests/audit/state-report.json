@@ -11,7 +11,7 @@
   "human_index_version": "3.475.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 433,
+    "extra_js": 437,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -28,6 +28,10 @@
       "evidence-source-locator.js",
       "config-effect-registry.js",
       "settings-ui.js",
+      "lonsha-icons.js",
+      "dashboard-shell.js",
+      "dashboard-v2.js",
+      "dev-console-v3.js",
       "modules_combined.js",
       "graph_algorithms.js",
       "memory-supersede.js",
@@ -447,7 +451,7 @@
       "batch-op-ledger.js",
       "recall-explainer.js"
     ],
-    "root_js": 446,
+    "root_js": 450,
     "missing_in_manifest": []
   },
   "gates": {
@@ -1138,12 +1142,12 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "a99c037b8b32",
+      "manifest.json": "7ef547bfe30d",
       "package.json": "f6d2e01b84f8",
       "index.js": "39a2aaad549f",
       "update-log.json": null,
       "README.md": "43f6df80b41b",
-      "PLAN.md": "5823496497df",
+      "PLAN.md": "91076d5eff91",
       "CHANGELOG.md": "496fefc4532a",
       "TODO.md": "fd477922da0a",
       "tests/audit/doc_readings.json": "c56fda0d81c3"

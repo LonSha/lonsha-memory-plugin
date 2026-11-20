@@ -95,7 +95,7 @@ assert('recallMemory 支持休眠唤醒接入', idxSrc.includes('【久别重现
 
 // 领域 3: 可视化台账 Undo 审计栈
 assert('settings-ui 包含 _auditStack 与 undoLastOp', suiSrc.includes('plugin._auditStack = []') && suiSrc.includes('plugin.undoLastOp = async function'));
-assert('settings-ui showBrowser 包含撤销按钮', suiSrc.includes('↺ 撤销上次修改'));
+assert('settings-ui showBrowser 包含撤销按钮', suiSrc.includes('撤销上次修改'));
 
 // ===== 3. 动态仿真：多维关系共存与同维度互斥演化 =====
 {

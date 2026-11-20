@@ -559,7 +559,7 @@ test('F5 负控制：概览行退回对象插值 → D1 必须翻红', () => {
 
 test('F6 负控制：类型表退回 13 项 → D3 必须翻红', () => {
     negative(
-        sui.replace(" locked_fact: '🔒锁定事实', worldprogress: '🌍世界进度', cse: '🧠人物状态', delta: '📒正史增量', gc: '🧹回收账本', ledger: '📚楼层账本'",
+        sui.replace(" locked_fact: '锁定事实', worldprogress: '世界进度', cse: '人物状态', delta: '正史增量', gc: '回收账本', ledger: '楼层账本'",
             " "),
         (src) => {
             const m = src.match(/const typeCn = \{([^}]*)\}/);

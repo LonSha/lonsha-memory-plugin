@@ -76,7 +76,7 @@ test('=== 3. C: 查询重写上下文增强 ===', () => {
 });
 
 test('=== 4. B: 携带包预览 ===', () => {
-    assert.ok(su.includes('🚚 携带包预览'), '预览消息');
+    assert.ok(su.includes('携带包预览'), '预览消息');
     assert.ok(su.includes('if (!confirm(prevMsg)) { toast(\'已取消打包\'); return; }'), '确认门');
     // 预览消息构造复刻
     const buildPrev = (pack) => {

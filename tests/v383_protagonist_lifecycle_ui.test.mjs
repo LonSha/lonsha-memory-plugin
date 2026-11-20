@@ -119,9 +119,9 @@ test('=== 4. B: UI 视图与操作分支（静态特征） ===', () => {
     assert.ok(card && card.includes('主角档案'), '卡片标签');
     assert.ok(su.includes('kind === "protagonist_field"'), '字段编辑操作分支');
     assert.ok(su.includes('kind === "life"'), '生活小档案操作分支');
-    assert.ok(su.includes('📌 置顶常驻'), 'tier 操作：置顶');
-    assert.ok(su.includes('📦 沉降'), 'tier 操作：沉降');
-    assert.ok(su.includes('🔹 常规'), 'tier 操作：常规');
+    assert.ok(su.includes('置顶常驻'), 'tier 操作：置顶');
+    assert.ok(su.includes('沉降'), 'tier 操作：沉降');
+    assert.ok(su.includes('常规'), 'tier 操作：常规');
     // 三 tier 分组渲染
     assert.ok(su.includes("for (const tier of ['pinned', 'active', 'archive'])"), '三 tier 分组');
 });

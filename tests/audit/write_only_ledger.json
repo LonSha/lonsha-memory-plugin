@@ -3,11 +3,11 @@
   "generator": "tools/gen_write_only_disposal.mjs（由它写，手改无效：判据 --check 会红）",
   "note": "L23-O6「写了不读」处置清单。口径 = 键级（engine./state. 前缀，全仓比对读取点，含字符串键与解构读）。每条只写可复验事实：write 站点数 / 产品侧非写入提及数 / 测试提及数；判据 l23_o6 的 C1/C2 会重新读盘复验，改过的理由会当场烂掉。无理由登记无效；已修掉的字段必须删条（豁免也双向）。",
   "scope_snapshot": {
-    "filesScanned": 450,
-    "bytesScanned": 9146052,
+    "filesScanned": 454,
+    "bytesScanned": 9379243,
     "writeSites": 443,
     "distinctFields": 282,
-    "readSites": 2852,
+    "readSites": 2855,
     "fieldsWithRead": 841,
     "crossFileReads": 44,
     "sameFileReads": 165,
@@ -341,7 +341,7 @@
       "field": "_lastItemOpsClaim",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:999",
-      "read": "engine-self-check.js:1371（this-receiver） / index.js:1859（this-receiver） / settings-ui.js:1770（same-name-local）",
+      "read": "engine-self-check.js:1371（this-receiver） / index.js:1859（this-receiver） / settings-ui.js:1779（same-name-local）",
       "reason": "产品侧有 3 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -349,7 +349,7 @@
         "product_mention_sites": [
           "engine-self-check.js:1371",
           "index.js:1859",
-          "settings-ui.js:1770"
+          "settings-ui.js:1779"
         ],
         "test_mentions": 5
       }
@@ -371,13 +371,13 @@
       "field": "_lastRecallHitExplanations",
       "class": "mention-same-name-local",
       "write": "1 处：engine-recall.js:977",
-      "read": "settings-ui.js:509（same-name-local）",
+      "read": "settings-ui.js:518（same-name-local）",
       "reason": "产品侧有 1 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 1,
         "product_mention_sites": [
-          "settings-ui.js:509"
+          "settings-ui.js:518"
         ],
         "test_mentions": 0
       }

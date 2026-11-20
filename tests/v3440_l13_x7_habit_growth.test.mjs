@@ -46,7 +46,7 @@ const uiSrc = fs.readFileSync(UI, 'utf8');
 const organsSrc = fs.readFileSync(ORGANS, 'utf8');
 
 /* ── 锚点（各只声明一次；判据函数不引用这些串） ── */
-const A_UI_TITLE = '🌱 习惯与成长证据';
+const A_UI_TITLE = '习惯与成长证据';
 /* 分区起点：窗口必须从**取数点**起算，不是从标题起算。
  *   实测教训：标题在 `hgBlock` 拼装处，而 `hg.groups` / `counts.unproven` 这些
  *   读数点在前 3589 字符 —— 用标题当窗口起点，判据看的是「拼装段」而不是「整块」，

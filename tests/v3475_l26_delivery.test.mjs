@@ -60,7 +60,7 @@ test('A1 登记：manifest.extra_js 含全部 18 个模块文件名', () => {
     const man = RJ('manifest.json');
     const missing = L26.filter(([, f]) => man.extra_js.indexOf(f) < 0).map(([, f]) => f);
     assert.deepEqual(missing, [], '缺登记：' + missing.join('、'));
-    assert.equal(man.extra_js.length, 433, 'extra_js 应为 433（415 + 18），实为 ' + man.extra_js.length);
+    assert.equal(man.extra_js.length, 437, 'extra_js 应为 437（415 + 18 既有 + 4 面板层：lonsha-icons / dashboard-shell / dashboard-v2 / dev-console-v3），实为 ' + man.extra_js.length);
 });
 
 test('A2 登记：可选引擎注册表 18 条全在，且 status() 逐条 loaded 为真', () => {

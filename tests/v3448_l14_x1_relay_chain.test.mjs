@@ -218,7 +218,7 @@ test('L14-X1: cross-layer vertical integration (diagnostics, injection pipeline,
     const settingsUiSrc = fs.readFileSync('settings-ui.js', 'utf8');
     assert.ok(settingsUiSrc.includes("s.knowledgeRelayState"), 'settings-ui 必须调用 knowledgeRelayState');
     assert.ok(settingsUiSrc.includes("s._knowledgeRelayLine"), 'settings-ui 必须调用 _knowledgeRelayLine');
-    assert.ok(settingsUiSrc.includes("📡 消息多跳转告链"), 'settings-ui 必须渲染工作台标题');
+    assert.ok(settingsUiSrc.includes("消息多跳转告链"), 'settings-ui 必须渲染工作台标题');
 
     // 4. Negative controls: break code and assert failure
     const mutatedSrc = settingsUiSrc.replaceAll("s.knowledgeRelayState", "s.nonExistentRelayState");

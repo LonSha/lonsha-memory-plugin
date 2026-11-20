@@ -20,10 +20,10 @@ assert('recallMemory 过滤丢失损毁物品', idxSrc.includes("r.state === '�
 assert('_ERROR_HINTS 包含结构化字段 (title/reason/action)', idxSrc.includes("title: 'API Key 无效'") && idxSrc.includes("action: '前往设置检查 API Key 与端点地址是否匹配。'"));
 assert('hintForError 返回结构化组合人话', idxSrc.includes("`【${h.title}】${h.reason} 建议：${h.action}`"));
 assert('settings-ui 包含 items 视图卡片', suiSrc.includes('data-view="items"'));
-assert('settings-ui showBrowser 包含物品台账', suiSrc.includes("viewType === 'items'") && suiSrc.includes('🎒 物品台账'));
+assert('settings-ui showBrowser 包含物品台账', suiSrc.includes("viewType === 'items'") && suiSrc.includes('物品台账'));
 assert('settings-ui 物品条目绑定 data-opkind="item"', suiSrc.includes('data-opkind="item"'));
-assert('settings-ui _memOps 包含物品操作 (变更持有者/变更状态/移除)', suiSrc.includes('👤 变更持有者') && suiSrc.includes('📦 变更状态') && suiSrc.includes('🗑 标记丢弃/移除'));
-assert('settings-ui 诊断面板渲染人话指引', suiSrc.includes('💡 诊断指引：'));
+assert('settings-ui _memOps 包含物品操作 (变更持有者/变更状态/移除)', suiSrc.includes('变更持有者') && suiSrc.includes('变更状态') && suiSrc.includes('标记丢弃/移除'));
+assert('settings-ui 诊断面板渲染人话指引', suiSrc.includes('诊断指引：'));
 
 // ===== 3. 行为模拟：normalizeItemKey 确定性键名归一 =====
 function normalizeItemKey(name) {

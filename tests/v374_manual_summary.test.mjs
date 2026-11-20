@@ -32,7 +32,7 @@ test('=== 1. 静态关键字检查 ===', () => {
     assert.ok(src.includes('s.edited = true;'), '编辑标记');
     assert.ok(src.includes('manual: true'), '补摘标记');
     // B UI 侧
-    assert.ok(su.includes('✏ 编辑该摘要'), '编辑按钮');
+    assert.ok(su.includes('编辑该摘要'), '编辑按钮');
     assert.ok(su.includes('ls-ms-floor'), '楼层输入');
     assert.ok(su.includes('ls-ms-text'), '文本输入');
     assert.ok(su.includes('ls-ms-add'), '补摘按钮');

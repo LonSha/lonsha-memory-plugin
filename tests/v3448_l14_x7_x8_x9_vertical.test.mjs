@@ -62,7 +62,7 @@ test('L14-X7: vertical integration across diagnostics, injection, and settings U
     assert.match(text, /已履约/);
 
     // 3. Settings UI integration
-    assert.match(settingsUiSource, /🩹 关系修复回应与行为回链/);
+    assert.match(settingsUiSource, /关系修复回应与行为回链/);
     assert.match(settingsUiSource, /repairResponseState/);
 
     // 4. Negative control
@@ -110,7 +110,7 @@ test('L14-X8: vertical integration across diagnostics, injection, and settings U
     assert.match(text, /alice\(1项\)/);
 
     // 3. Settings UI integration
-    assert.match(settingsUiSource, /📜 跨代传承交接草案工作台/);
+    assert.match(settingsUiSource, /跨代传承交接草案工作台/);
     assert.match(settingsUiSource, /eraHandoffDraftState/);
 
     // 4. Negative control
@@ -156,7 +156,7 @@ test('L14-X9: vertical integration across diagnostics, injection, and settings U
     assert.match(text, /battle_of_red_cliff/);
 
     // 3. Settings UI integration
-    assert.match(settingsUiSource, /📅 记忆回访日程工作台/);
+    assert.match(settingsUiSource, /记忆回访日程工作台/);
     assert.match(settingsUiSource, /revisitScheduleState/);
 
     // 4. Negative control

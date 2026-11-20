@@ -344,6 +344,18 @@ const unresolved = [...referenced].filter(s => !actuallyProvided.has(s) && !self
 // 要么尚未接线）。它们不是死文件（已被注册、有独立单测），但属于「静默腐烂」区，
 // 必须显式记账而不是放任增长。
 const UNCONSUMED_LEDGER = [
+    /* [v3.475.1 · 面板层] 三个 UI 全局由 **dashboard-shell.js** 消费，不由 index.js 消费：
+     *   · LonShaIcons         —— 图标集，被 dashboard-shell / dashboard-v2 / dev-console-v3 的
+     *                            `I()` 包装按 window.LonShaIcons 取用（seam 台账 verdict=module-internal）。
+     *   · LonShaDashboardV2   —— 玩家 Dashboard 的视觉层，由外壳在 enhance 后派发
+     *                            `lonsha:dashboard-enhanced` 事件、v2 自己监听并升级，外壳 probeModules()
+     *                            读它的 version 做降级判断。
+     *   · LonShaDevConsole    —— 开发者控制台，同样由外壳 probeModules() 读版本、按 data-ls-dc 挂载。
+     *   为什么不从 index.js 接线：index.js 是**引擎侧**入口，面板层由 settings-ui 触发 showSettingsPanel，
+     *   index.js 引用 UI 全局会把「引擎可跑」和「面板可渲染」耦合成一个失败面；本仓库的面板层一直
+     *   走 settings-ui 自装载，故此处记账而不改 index.js。
+     */
+    'LonShaIcons', 'LonShaDashboardV2', 'LonShaDevConsole',
     // [v3.173] 缝合模块接线面：**账本已清空**。
     //   v3.163 建账时这里冻结了 7 个「已挂载但零消费」的模块（canonical / dependency-closure /
     //   entity-semantic / extraction-cadence / floor-range / npc-ties / turn-reconciler）。

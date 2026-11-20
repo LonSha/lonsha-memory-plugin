@@ -202,7 +202,7 @@
 
         if (working.length > plan.suggestCount) {
             var kept = working.slice(0, plan.suggestCount);
-            degraded.push({ level: "count", why: STEP_WHY.count, detail: working.length + " → " + kept.length + " 条" });
+            degraded.push({ level: "count", why: STEP_WHY.count, detail: working.length + " " + kept.length + " 条" });
             levels.count = true;
             working = kept;
         }
@@ -222,7 +222,7 @@
                 return next;
             });
             totalChars = working.reduce(function (s, m) { return s + textOf(m).length; }, 0);
-            degraded.push({ level: "length", why: STEP_WHY.length, detail: "单条上限 " + perRow + " 字（本节共 " + before + " → " + totalChars + " 字）" });
+            degraded.push({ level: "length", why: STEP_WHY.length, detail: "单条上限 " + perRow + " 字（本节共 " + before + " " + totalChars + " 字）" });
             levels.length = true;
         }
 

@@ -114,8 +114,8 @@ test('[2] the new reasoning group renders every one of the nine', () => {
         for (const c of cands) { const i = sui.indexOf(c); if (i !== -1) return i; }
         return -1;
     };
-    const g0 = pick(['🧠 剧情理解与多路联想', '[INFERENCE] 推理', '🧭 推理调优']);
-    const g1 = pick(['⚖️ 回忆排序与精选权重', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
+    const g0 = pick(['剧情理解与多路联想', '[INFERENCE] 推理', '🧭 推理调优']);
+    const g1 = pick(['回忆排序与精选权重', '[TOPOLOGY] 因果追踪', '🏛️ 工业级体系化增强']);
     assert.ok(g0 > 0 && g1 > g0, 'the reasoning group sits before the industrial group');
     const group = sui.slice(g0, g1);
     for (const k of ['memoryTreeEnabled', 'aiRecallOpsDebug']) {
