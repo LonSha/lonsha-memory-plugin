@@ -115,3 +115,36 @@
     from { opacity: 0; }
     to   { opacity: 1; }
 }
+
+/* ---- 楼层记忆徽章：极轻、只在有数时出现，点开看明细 ----
+   设计取向与面板相反：面板是“进来找”，徽章是“不用找”。
+   故它必须低噪音（默认 0.55 不透明度、无底色、单线描边），
+   鼠标/键盘聚焦才升到强调色 —— 它不该和剧情正文抢注意力。 */
+.ls-mem-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin: 3px 0 0; padding: 1px 9px;
+    font: inherit; font-size: 11px; line-height: 1.7;
+    color: var(--ls-text-3, #8b98a8);
+    background: transparent;
+    border: 1px solid var(--ls-line, rgba(255,255,255,0.10));
+    border-radius: 999px;
+    cursor: pointer; opacity: .55;
+    transition: opacity .15s ease, color .15s ease, border-color .15s ease;
+}
+.ls-mem-badge:hover { opacity: 1; color: var(--ls-accent, #38bdf8); border-color: var(--ls-accent-line, rgba(56,189,248,0.28)); }
+.ls-mem-badge:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; opacity: 1; }
+
+/* ---- 健康页：正常项折叠（首屏只留「需要看一眼」的） ---- */
+.ls-health-more { margin-top: 8px; }
+.ls-health-more > summary {
+    cursor: pointer; list-style: none; font-size: 12px;
+    color: var(--ls-text-3, #8b98a8); padding: 6px 2px;
+}
+.ls-health-more > summary::-webkit-details-marker { display: none; }
+.ls-health-more > summary::before { content: '▸ '; color: var(--ls-accent, #38bdf8); }
+.ls-health-more[open] > summary::before { content: '▾ '; }
+.ls-health-more > summary:hover { color: var(--ls-accent, #38bdf8); }
+.ls-health-subgrid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px; margin-top: 6px;
+}

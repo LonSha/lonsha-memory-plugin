@@ -3931,12 +3931,28 @@
                 const items = Array.isArray(ck.items) ? ck.items : [];
                 const _faceOfLevel = (lv) => lv === 'ok' ? 'ok' : lv === 'warning' ? 'warn' : lv === 'critical' ? 'crit' : 'pending';
                 if (items.length) {
-                    grid.innerHTML = items.map(it => _hc(
+                    /* [UI · 警报收敛] 修前：18 项读数**等权平铺**，其中绝大多数是 ok。
+                     *   这不是「信息充分」，是「没有信号」—— 一屏 18 张卡里 17 张正常，
+                     *   玩家学会的只会是「不看这一页」。故按**是否需要看一眼**分层：
+                     *     · 需要看的（warning / critical / unknown）**全部直接可见**，真问题绝不藏；
+                     *     · 正常的收进「其余 N 项正常」，一条折叠，点开仍在（出口不丢）。
+                     *   反向纪律：不得把 attention 也折叠 —— 那会把「不看」变成「藏起来」。 */
+                    const _lv = (it) => String((it && it.level) || 'unknown');
+                    const _card = (it) => _hc(
                         String(it.label || it.key || ''),
-                        _faceOfLevel(String(it.level || 'unknown')),
+                        _faceOfLevel(_lv(it)),
                         String(it.value === undefined ? '—' : it.value),
                         String(it.note || it.why || '')
-                    )).join('');
+                    );
+                    const _attention = items.filter(it => _lv(it) !== 'ok');
+                    const _normal = items.filter(it => _lv(it) === 'ok');
+                    grid.innerHTML = (_attention.length
+                        ? _attention.map(_card).join('')
+                        : '<div class="ls-hint">没有需要注意的项。</div>')
+                        + (_normal.length
+                            ? '<details class="ls-health-more"><summary>其余 ' + _normal.length + ' 项正常（点开看全部读数）</summary>'
+                                + '<div class="ls-health-subgrid">' + _normal.map(_card).join('') + '</div></details>'
+                            : '');
                 } else {
                     /* 内核返回的形状不含 items 时，按它自己的 face 如实报，
                      *   不自己编一套四项数字。 */
@@ -5806,6 +5822,63 @@
                 <div style="max-height:30vh;overflow-y:auto;">${errRows}</div>`;
             const overlay = makeSheet('lonsha-diag-overlay', '⚙ 记忆内核全景诊断', body);
         };
+
+        /* ========== 楼层记忆徽章：把“记住了什么”搬回动作发生的地方 ==========
+         * 面板再准，也是“要去点开”的地方；玩家真正会看的是聊天流里的这一楼。
+         * 每轮生成结束在楼层尾部挂一枚极轻的徽章：本轮注入了几条记忆。
+         * 三条纪律（与面板同源：只说结果、不出现引擎术语）：
+         *   · 只在**有数**时出现 —— 记忆未开启时不挂任何 DOM，绝不做噪音；
+         *   · 任何异常一律吞掉并只记日志：徽章是旁路，绝不阻塞消息渲染；
+         *   · 同一楼重复生成（swipe / reroll）必须**替换**而不是叠罗汉。
+         */
+        plugin.renderMemoryBadge = function(messageId) {
+            try {
+                const cfg = this.engine?.config?.config;
+                if (!cfg || cfg.enabled === false) return false;
+                const doc = document;
+                const mes = doc.querySelector('#chat .mes[mesid="' + messageId + '"]');
+                if (!mes) return false;
+                const host = mes.querySelector('.mes_text') || mes.querySelector('.mes_block');
+                if (!host || !host.parentNode) return false;
+                const stale = mes.querySelector('.ls-mem-badge');
+                if (stale) stale.remove();
+                const trace = this.engine._lastRecallTrace || null;
+                const n = trace ? (Number(trace.hitCount) || 0) : 0;
+                const badge = doc.createElement('button');
+                badge.type = 'button';
+                badge.className = 'ls-mem-badge';
+                badge.setAttribute('data-ls-mem-badge', String(messageId));
+                const tip = n > 0 ? ('本轮注入了 ' + n + ' 条记忆，点击看明细') : '本轮没有注入记忆，点击看状态';
+                badge.setAttribute('title', tip);
+                badge.setAttribute('aria-label', tip);
+                badge.textContent = '🧠 记忆 ' + n;
+                badge.addEventListener('click', () => {
+                    try { plugin.showStatsPanel(); } catch (e) { reportUiError(e, 'badge.open'); }
+                });
+                host.parentNode.insertBefore(badge, host.nextSibling);
+                return true;
+            } catch (e) {
+                reportUiError(e, 'badge');
+                return false;
+            }
+        };
+
+        /* ========== 徽章订阅：注册在自己的模块里，不碰宿主主链路 ==========
+         * 为什么不去 index.js 的 MESSAGE_RECEIVED 里加一行：
+         *   index.js 每加一行，十几个「基线行数」判据（v3257/v3259/…/v3304/v3480/v3232）都要重定基。
+         *   而徽章是**纯 UI 关注点**，由 UI 模块自己订阅比塞进宿主事件链更内聚；
+         *   宿主没提供 eventSource 时就地静默降级（不报错、不占位）。
+         */
+        try {
+            const _ctx = window.SillyTavern?.getContext?.();
+            const _es = _ctx?.eventSource;
+            const _types = _ctx?.eventTypes || window.event_types;
+            if (_es && _types?.MESSAGE_RECEIVED) {
+                _es.on(_types.MESSAGE_RECEIVED, (messageId) => {
+                    try { plugin.renderMemoryBadge(messageId); } catch (e) { reportUiError(e, 'badge.event'); }
+                });
+            }
+        } catch (e) { reportUiError(e, 'badge.subscribe'); }
 
         console.log('[LonSha记忆引擎] ✓ 设置面板模块已挂载 (点击🧠 → ⚙️设置)');
     };

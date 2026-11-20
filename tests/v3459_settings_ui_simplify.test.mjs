@@ -123,6 +123,24 @@ test('玩家首屏：专用接口按需展开，预览不提前写配置，保�
     assert.equal(p.get('#ls-custom-api-fields').hidden,false);
     assert.deepEqual(p.errors,[]);
 });
+test('健康页警报收敛：正常项折叠、需要看的全部可见', () => {
+    /* 修前形态：18 项读数等权平铺，其中绝大多数 ok —— 一屏 18 张卡里 17 张正常，
+     *   玩家学会的只会是「不看这一页」。故按是否需要看一眼分层。
+     * 本判据锁的是**分层的方向**，不是具体文案：
+     *   · normal 必须进折叠（噪音不进首屏）；
+     *   · attention **不得**被折叠或截断（把问题藏起来比平铺更坏）。 */
+    const src = read('settings-ui.js');
+    const at = src.indexOf('const renderHealth = () =>');
+    assert.ok(at > 0, '找不到 renderHealth');
+    const endAt = src.indexOf('if (sum) {', at);
+    assert.ok(endAt > at, '抓不到 renderHealth 的读数渲染段');
+    const body = src.slice(at, endAt);
+    assert.match(body, /_attention\s*=/, '必须显式分出「需要看一眼」的一批');
+    assert.match(body, /_normal\s*=/, '必须显式分出「正常」的一批');
+    assert.match(body, /ls-health-more/, '正常项必须收进折叠容器');
+    assert.ok(!/_attention\.slice\(/.test(body), 'attention 不得截断：真问题必须全部可见');
+    assert.ok(!/ls-health-more[^\n]*_attention/.test(body), 'attention 不得进折叠容器');
+});
 test('玩家档位：点击保存真实配置、同步下拉与辅助状态，重开仍选中', () => {
     const p=playerPanel();
     p.get('[data-profile="quality"]').click();
