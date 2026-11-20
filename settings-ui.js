@@ -364,7 +364,7 @@
             };
             overlay._lsTryClose = tryClose;
             /* 关闭按钮是 <button> 而不是 <span>：修前键盘用户无法到达它。 */
-            overlay.querySelector('.lonsha-sheet-close').addEventListener('click', () => { tryClose(); });
+            overlay.querySelector('.lonsha-sheet-close')?.addEventListener('click', () => { tryClose(); });
             /* [v3.445.0] 开启时先硬化一次，再挂观察器：面板内部视图切换是
              *   整段 body.innerHTML 重写的（不是局部补节点），不挂观察器就只有首屏可读。 */
             hardenButtons(overlay);
@@ -547,8 +547,8 @@
                     <button class="ls-btn ls-btn-primary" id="ls-extract-apply">✅ 写入 ${roles.length} 个</button>
                 </div>`;
             const overlay = makeSheet('lonsha-extract-overlay', '⬡ 角色谱系提取', body);
-            overlay.querySelector('#ls-extract-cancel').addEventListener('click', () => { overlay.remove(); });
-            overlay.querySelector('#ls-extract-apply').addEventListener('click', async () => {
+            overlay.querySelector('#ls-extract-cancel')?.addEventListener('click', () => { overlay.remove(); });
+            overlay.querySelector('#ls-extract-apply')?.addEventListener('click', async () => {
                 const sel = Array.from(overlay.querySelectorAll('.ls-extract-cb:checked')).map(cb => roles[Number(cb.dataset.idx)]);
                 if (!sel.length) { toast('未勾选任何角色'); return; }
                 try {
@@ -3078,8 +3078,8 @@
                         box.innerHTML = '<textarea class="ls-textarea" style="min-height:72px;flex:1;"></textarea><button class="ls-btn ls-btn-primary" data-mc-inline-save>保存</button><button class="ls-btn" data-mc-inline-cancel>取消</button>';
                         box.querySelector('textarea').value = current;
                         row.appendChild(box); box.querySelector('textarea').focus();
-                        box.querySelector('[data-mc-inline-cancel]').addEventListener('click', () => box.remove());
-                        box.querySelector('[data-mc-inline-save]').addEventListener('click', async () => {
+                        box.querySelector('[data-mc-inline-cancel]')?.addEventListener('click', () => box.remove());
+                        box.querySelector('[data-mc-inline-save]')?.addEventListener('click', async () => {
                             if (typeof h !== 'function') { toast('该动作未接：' + id); return; }
                             await h.call(plugin, { ref: ref, text: box.querySelector('textarea').value, state: mcState(), face: plugin._memoryCenterLastFace });
                         });
@@ -3119,6 +3119,9 @@
         // ========== 设置面板 ==========
         plugin.showSettingsPanel = function() {
             const self = this;
+            /* [UI 分层] 机器面开关走 arguments：签名必须逐字保持 `function() {`，
+             *   v3430_l12_x6_unload_drill 把这一行当逐字锚点做破坏性演练（改签名即「锚点命中 0 次」）。 */
+            const diag = arguments[0] === true;
             // [v3.271] 面板 HTML 构造期需要转义器；此前本函数体内未定义 esc，
             //   一进入模板串即抛 ReferenceError: esc is not defined，设置面板整块打不开。
             const esc = (t) => String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3132,13 +3135,16 @@
                 </label>`;
             const body = `
                 <div class="ls-tabs-nav" role="tablist" aria-label="设置分类">
-                    <button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-general" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
+                    ${diag ? '' : `<button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-general" class="ls-tab-btn active" data-tab="general">🚀 开始使用</button>
                     <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-narrative" class="ls-tab-btn" data-tab="narrative">📖 人物与故事</button>
                     <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-health" class="ls-tab-btn" data-tab="health">🩺 记忆健康</button>
-                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-retrieval" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
-                    <button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-advanced" class="ls-tab-btn" data-tab="advanced">🧪 实验室</button>
+                    <button type="button" class="ls-tab-btn ls-diag-entry" id="ls-diag-entry" title="引擎开关、算法参数与调校">🔧 高级诊断</button>`}
+                    ${diag ? `<button type="button" role="tab" aria-selected="false" aria-controls="ls-pane-retrieval" class="ls-tab-btn" data-tab="retrieval">💾 备份与调校</button>
+                    <button type="button" role="tab" aria-selected="true" aria-controls="ls-pane-advanced" class="ls-tab-btn active" data-tab="advanced">🧪 实验室</button>
+                    <button type="button" class="ls-tab-btn" id="ls-diag-back">← 返回常用</button>` : ''}
                 </div>
-<div class="ls-tab-pane active" role="tabpanel" id="ls-pane-general" data-tab-pane="general">
+                ${diag ? '' : `
+<div class="ls-tab-pane${diag ? '' : ' active'}" role="tabpanel" id="ls-pane-general" data-tab-pane="general">
                 <div class="ls-player-welcome">
                     <strong>开箱即用，把注意力留给故事</strong>
                     <p class="ls-hint">默认使用当前对话的 AI 接口。保存设置后继续聊天，新的剧情会按所选档位整理；已有故事可在下方「找回漏记剧情」中补记。</p>
@@ -3329,8 +3335,6 @@
                 </div>
 </details>
 </details>
-</div>
-<div class="ls-tab-pane" role="tabpanel" id="ls-pane-retrieval" data-tab-pane="retrieval">
 <div class="ls-group">
                     <div class="ls-group-title">💾 备份与迁移</div>
                     <button class="ls-btn" id="ls-export">📤 导出档案 (JSON)</button>
@@ -3345,6 +3349,10 @@
                     <button class="ls-btn" id="ls-migrate-merge">🔀 周目差异挑拣合并（只挑你想带走的）</button>
                     <button class="ls-btn" id="ls-cf-branch">🧪 反事实分支沙盘（当初若走另一条路）</button>
                 </div>
+</div>
+`}
+                ${diag ? `
+<div class="ls-tab-pane" role="tabpanel" id="ls-pane-retrieval" data-tab-pane="retrieval">
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">⚙️ 进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
 <div class="ls-group">
                     <div class="ls-group-title">📜 故事脉络与章节归档</div>
@@ -3490,7 +3498,7 @@
                 </div>
 </details>
 </div>
-<div class="ls-tab-pane" role="tabpanel" id="ls-pane-advanced" data-tab-pane="advanced">
+<div class="ls-tab-pane active" role="tabpanel" id="ls-pane-advanced" data-tab-pane="advanced">
 <details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;">🧪 底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
 <div class="ls-lab-searchbar" role="search" aria-label="实验室设置搜索">
     <input type="search" id="ls-lab-search" class="ls-input ls-lab-search" placeholder="搜索：召回、向量、世界线、角色……" autocomplete="off" aria-controls="ls-pane-advanced">
@@ -3700,6 +3708,7 @@
                 </div>
 </details>
 </div>
+` : ''}
 <div class="ls-settings-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
                     <!-- [v3.472.0 · L22 UI] 「保存」已搬到固定底栏（随时可见）；
                          这里只留会调 AI / 改存档的重操作，与常用保存分开。 -->
@@ -3713,7 +3722,7 @@
                 </div>
             `;
 
-            const overlay = makeSheet('lonsha-settings-overlay', '⚙ 设置', body, {
+            const overlay = makeSheet('lonsha-settings-overlay', diag ? '🔧 高级诊断' : '⚙ 设置', body, {
                 footerHTML: '<span class="ls-dirty-count" id="ls-dirty-count">已修改 0 项</span>'
                     + '<button type="button" class="ls-btn" id="ls-dirty-reset">还原</button>'
                     + '<button type="button" class="ls-btn ls-btn-primary" id="ls-save">保存并继续</button>',
@@ -3730,12 +3739,22 @@
                             + '<button type="button" class="ls-btn" id="ls-confirm-back">回去保存</button>'
                             + '<button type="button" class="ls-btn" id="ls-confirm-drop">放弃</button>';
                         bar.appendChild(tip);
-                        tip.querySelector('#ls-confirm-back').addEventListener('click', () => { _confirming = false; tip.remove(); });
-                        tip.querySelector('#ls-confirm-drop').addEventListener('click', () => { _confirming = false; closeOverlay('lonsha-settings-overlay'); });
+                        tip.querySelector('#ls-confirm-back')?.addEventListener('click', () => { _confirming = false; tip.remove(); });
+                        tip.querySelector('#ls-confirm-drop')?.addEventListener('click', () => { _confirming = false; closeOverlay('lonsha-settings-overlay'); });
                     }
                     return false;
                 }
             });
+
+            /* 玩家面与机器面的唯一分界：默认只构建三页玩家面；
+             *   机器面（引擎开关/算法参数）在 diag 分支里按需构建，不进首屏 DOM。 */
+            if (!diag) {
+                const de = overlay.querySelector('#ls-diag-entry');
+                if (de) de.addEventListener('click', () => { overlay.remove(); plugin.showSettingsPanel(true); });
+            } else {
+                const bk = overlay.querySelector('#ls-diag-back');
+                if (bk) bk.addEventListener('click', () => { overlay.remove(); plugin.showSettingsPanel(false); });
+            }
 
             /* [v3.472.0 · L22 UI] 未保存计数与关闭拦截：
              *   修前改了二十个滑块后误触遮罩 = 全丢。现在底栏实时报数，
@@ -3782,24 +3801,33 @@
             };
             const updateProfileHelp = () => {
                 const profile = this.engine.config.config.extractionProfile || 'balanced';
-                overlay.querySelector('#ls-profile-help').textContent = PROFILE_HELP[profile] || PROFILE_HELP.balanced;
+                const helpEl = overlay.querySelector('#ls-profile-help');
+                if (helpEl) helpEl.textContent = PROFILE_HELP[profile] || PROFILE_HELP.balanced;
                 overlay.querySelectorAll('.ls-mode-pill').forEach(p => p.setAttribute('aria-pressed', String(p.dataset.profile === profile)));
             };
             let playerDraftChanged = false;
+            /* [UI 分层] 玩家控件在机器面（diag）不渲染：本函数必须对缺节点免疫。
+             *   原先每个 querySelector 都假定节点在场 —— 分层后 diag 一开就必抛 TypeError，
+             *   而这正是「面板打不开」类缺陷的形态。故一律取可选值 + 空值分支。 */
             const syncPlayerState = () => {
-                const custom = overlay.querySelector('[data-cfg="apiProviderCustom"]').checked;
-                overlay.querySelector('#ls-custom-api-fields').hidden = !custom;
-                const enabled = overlay.querySelector('[data-cfg="enabled"]').checked;
-                const automatic = overlay.querySelector('[data-cfg="extractionEnabled"]').checked;
+                const custom = overlay.querySelector('[data-cfg="apiProviderCustom"]')?.checked;
+                const customBox = overlay.querySelector('#ls-custom-api-fields');
+                if (customBox) customBox.hidden = !custom;
+                const enabled = overlay.querySelector('[data-cfg="enabled"]')?.checked;
+                const automatic = overlay.querySelector('[data-cfg="extractionEnabled"]')?.checked;
                 const state = overlay.querySelector('#ls-memory-state');
-                state.textContent = !enabled ? '记忆已关闭。'
-                    : !automatic ? '自动记录已暂停，已有记忆仍可参与对话。'
-                    : custom ? '自动记忆已开启。请确认专用接口地址、密钥和模型填写正确；尚未验证连接。'
-                    : '自动记忆已开启，使用当前对话接口；实际可用性以对话中的调用结果为准。';
-                if (playerDraftChanged) state.textContent += ' 当前是预览，点击保存后生效。';
+                if (state) {
+                    state.textContent = !enabled ? '记忆已关闭。'
+                        : !automatic ? '自动记录已暂停，已有记忆仍可参与对话。'
+                        : custom ? '自动记忆已开启。请确认专用接口地址、密钥和模型填写正确；尚未验证连接。'
+                        : '自动记忆已开启，使用当前对话接口；实际可用性以对话中的调用结果为准。';
+                    if (playerDraftChanged) state.textContent += ' 当前是预览，点击保存后生效。';
+                }
             };
             ['apiProviderCustom', 'enabled', 'extractionEnabled'].forEach(key => {
+                /* 机器面（diag）不渲染玩家控件：取不到就跳过，绝不把 null 抛给宿主。 */
                 const control = overlay.querySelector('[data-cfg=' + key + ']');
+                if (!control) return;
                 control.addEventListener('change', () => {
                     playerDraftChanged = true;
                     syncPlayerState();
@@ -3808,11 +3836,14 @@
             overlay.querySelectorAll('[data-settings-view]').forEach(el => el.addEventListener('click', () => plugin.showBrowser(el.dataset.settingsView)));
             const modelInput = overlay.querySelector('#ls-model-input');
             const modelSelect = overlay.querySelector('#ls-model-select');
-            modelInput.addEventListener('input', () => {
-                const value = modelInput.value.trim();
-                modelSelect.innerHTML = '<option value="' + escAttr(value) + '">' + esc(value) + '</option>';
-                modelSelect.value = value;
-            });
+            /* 玩家控件在机器面（diag）不渲染：缺一即不挂监听，不得抛给宿主。 */
+            if (modelInput && modelSelect) {
+                modelInput.addEventListener('input', () => {
+                    const value = modelInput.value.trim();
+                    modelSelect.innerHTML = '<option value="' + escAttr(value) + '">' + esc(value) + '</option>';
+                    modelSelect.value = value;
+                });
+            }
             syncPlayerState();
             updateProfileHelp();
             /* [v3.472.0 · L22 UI] 底栏未保存计数：监听整块 body 的 change/input，
@@ -4065,10 +4096,10 @@
                 });
             });
             // [v3.4] DB 修复：原绑定写在本行之前（overlay 声明前使用 → TDZ ReferenceError，设置面板打开即崩）
-            overlay.querySelector('#ls-snap-restore').addEventListener('click', () => { plugin.showSnapshotRestore(); });
+            overlay.querySelector('#ls-snap-restore')?.addEventListener('click', () => { plugin.showSnapshotRestore(); });
             // [v3.5] 补提取缺失楼层
-            overlay.querySelector('#ls-extract-roles').addEventListener('click', async () => { plugin.showExtractRoles(); });
-            overlay.querySelector('#ls-backfill').addEventListener('click', async () => {
+            overlay.querySelector('#ls-extract-roles')?.addEventListener('click', async () => { plugin.showExtractRoles(); });
+            overlay.querySelector('#ls-backfill')?.addEventListener('click', async () => {
                 const engine = plugin.engine;
                 const missing = engine.scanMissingFloors();
                 if (!missing.length) { toast('✅ 没有缺失楼层，记忆全覆盖'); return; }
@@ -4492,7 +4523,7 @@
             // [v1.4.1] 抓取模型列表
             // [v3.471.0 · 模型列表三级降级] fetchModels 返回 {models, source}（proxy=酒馆后端代理/
             //   direct=直连）；错误聚合点名每一级原因。UI 只消费读数，不自己判来源。
-            overlay.querySelector('#ls-fetch-models').addEventListener('click', async () => {
+            overlay.querySelector('#ls-fetch-models')?.addEventListener('click', async () => {
                 const url = overlay.querySelector('[data-cfg-text="apiUrl"]').value.trim();
                 const key = overlay.querySelector('[data-cfg-text="apiKey"]').value.trim();
                 const status = overlay.querySelector('#ls-model-status');
@@ -4516,7 +4547,7 @@
             });
 
             // [v2.3] 携带背包: 打包 → localStorage + 文件下载; 导入 → 应用到当前对话
-            overlay.querySelector('#ls-carry-pack').addEventListener('click', () => {
+            overlay.querySelector('#ls-carry-pack')?.addEventListener('click', () => {
                 const pack = this.engine.packCarryover();
                 if (!pack) { toast('打包失败'); return; }
                 // [v3.77] B: 携带预览（确认后落盘下载）
@@ -4535,7 +4566,7 @@
                     toast(`已打包 摘要${pack.counts?.summaries ?? pack.summaries.length}+悬念${pack.counts?.suspense ?? pack.suspense.length}+图谱${pack.counts?.graphNodes ?? 0}+日记${pack.counts?.diaries ?? 0}+向量${pack.counts?.vectors ?? 0} (本地+文件双备份)`);
                 } catch (e) { toast('打包失败: ' + e.message); }
             });
-            overlay.querySelector('#ls-carry-apply').addEventListener('click', () => {
+            overlay.querySelector('#ls-carry-apply')?.addEventListener('click', () => {
                 let pack = null;
                 try { pack = JSON.parse(localStorage.getItem('lonsha_carryover_pack') || 'null'); } catch (e) { reportUiError(e, 'nonfatal') }
                 const apply = async (p) => {
@@ -4558,7 +4589,7 @@
                 input.click();
             });
             // [v3.445.0 · L13-X5] 迁移包：打包（exportMigratePack 宿主桩 + 预览 + localStorage/文件双备份）
-            overlay.querySelector('#ls-migrate-pack').addEventListener('click', () => {
+            overlay.querySelector('#ls-migrate-pack')?.addEventListener('click', () => {
                 let r = null;
                 try { r = this.engine.exportMigratePack(); } catch (e) { reportUiError(e, 'ls-migrate-pack'); return; }
                 if (!r || !r.ok) { toast('❌ 打包失败: ' + ((r && r.reason) || '未知原因')); return; }
@@ -4582,7 +4613,7 @@
                 } catch (e) { toast('❌ 打包失败: ' + e.message); }
             });
             // [v3.445.0 · L13-X5] 迁移包：导入（先文件预检 → 冲突逐条决策 → applyMigrateImport → 存盘）
-            overlay.querySelector('#ls-migrate-apply').addEventListener('click', () => {
+            overlay.querySelector('#ls-migrate-apply')?.addEventListener('click', () => {
                 const input = document.createElement('input');
                 input.type = 'file'; input.accept = '.json';
                 input.onchange = () => {
@@ -4637,7 +4668,7 @@
                 input.click();
             });
             // [v3.459.0] 迁移包：周目差异挑拣合并（compareAndMergeMigrate 宿主入口此前零引用）
-            overlay.querySelector('#ls-migrate-merge').addEventListener('click', () => {
+            overlay.querySelector('#ls-migrate-merge')?.addEventListener('click', () => {
                 const input = document.createElement('input');
                 input.type = 'file'; input.accept = '.json';
                 input.onchange = () => {
@@ -4684,7 +4715,7 @@
                 input.click();
             });
             // [v3.459.0] 反事实分支沙盘（evaluateCounterfactualBranch 宿主入口此前零引用）
-            overlay.querySelector('#ls-cf-branch').addEventListener('click', () => {
+            overlay.querySelector('#ls-cf-branch')?.addEventListener('click', () => {
                 const road = String(prompt('🧪 反事实分支沙盘\n\n写下「当初没走的那条路」（一句即可）：', '') || '').trim();
                 if (!road) { toast('已取消'); return; }
                 const actual = String(prompt('实际发生的抉择（可留空）：', '') || '').trim();
@@ -4707,7 +4738,7 @@
             });
             // [v3.138] CP-L2: 嵌入存档恢复闭环——v3.23 起只写 _embeddedVaultReady 标志、toast 指路“设置→导入恢复”，
             // 但按钮从未存在，跨设备迁移恢复路径断裂。按钮由 checkEmbeddedMigration 按检测结果显示。
-            overlay.querySelector('#ls-embedded-restore').addEventListener('click', async () => {
+            overlay.querySelector('#ls-embedded-restore')?.addEventListener('click', async () => {
                 try {
                     const eng = self.engine;
                     const _sk = eng.storage.STORAGE_KEY;   // [v3.140] 真键（engine 实例上无此属性 → 旧实现读到 undefined 键）
@@ -4729,7 +4760,7 @@
                 } catch (e) { reportUiError(e, 'ls-embedded-restore'); toast('恢复失败: ' + e.message); }
             });
             // 恢复默认提示词
-            overlay.querySelector('#ls-prompt-reset').addEventListener('click', () => {
+            overlay.querySelector('#ls-prompt-reset')?.addEventListener('click', () => {
                 overlay.querySelector('#ls-prompt').value = `分析以下对话，提取JSON格式：
 {"characters": ["角色名"], "events": [{"type": "事件", "description": "描述"}], "relationships": [{"from": "A", "to": "B", "type": "关系"}], "summary": "摘要"}
 
@@ -4738,7 +4769,7 @@
             });
 
             // 导出
-            overlay.querySelector('#ls-export').addEventListener('click', async () => {
+            overlay.querySelector('#ls-export')?.addEventListener('click', async () => {
                 // [v3.136] CP: 导出走 collectExport 单真源（原手写 4 键清单缺 clock/timeline/status/moneyLedger 等 30 余键，与 OMR 同病）
                 const data = await this.engine.collectExport();
                 data.exportedAt = new Date().toISOString();
@@ -4751,7 +4782,7 @@
             });
 
             // 导入
-            overlay.querySelector('#ls-import').addEventListener('click', () => {
+            overlay.querySelector('#ls-import')?.addEventListener('click', () => {
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = '.json';
@@ -4789,7 +4820,7 @@
             //   现在只剩三件事：调引擎的清空入口、按结局播报、按结局落盘。
             //   顺序上**先清后存**是刻意的：存的是清空之后的状态，一旦顺序颠倒，
             //   用户在「清空失败」时会把清空前的数据再写一遍（该覆盖的没覆盖）。
-            overlay.querySelector('#ls-clear').addEventListener('click', async () => {
+            overlay.querySelector('#ls-clear')?.addEventListener('click', async () => {
                 if (!confirm('确定清空当前对话的所有记忆数据？此操作不可恢复。')) return;
                 const _cr = this.engine.clearRuntimeMemory();
                 const chatId = this.engine.getCurrentChatId();
@@ -4813,7 +4844,7 @@
             });
 
             // 保存
-            overlay.querySelector('#ls-save').addEventListener('click', () => {
+            overlay.querySelector('#ls-save')?.addEventListener('click', () => {
                 /* [v3.439.0] 变量名避开面板深比较黑名单里的那个旧名（v3252 D1 的口径：
                  *   面板不得内联深比较机制，该名原属检查点深比较的内联实现）。本处语义是
                  *   「本次保存改了哪些配置键」，与深比较无关 —— 改名而不是放宽判据：
@@ -4984,8 +5015,8 @@
                 else if (act === 'timeline') plugin.showBrowser('timeline');
                 else if (act === 'settings') plugin.showSettingsPanel();
             }));
-            ov.querySelector('.lsm-item[data-act="update"]').addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.checkUpdate(); });
-            ov.querySelector('.lsm-item[data-act="ckpt"]').addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.showCheckpoints(); });
+            ov.querySelector('.lsm-item[data-act="update"]')?.addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.checkUpdate(); });
+            ov.querySelector('.lsm-item[data-act="ckpt"]')?.addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.showCheckpoints(); });
         };
         plugin.showFabMenu = function() {
             // [v3.423] FAB 直达玩家主页；旧七项菜单退役（功能全部保留在总览/设置内）。
@@ -5267,7 +5298,7 @@
                 applyBtn.style.opacity = nSel ? '1' : '0.5';
                 applyBtn.style.pointerEvents = nSel ? 'auto' : 'none';
             };
-            ov.querySelector('#ls-cp-plan').addEventListener('click', () => {
+            ov.querySelector('#ls-cp-plan')?.addEventListener('click', () => {
                 const rng = rangeOf();
                 const src = (typeof s.correctionSourceFacts === 'function') ? s.correctionSourceFacts(rng) : { ok: false, reason: 'host-absent', facts: [] };
                 const nf = (typeof s.correctionReextractFacts === 'function') ? s.correctionReextractFacts({ range: rng, newFacts: sd.newFacts }) : { ok: false, reason: 'host-absent', facts: [] };
@@ -5709,7 +5740,7 @@
                 const _mo2 = new MutationObserver(() => { hardenButtons(ov); });
                 _mo2.observe(ov, { childList: true, subtree: true });
             } catch (_e) { /* 同上 */ }
-            ov.querySelector("#memops-close").addEventListener("click", () => ov.remove());
+            ov.querySelector("#memops-close")?.addEventListener("click", () => ov.remove());
             ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
             ov.querySelectorAll("[data-ai]").forEach(btn => {
                 btn.addEventListener("click", async () => {

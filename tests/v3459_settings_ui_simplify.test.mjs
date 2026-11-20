@@ -129,9 +129,20 @@ test('玩家档位：点击保存真实配置、同步下拉与辅助状态，�
     assert.equal(p.cfg.extractionProfile,'quality');
     assert.equal(p.writes(),1);
     assert.equal(p.get('[data-profile="quality"]').getAttribute('aria-pressed'),'true');
-    assert.equal(p.get('select[data-cfg-text="extractionProfile"]').value,'quality');
-    assert.match(p.get('#ls-profile-help').textContent,/每条/);
+    /* [UI 分层重绑 · 板面 v3.476] 抽取档位下拉已归入机器面（🔧 高级诊断），
+     *   玩家面默认不再构建它 —— 玩家入口是 pill 三档。原判据「pill 与下拉同步」
+     *   在两层分家后无法同屏验证，故重绑为**跨面同源**：默认面无该控件（不构建），
+     *   打开诊断面后同一个下拉必须已经跟随玩家所选的 quality。强度不降反升：
+     *   它现在还额外证明了「机器面读数不会与玩家面操作各说各话」。 */
+    assert.equal(p.get('select[data-cfg-text="extractionProfile"]'), null, '档位下拉不得进默认 DOM（机器面按需构建）');
+    p.document.querySelector('#lonsha-settings-overlay').remove();
+    p.plugin.showSettingsPanel(true);
+    const sel = p.get('select[data-cfg-text="extractionProfile"]');
+    assert.ok(sel, '机器面必须有档位下拉');
+    assert.match(sel.innerHTML, /value="quality"[^>]*selected/, '机器面下拉必须已选中 quality（玩家面操作的回声）');
+    p.document.querySelector('#lonsha-settings-overlay').remove();
     p.plugin.showSettingsPanel();
+    assert.match(p.get('#ls-profile-help').textContent,/每条/);
     assert.equal(p.get('[data-profile="quality"]').getAttribute('aria-pressed'),'true');
 });
 test('手填模型名走真实保存路径，故事入口调用原有视图且保留设置草稿', () => {
@@ -157,7 +168,15 @@ test('记忆档位键盘可达：Enter 与空格走点击同一条真实保存�
     assert.equal(p.cfg.extractionProfile,'low-cost','Enter 必须真实切档');
     assert.equal(p.writes(),1,'Enter 必须落盘保存');
     assert.equal(p.get('[data-profile="low-cost"]').getAttribute('aria-pressed'),'true');
-    assert.equal(p.get('select[data-cfg-text="extractionProfile"]').value,'low-cost');
+    /* [同一重绑] 默认面不构建该下拉；先验不构建，再切诊断面验同源，最后切回玩家面继续键盘断言。 */
+    assert.equal(p.get('select[data-cfg-text="extractionProfile"]'), null, '档位下拉不得进默认 DOM');
+    p.document.querySelector('#lonsha-settings-overlay').remove();
+    p.plugin.showSettingsPanel(true);
+    const sel2 = p.get('select[data-cfg-text="extractionProfile"]');
+    assert.ok(sel2, '机器面必须有档位下拉');
+    assert.match(sel2.innerHTML, /value="low-cost"[^>]*selected/, '机器面下拉必须已选中 low-cost（键盘切档的回声）');
+    p.document.querySelector('#lonsha-settings-overlay').remove();
+    p.plugin.showSettingsPanel();
     assert.match(p.get('#ls-profile-help').textContent,/每 5 条/);
     key(p.get('[data-profile="balanced"]'),' ');
     assert.equal(p.cfg.extractionProfile,'balanced','空格键必须真实切档');

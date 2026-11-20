@@ -82,7 +82,7 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 
 /* ══════════ 4. 清空操作收编单真源（静态） ══════════ */
 {
-    const clearIdx = srcS.indexOf("#ls-clear').addEventListener('click', async () => {");
+    const clearIdx = srcS.indexOf("#ls-clear')?.addEventListener('click', async () => {");
     assert.ok(clearIdx > 0, '清空回调已改 async');
     const clearBlock = srcS.slice(clearIdx, clearIdx + 2400);
     /* [v3.236.0] R4-B：本段原枚举 5 个子系统字符串（itemOps / reflection.items / suspense.items /
@@ -114,7 +114,7 @@ const ok = (msg) => { pass++; console.log('ok: ' + msg); };
 {
     assert.ok(srcS.includes("reader.onload = async () => {"), 'onload async 化');
     assert.ok(srcS.includes("const apply = async (p) => {"), 'apply async 化');
-    assert.ok(srcS.includes("#ls-clear').addEventListener('click', async () => {"), '清空回调 async 化');
+    assert.ok(srcS.includes("#ls-clear')?.addEventListener('click', async () => {"), '清空回调 async 化（面板分层后绑定统一带空值守卫）');
     ok('静态6: 三处回调 async 化（await 合法）');
 }
 

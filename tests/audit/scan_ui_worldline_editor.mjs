@@ -147,7 +147,11 @@ const BASE_CFG = {
 
 /** 打开设置面板；打不开记缺陷并返回 null。 */
 function open(ctx) {
-    try { ctx.plugin.showSettingsPanel.call(ctx.plugin); }
+    /* [UI 分层 · 板面 v3.476] 世界线跳转编辑器属**机器面**（引擎源配置），已随 advanced 页
+     *   归入「🔧 高级诊断」按需构建 —— 玩家面默认不再渲染它。
+     *   本门禁随之在诊断面（第二实参 true）验证：验证的仍是「这一面真的落地 DOM」，
+     *   而不是「它必须出现在玩家首屏」——后者正是本次分层要治的形态。 */
+    try { ctx.plugin.showSettingsPanel.call(ctx.plugin, true); }
     catch (e) { defects.push('X1 showSettingsPanel 抛错：' + (e && e.message)); return null; }
     return ctx.document.getElementById('lonsha-settings-overlay');
 }

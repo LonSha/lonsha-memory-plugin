@@ -252,7 +252,7 @@ function extractAsyncMethod(name) {
 /* ══════════ 3. UI 接入（静态断言） ══════════ */
 {
     assert.ok(srcS.includes('id="ls-backfill"'), '按钮存在');
-    assert.ok(srcS.includes("overlay.querySelector('#ls-backfill').addEventListener('click'"), '事件绑定存在');
+    assert.ok(srcS.includes("overlay.querySelector('#ls-backfill')?.addEventListener('click'"), '事件绑定存在（面板分层后绑定统一带空值守卫：机器面不渲染玩家控件，未取到即短路）');
     const declIdx = srcS.indexOf("const overlay = makeSheet('lonsha-settings-overlay'");
     const bindIdx = srcS.indexOf("overlay.querySelector('#ls-backfill')");
     assert.ok(declIdx < bindIdx, '绑定在 overlay 声明之后（无 TDZ）');
