@@ -19,3 +19,7 @@ dist/
 # [v3.431.0] tests/run.mjs 的临时根落盘目录（本机 /tmp 是 tmpfs，回归镜像树
 #   改落仓库同级磁盘目录；每条 run 一个 lonsha-run-* 子目录，收尾自动整棵删）
 .lonsha-test-tmp/
+
+# 本机文件层杂质：被访问过的文件旁会生成 .l2s.<name>0001 快照并把原件换成指向它的链接
+# （平台行为，已在 tests/_fixture_sync.mjs 前置说明与 PLATFORM_JUNK_RE 登记）
+.l2s.*
