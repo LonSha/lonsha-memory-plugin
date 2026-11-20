@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.474.0",
+  "version": "3.475.0",
   "version_sources": {
-    "manifest": "3.474.0",
-    "package": "3.474.0",
-    "index_const": "3.474.0"
+    "manifest": "3.475.0",
+    "package": "3.475.0",
+    "index_const": "3.475.0"
   },
   "version_same": true,
-  "human_index_version": "3.474.0",
+  "human_index_version": "3.475.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 415,
+    "extra_js": 433,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -427,13 +427,31 @@
       "shared-event-memory.js",
       "memory-time-machine.js",
       "multimodal-memory.js",
-      "recall-quality-gate.js"
+      "recall-quality-gate.js",
+      "host-refusal-gate.js",
+      "extra-js-retirement.js",
+      "recall-regression-guard.js",
+      "log-level-gate.js",
+      "data-migration-matrix.js",
+      "i18n-keys-parity.js",
+      "capacity-readings.js",
+      "diag-codes-humanize.js",
+      "doc-readings-generator.js",
+      "memory-archive-portability.js",
+      "rubyphone-bridge-contract.js",
+      "memory-visual-panel.js",
+      "preset-pack.js",
+      "relation-timeline-view.js",
+      "conflict-advice.js",
+      "memory-health-board.js",
+      "batch-op-ledger.js",
+      "recall-explainer.js"
     ],
-    "root_js": 428,
+    "root_js": 446,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 605,
+    "test_files": 624,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -490,6 +508,24 @@
       "l23_x8_capacity.test.mjs",
       "l23_x9_cross_session.test.mjs",
       "l23_x_surface.test.mjs",
+      "l26_o1_host_refusal.test.mjs",
+      "l26_o2_extra_js_retirement.test.mjs",
+      "l26_o3_recall_regression.test.mjs",
+      "l26_o4_log_level.test.mjs",
+      "l26_o5_data_migration.test.mjs",
+      "l26_o6_i18n_parity.test.mjs",
+      "l26_o7_capacity_readings.test.mjs",
+      "l26_o8_diag_codes.test.mjs",
+      "l26_o9_doc_readings.test.mjs",
+      "l26_x1_archive_portability.test.mjs",
+      "l26_x2_rubyphone_bridge.test.mjs",
+      "l26_x3_visual_panel.test.mjs",
+      "l26_x4_preset_pack.test.mjs",
+      "l26_x5_relation_timeline.test.mjs",
+      "l26_x6_conflict_advice.test.mjs",
+      "l26_x7_health_board.test.mjs",
+      "l26_x8_batch_ledger.test.mjs",
+      "l26_x9_recall_explainer.test.mjs",
       "narrative-pulse.test.mjs",
       "projection-absence.test.mjs",
       "story-clock-parse.test.mjs",
@@ -931,6 +967,7 @@
       "v3472_l22_lab_search.test.mjs",
       "v3472_l22_ui_panel.test.mjs",
       "v3472_r22_product_wiring.test.mjs",
+      "v3475_l26_delivery.test.mjs",
       "v347_hc_mechanics.test.mjs",
       "v3480_closeout_fourth_phase.test.mjs",
       "v3490_condition_patch.test.mjs",
@@ -1081,7 +1118,7 @@
     "tests_total": 430,
     "assertions": 4658,
     "audit": "68/68",
-    "reason": "登记版本 3.431.0 ≠ 当前 3.474.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "reason": "登记版本 3.431.0 ≠ 当前 3.475.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -1100,19 +1137,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "8920ed1feac1",
-      "package.json": "f8fe65b52029",
-      "index.js": "a781ed0b4647",
+      "manifest.json": "a99c037b8b32",
+      "package.json": "f6d2e01b84f8",
+      "index.js": "39a2aaad549f",
       "update-log.json": null,
-      "README.md": "77cf3f28aa24",
-      "PLAN.md": "946a2390f353",
-      "CHANGELOG.md": "127f772ca43d",
-      "TODO.md": "3b579ba14e11",
+      "README.md": "43f6df80b41b",
+      "PLAN.md": "11d751608269",
+      "CHANGELOG.md": "c331971e6d20",
+      "TODO.md": "fd477922da0a",
       "tests/audit/doc_readings.json": "d84bdd3312e7"
     }
   },
   "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.474.0"
+    "全量实跑读数陈旧：doc_readings 登记 3.431.0，当前 3.475.0"
   ],
   "unknown_count": 1
 }

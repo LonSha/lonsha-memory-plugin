@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.474.0';
+    const VERSION = '3.475.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11942,6 +11942,99 @@ function _collectNewFace() {
                 if (!this.engine.recallQualityGate) {
                     const api = optEngines.LonShaRecallQualityGate || (typeof LonShaRecallQualityGate !== 'undefined' ? LonShaRecallQualityGate : null);
                     if (api && typeof api.judge === 'function' && typeof api.snapshot === 'function') this.engine.recallQualityGate = api;
+                }
+
+                // [v3.475.0 · L26] 第二十六期十八项：契约 / 治理 / 可见三面，对象型 API 挂 engine 槽。
+                //   形态与本文件既有对象型装配一致（能力守卫为真才挂），守卫方法名取自模块真实导出。
+                // L26-O1 宿主兼容矩阵：三态 + 拒载即抛
+                if (!this.engine.hostRefusalGate) {
+                    const api = optEngines.LonShaHostRefusalGate || (typeof LonShaHostRefusalGate !== 'undefined' ? LonShaHostRefusalGate : null);
+                    if (api && typeof api.assess === 'function' && typeof api.assertLoadable === 'function') this.engine.hostRefusalGate = api;
+                }
+                // L26-O2 加载瘦身：可退役候选 + 回滚序位
+                if (!this.engine.extraJsRetirement) {
+                    const api = optEngines.LonShaExtraJsRetirement || (typeof LonShaExtraJsRetirement !== 'undefined' ? LonShaExtraJsRetirement : null);
+                    if (api && typeof api.buildRetirementPlan === 'function' && typeof api.applyRetirement === 'function') this.engine.extraJsRetirement = api;
+                }
+                // L26-O3 检索质量跨版本回归闸
+                if (!this.engine.recallRegressionGuard) {
+                    const api = optEngines.LonShaRecallRegressionGuard || (typeof LonShaRecallRegressionGuard !== 'undefined' ? LonShaRecallRegressionGuard : null);
+                    if (api && typeof api.evaluateTrend === 'function' && typeof api.gate === 'function') this.engine.recallRegressionGuard = api;
+                }
+                // L26-O4 日志分级与采样（error 永不采样）
+                if (!this.engine.logLevelGate) {
+                    const api = optEngines.LonShaLogLevelGate || (typeof LonShaLogLevelGate !== 'undefined' ? LonShaLogLevelGate : null);
+                    if (api && typeof api.makeLogger === 'function' && typeof api.levelRank === 'function') this.engine.logLevelGate = api;
+                }
+                // L26-O5 迁移兼容矩阵：降级一律拒载
+                if (!this.engine.dataMigrationMatrix) {
+                    const api = optEngines.LonShaDataMigrationMatrix || (typeof LonShaDataMigrationMatrix !== 'undefined' ? LonShaDataMigrationMatrix : null);
+                    if (api && typeof api.planMigration === 'function' && typeof api.applyMigration === 'function') this.engine.dataMigrationMatrix = api;
+                }
+                // L26-O6 多语言键集合对等 + 缺键显式标记
+                if (!this.engine.i18nKeysParity) {
+                    const api = optEngines.LonShaI18nKeysParity || (typeof LonShaI18nKeysParity !== 'undefined' ? LonShaI18nKeysParity : null);
+                    if (api && typeof api.comparePacks === 'function' && typeof api.translate === 'function') this.engine.i18nKeysParity = api;
+                }
+                // L26-O7 容量治理：10w/50w 读数 + 清理建议
+                if (!this.engine.capacityReadings) {
+                    const api = optEngines.LonShaCapacityReadings || (typeof LonShaCapacityReadings !== 'undefined' ? LonShaCapacityReadings : null);
+                    if (api && typeof api.estimateCapacity === 'function' && typeof api.adviseCleanup === 'function') this.engine.capacityReadings = api;
+                }
+                // L26-O8 诊断码人话化（未登记不许上线）
+                if (!this.engine.diagCodesHumanize) {
+                    const api = optEngines.LonShaDiagCodesHumanize || (typeof LonShaDiagCodesHumanize !== 'undefined' ? LonShaDiagCodesHumanize : null);
+                    if (api && typeof api.humanOf === 'function' && typeof api.auditCodes === 'function') this.engine.diagCodesHumanize = api;
+                }
+                // L26-O9 文档读数只认生成物
+                if (!this.engine.docReadings) {
+                    const api = optEngines.LonShaDocReadingsGenerator || (typeof LonShaDocReadingsGenerator !== 'undefined' ? LonShaDocReadingsGenerator : null);
+                    if (api && typeof api.collectReadings === 'function' && typeof api.auditDoc === 'function') this.engine.docReadings = api;
+                }
+                // L26-X1 记忆档案可携：三模式 + 差异预览
+                if (!this.engine.archivePortability) {
+                    const api = optEngines.LonShaMemoryArchivePortability || (typeof LonShaMemoryArchivePortability !== 'undefined' ? LonShaMemoryArchivePortability : null);
+                    if (api && typeof api.exportArchive === 'function' && typeof api.importArchive === 'function') this.engine.archivePortability = api;
+                }
+                // L26-X2 与 RubyPhone 互通（契约侧）
+                if (!this.engine.rubyphoneBridge) {
+                    const api = optEngines.LonShaRubyphoneBridgeContract || (typeof LonShaRubyphoneBridgeContract !== 'undefined' ? LonShaRubyphoneBridgeContract : null);
+                    if (api && typeof api.match === 'function' && typeof api.acceptance === 'function') this.engine.rubyphoneBridge = api;
+                }
+                // L26-X3 记忆可视化面板（可点回源）
+                if (!this.engine.memoryVisualPanel) {
+                    const api = optEngines.LonShaMemoryVisualPanel || (typeof LonShaMemoryVisualPanel !== 'undefined' ? LonShaMemoryVisualPanel : null);
+                    if (api && typeof api.buildGraph === 'function' && typeof api.panelViewModel === 'function') this.engine.memoryVisualPanel = api;
+                }
+                // L26-X4 预设与模板分发（导入失败给原因）
+                if (!this.engine.presetPack) {
+                    const api = optEngines.LonShaPresetPack || (typeof LonShaPresetPack !== 'undefined' ? LonShaPresetPack : null);
+                    if (api && typeof api.validatePreset === 'function' && typeof api.importPreset === 'function') this.engine.presetPack = api;
+                }
+                // L26-X5 关系时间线（时间缺失不进时间轴）
+                if (!this.engine.relationTimeline) {
+                    const api = optEngines.LonShaRelationTimelineView || (typeof LonShaRelationTimelineView !== 'undefined' ? LonShaRelationTimelineView : null);
+                    if (api && typeof api.buildTimeline === 'function' && typeof api.viewport === 'function') this.engine.relationTimeline = api;
+                }
+                // L26-X6 冲突仲裁建议（只建议不自动改）
+                if (!this.engine.conflictAdvice) {
+                    const api = optEngines.LonShaConflictAdvice || (typeof LonShaConflictAdvice !== 'undefined' ? LonShaConflictAdvice : null);
+                    if (api && typeof api.advise === 'function' && typeof api.applyAdvice === 'function') this.engine.conflictAdvice = api;
+                }
+                // L26-X7 记忆健康看板（损坏优先于增长）
+                if (!this.engine.memoryHealthBoard) {
+                    const api = optEngines.LonShaMemoryHealthBoard || (typeof LonShaMemoryHealthBoard !== 'undefined' ? LonShaMemoryHealthBoard : null);
+                    if (api && typeof api.board === 'function' && typeof api.tiles === 'function') this.engine.memoryHealthBoard = api;
+                }
+                // L26-X8 批量操作台账（可回滚、过期明确拒）
+                if (!this.engine.batchOpLedger) {
+                    const api = optEngines.LonShaBatchOpLedger || (typeof LonShaBatchOpLedger !== 'undefined' ? LonShaBatchOpLedger : null);
+                    if (api && typeof api.createLedger === 'function') this.engine.batchOpLedger = api;
+                }
+                // L26-X9 检索解释器（说不出就说不知道）
+                if (!this.engine.recallExplainer) {
+                    const api = optEngines.LonShaRecallExplainer || (typeof LonShaRecallExplainer !== 'undefined' ? LonShaRecallExplainer : null);
+                    if (api && typeof api.explain === 'function' && typeof api.whyRemembered === 'function') this.engine.recallExplainer = api;
                 }
                 if (!this.engine.tieredStorageLedger) {
                     const Cls = optEngines.TieredStorageTieredCompactionLedger || (typeof TieredStorageTieredCompactionLedger !== 'undefined' ? TieredStorageTieredCompactionLedger : null);

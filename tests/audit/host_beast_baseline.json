@@ -1,7 +1,7 @@
 {
   "file": "index.js（+ 宿主面外提模块，合并面）",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
-  "measured_at": "v3.474.0",
+  "measured_at": "v3.475.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3525,6 +3525,38 @@
         "top5_pct": -0.1,
         "top40_pct": 0.1
       }
+    },
+    "v3.475.0": {
+      "reason": "[v3.475.0] 第二十六期（L26-O1~O9 / L26-X1~X9）十八项交付：18 个契约/治理/可见模块 + 18 套判据（167 条断言）。宿主只增装配块（93 行，全部是 engine 槽守卫），无业务方法内联。",
+      "readings": {
+        "total_lines": 13180,
+        "surface_lines": 37364,
+        "member_count": 1374,
+        "duplicate_member_names": 212,
+        "top5_lines": 9466,
+        "top5_pct": 25.3,
+        "top40_lines": 19780,
+        "top40_pct": 52.9,
+        "prefix_rule_coverage_lines": 4985,
+        "prefix_rule_coverage_pct": 13.3,
+        "unclassified_lines": 31238,
+        "seam_distinct_modules": 223,
+        "seam_reference_sites": 579,
+        "seam_call_shape_sites": 765,
+        "members_over_80_lines": 52,
+        "low_coupling_members": 18,
+        "high_coupling_members": 18,
+        "entry_lines": 13180
+      },
+      "delta_from": "v3.474.0",
+      "delta": {
+        "total_lines": 93,
+        "surface_lines": 93,
+        "member_count": 0,
+        "top40_lines": 93,
+        "top5_pct": -0.1,
+        "top40_pct": 0.1
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3538,34 +3570,34 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13087,
-    "surface_lines": 37271,
+    "total_lines": 13180,
+    "surface_lines": 37364,
     "member_count": 1374,
     "duplicate_member_names": 212,
     "top5_lines": 9466,
-    "top5_pct": 25.4,
-    "top40_lines": 19687,
-    "top40_pct": 52.8,
+    "top5_pct": 25.3,
+    "top40_lines": 19780,
+    "top40_pct": 52.9,
     "prefix_rule_coverage_lines": 4985,
-    "prefix_rule_coverage_pct": 13.4,
-    "unclassified_lines": 31145,
+    "prefix_rule_coverage_pct": 13.3,
+    "unclassified_lines": 31238,
     "seam_distinct_modules": 223,
     "seam_reference_sites": 579,
     "seam_call_shape_sites": 765,
     "members_over_80_lines": 52,
     "low_coupling_members": 18,
     "high_coupling_members": 18,
-    "entry_lines": 13087
+    "entry_lines": 13180
   },
   "domains": [
     {
       "domain": "（未归类）",
       "members": 1294,
-      "lines": 31145,
+      "lines": 31238,
       "lines_pct": 83.6,
-      "outside_refs": 29482,
-      "internal_refs": 11041,
-      "outside_ref_share_pct": 72.8
+      "outside_refs": 29680,
+      "internal_refs": 11034,
+      "outside_ref_share_pct": 72.9
     },
     {
       "domain": "诊断与导出",
@@ -3708,6 +3740,12 @@
       "outside_refs": 44
     },
     {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 650,
+      "outside_refs": 1
+    },
+    {
       "name": "sanitizeJson",
       "lines": 638,
       "outside_refs": 28
@@ -3717,12 +3755,6 @@
       "file": "index.js",
       "lines": 574,
       "outside_refs": 4
-    },
-    {
-      "name": "loadModules",
-      "file": "index.js",
-      "lines": 557,
-      "outside_refs": 1
     },
     {
       "name": "_assembleComponents",
@@ -3905,7 +3937,7 @@
       {
         "name": "loadModules",
         "file": "index.js",
-        "lines": 557,
+        "lines": 650,
         "outside_refs": 1,
         "is_host_lifecycle": false
       },
@@ -4117,7 +4149,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13392,
     "maxSlack": 400,
-    "note": "[v3.474.0] R25 优化九项接线后的当版重绑：入口 index.js 13087 行、成员数 1374；行上界**不抬，仍为 13392**（余量 305 <= slack 400）、成员上界**不抬，仍为 1404**（余量 30 <= member_slack 30）。合并面 37271 行，TOP5 占 25.4%，TOP40 占 52.8%。本版 5 行增量来自 O1 的宿主装配块（取库口 + 形态校验 + 装配），不是死代码回流。",
+    "note": "[v3.475.0] L26 十八项接线后的当版重绑：入口 index.js 13180 行（+93）、成员数 1374；行上界**不抬，仍为 13392**（余量 212 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37364 行，TOP5 占 25.3%，TOP40 占 52.9%。增量全部来自 L26 的 18 个 engine 槽装配块（每槽 3 行守卫 + 1 行注释），不是死代码回流。",
     "history": [
       {
         "ceiling": 15000,
@@ -4605,18 +4637,24 @@
         "member_ceiling": 1404,
         "milestone_version": "v3.474.0",
         "reason": "[v3.474.0] R25 优化九项接线后的当版重绑：入口 index.js 13087 行、成员数 1374；行上界**不抬，仍为 13392**（余量 305 <= slack 400）、成员上界**不抬，仍为 1404**（余量 30 <= member_slack 30）。合并面 37271 行，TOP5 占 25.4%，TOP40 占 52.8%。本版 5 行增量来自 O1 的宿主装配块（取库口 + 形态校验 + 装配），不是死代码回流。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.475.0",
+        "reason": "[v3.475.0] L26 十八项接线后的当版重绑：入口 index.js 13180 行（+93）、成员数 1374；行上界**不抬，仍为 13392**（余量 212 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37364 行，TOP5 占 25.3%，TOP40 占 52.9%。增量全部来自 L26 的 18 个 engine 槽装配块（每槽 3 行守卫 + 1 行注释），不是死代码回流。"
       }
     ],
     "member_ceiling": 1404,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13087,
+  "total_lines": 13180,
   "member_count": 1374,
   "index_total_lines": 13082,
   "index_line_ceiling": 12096,
-  "entry_lines": 13087,
-  "surface_lines": 37271,
+  "entry_lines": 13180,
+  "surface_lines": 37364,
   "members_by_file": {
     "index.js": 893,
     "engine-diagnostic-lines.js": 1,
@@ -4711,6 +4749,12 @@
       "outside_refs": 44
     },
     {
+      "name": "loadModules",
+      "file": "index.js",
+      "lines": 650,
+      "outside_refs": 1
+    },
+    {
       "name": "sanitizeJson",
       "lines": 638,
       "outside_refs": 28
@@ -4720,12 +4764,6 @@
       "file": "index.js",
       "lines": 574,
       "outside_refs": 4
-    },
-    {
-      "name": "loadModules",
-      "file": "index.js",
-      "lines": 557,
-      "outside_refs": 1
     },
     {
       "name": "_assembleComponents",

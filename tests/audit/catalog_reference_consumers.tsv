@@ -610,3 +610,22 @@ v4163_oldhost_regression.test.mjs	r26
 v4163_pack_delta_sync.test.mjs	r26
 v4163_voice_language_tags.test.mjs	r26
 v4163_weekly_correction_sources.test.mjs	r26
+l26_o1_host_refusal.test.mjs		L26-O1 宿主兼容矩阵：三态闭集 + 拒载即抛 + 版本解析不许回落 0
+l26_o2_extra_js_retirement.test.mjs		L26-O2 加载瘦身：退役候选与理由、回滚序位、仍在消费即拒退役
+l26_o3_recall_regression.test.mjs		L26-O3 检索质量跨版本回归：缺读数判 unknown、阈值必须为负、退步即拦
+l26_o4_log_level.test.mjs		L26-O4 日志分级与采样：error 永不采样、缺 context 抛、采样可复现
+l26_o5_data_migration.test.mjs		L26-O5 迁移兼容矩阵：同版只读、升版逐级、降级一律拒载
+l26_o6_i18n_parity.test.mjs		L26-O6 多语言：键集合双向对等、缺键显式标记、绝不返回空串
+l26_o7_capacity_readings.test.mjs		L26-O7 容量治理：10w/50w 读数、严格数值、清理建议可执行
+l26_o8_diag_codes.test.mjs		L26-O8 诊断码人话化：未登记码不许上线、源码可扫
+l26_o9_doc_readings.test.mjs		L26-O9 文档读数同源：只认生成物、stale 与 unverifiable 分列
+l26_x1_archive_portability.test.mjs		L26-X1 记忆档案可携：三模式不同形、差异预览、未知模式拒载
+l26_x2_rubyphone_bridge.test.mjs		L26-X2 双仓互通（契约侧）：身份必须来自 messageId、不静默覆盖、同轮验收
+l26_x3_visual_panel.test.mjs		L26-X3 记忆可视化面板：节点可点回源、悬空与孤立单列、空态给人话
+l26_x4_preset_pack.test.mjs		L26-X4 预设分发：导入导出皆校验、未知字段点名、失败给原因
+l26_x5_relation_timeline.test.mjs		L26-X5 关系时间线：时间缺失不进轴、视窗裁剪报 hidden、强度缺失不算够强
+l26_x6_conflict_advice.test.mjs		L26-X6 冲突仲裁建议：1~2 条带依据、不自动改、显式拒执行
+l26_x7_health_board.test.mjs		L26-X7 记忆健康看板：损坏优先于增长、无基线判 unknown、条数变少报异常
+l26_x8_batch_ledger.test.mjs		L26-X8 批量操作台账：谁/多少/哪些、可回滚、过期明确拒
+l26_x9_recall_explainer.test.mjs		L26-X9 检索解释器：命中哪一路/哪几个词/哪条证据、说不出就说不知道
+v3475_l26_delivery.test.mjs		v3.475.0 · L26 交付自证：登记可装载、四源同源、判据成组、发布面同源

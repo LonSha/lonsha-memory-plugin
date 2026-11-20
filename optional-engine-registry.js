@@ -121,7 +121,28 @@
         //   注意：以下 6 项是**工厂对象**而非类（导出 {…} 方法集合，不是 constructor），
         //   故登记名用它们真实挂载的全局名；调用方必须按「工厂」消费（见 index.js 的
         //   _factoryOrClass 取用纪律），不得直接 `new`。
-        ['LonShaUnspokenHesitation', 'unspoken-hesitation-subtext-engine.js']
+        ['LonShaUnspokenHesitation', 'unspoken-hesitation-subtext-engine.js'],
+        // [v3.475.0 · L26] 第二十六期十八项（O1~O9 / X1~X9）：契约、治理、可见三面。
+        //   登记纪律：本表缺一条 ⇒ index.js 取不到 ⇒ 静默 null ⇒ 永不实例化。
+        //   形态：十八项皆为**工厂对象**（IIFE 导出方法集合），按工厂消费，不 new。
+        ['LonShaHostRefusalGate', 'host-refusal-gate.js'],
+        ['LonShaExtraJsRetirement', 'extra-js-retirement.js'],
+        ['LonShaRecallRegressionGuard', 'recall-regression-guard.js'],
+        ['LonShaLogLevelGate', 'log-level-gate.js'],
+        ['LonShaDataMigrationMatrix', 'data-migration-matrix.js'],
+        ['LonShaI18nKeysParity', 'i18n-keys-parity.js'],
+        ['LonShaCapacityReadings', 'capacity-readings.js'],
+        ['LonShaDiagCodesHumanize', 'diag-codes-humanize.js'],
+        ['LonShaDocReadingsGenerator', 'doc-readings-generator.js'],
+        ['LonShaMemoryArchivePortability', 'memory-archive-portability.js'],
+        ['LonShaRubyphoneBridgeContract', 'rubyphone-bridge-contract.js'],
+        ['LonShaMemoryVisualPanel', 'memory-visual-panel.js'],
+        ['LonShaPresetPack', 'preset-pack.js'],
+        ['LonShaRelationTimelineView', 'relation-timeline-view.js'],
+        ['LonShaConflictAdvice', 'conflict-advice.js'],
+        ['LonShaMemoryHealthBoard', 'memory-health-board.js'],
+        ['LonShaBatchOpLedger', 'batch-op-ledger.js'],
+        ['LonShaRecallExplainer', 'recall-explainer.js'],
     ];
     function loadOne(globalName, fileName) {
         try {
