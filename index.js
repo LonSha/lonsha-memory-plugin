@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.475.0';
+    const VERSION = '3.476.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -4586,11 +4586,56 @@ function relativeTimeLabel(eventTime, nowTime) {
                                 const label = (t.split(/[\n，。]/)[0] || t).slice(0, 24) || ('条目' + i);
                                 return { id: it.id || ('cand_' + i), _label: label, comment: label, content: t.slice(0, 200), constant: false, keys: { primary: [label], secondary: [], all: [label] }, _orig: it };
                             });
-                            const selRes = await this.aiSelect.route(wrapped, { lastUserText: _lut, recentText: _lrt, stateSummary: '' });
-                            const picked = (selRes.selected || []).map(w => w._orig || w);
-                            if (picked.length) {
-                                candidateItems = picked;
-                                if (_cfg.debugMode) console.log(`[${PLUGIN_NAME}] AI精选: ${wrapped.length}候选→${picked.length}条 (source=${selRes.source})`);
+                            let selRes;
+                            {
+                                /* [v4.0 · R27-E 接线] 选文复用闸门（selection-reuse.js）。
+                                 *  要治什么：`aiSelect.route` 是一次**真 LLM 调用**，而它在两轮之间的
+                                 *  输入极常逐字相同（同一段最近正文、同一批候选、同一个问题）。
+                                 *  不复用的代价不是「慢一点」，而是每轮多烧一次调用，且两次调用可能
+                                 *  给出不同选文 —— 同一世界连续两轮注入不同依据，是最难查的漂移。
+                                 *
+                                 *  复用条件（三条同时成立，任一不成立就老实重调）：
+                                 *    ① 候选集逐条指纹相同（id + content 全等，不只看条数）；
+                                 *    ② 查询文本（本轮玩家输入 + 最近正文）逐字相同；
+                                 *    ③ 世界没动过（摘要条数未变 —— 维护/补摘跑过就必须重判）。
+                                 *  ★ 已知取舍：这是**保守复用**，不是语义等价证明。温度非 0 时两次调用的
+                                 *    结果本可不同；这里选「同一输入沿用同一判定」，把不确定性钉死。
+                                 *  ★ 指纹用模块自带双路 FNV（只当内存键，不做安全用途）。 */
+                                const _srLib = (typeof window !== 'undefined' ? window.LonShaSelectionReuse : null)
+                                    || (typeof require !== 'undefined' ? (() => { try { return require('./selection-reuse.js'); } catch (_e) { return null; } })() : null);
+                                let _reuseKey = '';
+                                try {
+                                    if (_srLib && typeof _srLib.fingerprint === 'function') {
+                                        _reuseKey = _srLib.fingerprint(JSON.stringify({
+                                            q: _lut, r: _lrt,
+                                            c: wrapped.map(w => [String(w.id), String(w.content || '')]),
+                                            n: (this.summaries && this.summaries.length) || 0
+                                        }));
+                                    }
+                                } catch (e) { errLog(e, 'onBeforeGeneration.选文复用键'); }
+                                let _reused = false;
+                                const _cache = this._aiSelectCache;
+                                if (_reuseKey && _cache && _cache.key === _reuseKey && Array.isArray(_cache.pickedIds)) {
+                                    const _byId = new Map(wrapped.map(w => [String(w.id), w]));
+                                    const _ids = _cache.pickedIds.filter(id => _byId.has(String(id)));
+                                    if (_ids.length && _ids.length === _cache.pickedIds.length) {
+                                        selRes = { selected: _ids.map(id => _byId.get(String(id))), source: 'reuse', candidates: wrapped.length };
+                                        _reused = true;
+                                    }
+                                }
+                                this._aiSelectReuseRead = { reused: _reused, key: _reuseKey, reasons: _reused ? ['cache-hit'] : [] };
+                                if (!_reused) {
+                                    selRes = await this.aiSelect.route(wrapped, { lastUserText: _lut, recentText: _lrt, stateSummary: '' });
+                                    /* 只有真拿到结果才记缓存：空结果/异常一律不缓存，否则一次读失败会被沿用下去。 */
+                                    try {
+                                        if (_reuseKey && selRes && Array.isArray(selRes.selected) && selRes.selected.length) {
+                                            this._aiSelectCache = {
+                                                key: _reuseKey,
+                                                pickedIds: selRes.selected.map(w => String((w && w._orig ? w._orig : w).id || ''))
+                                            };
+                                        }
+                                    } catch (e) { errLog(e, 'onBeforeGeneration.选文缓存写入'); }
+                                }
                             }
                             // [v3.172] 读数面：把「判不了 / 映射不上 / 粗召回截断」随本轮留存。
                             //   只记 source 与候选数会让「AI 读失败」和「AI 判定了空」在账本里同形（I6）。

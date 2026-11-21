@@ -1491,6 +1491,22 @@
                                 return ['场景编排', SO.sceneLine(rawList)];
                         } catch (e) { errLog(e, 'selfCheck.sceneOrchestrator'); return ['场景编排', '—（诊断异常）']; }
                     })(),
+                // [v4.0] V4 六条机制体检面（maintenance / window / rules / codec / reuse / edits）。
+                //   六条各自只答一件事，谁都不认识「面板」—— 本行是它们的**唯一取用点**：
+                //   面板与诊断读同一份 `read(host)`，所以两边不会出现「一个说 12 楼、一个说 9 楼」。
+                //   报警口径只认两条真损失：模块缺席（missing 非空）与六格全坏。
+                //   单条 `not-run` **不报警** —— 那是正常态（还没触发过维护轮 / 还没编辑过摘要），
+                //   报成错会让这行长期亮灯，之后真出事也没人再看（本仓反复治过的灯下黑）。
+                (() => {
+                    try {
+                        const PB = (typeof window !== 'undefined' ? window.LonShaV4PanelBridge : null)
+                            || (typeof require !== 'undefined' ? (() => { try { return require('./v4-panel-bridge.js'); } catch (_e) { return null; } })() : null);
+                        if (!PB || typeof PB.read !== 'function') return ['V4六条', '模块未加载（v4-panel-bridge.js）'];
+                        const d = PB.read(this);
+                        const bad = ((d.missing || []).length > 0) || (Number(d.alive) === 0);
+                        return ['V4六条', String(d.line || '').replace(/^V4 六条 /, '') + (bad ? ' ⚠️' : '')];
+                    } catch (e) { errLog(e, 'selfCheck.v4bridge'); return ['V4六条', '—（诊断异常）']; }
+                })(),
             ];
             // [v3.328.0 · F 包 M3-X6] 支线正史体检面:与「分支对照」**分列**。
             //   对照行答「两条分支的面差在哪」,本行答「哪一条算数」——合成一行会让

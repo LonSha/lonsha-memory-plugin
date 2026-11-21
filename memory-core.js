@@ -253,7 +253,7 @@ function areLabelsInConflict(l1, l2) {
 
 const PLUGIN_NAME = 'LonSha记忆引擎';
 
-let VERSION = '3.475.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.476.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 
     // [v3.38] 关系多维共存与互斥演化（Zep/Graphiti 理念）——是 areLabelsInConflict 的判据表
 
@@ -695,16 +695,89 @@ class SummarySystem {
     }
     // [v3.28] 三级金字塔（st-memory-wizzard）: summaries(level1日记) → volumes(level2周记/卷) → historical(level3史记)
     // [v3.74] A: 摘要手动操作（柏宝书 editSummary 缝入）——编辑摘要文本 + 手动补摘
-    updateSummaryText(floor, newText) {
+    updateSummaryText(floor, newText, opts) {
         const t = String(newText || '').trim();
         if (!t) return false;
         const s = this.summaries.find(x => x.floor === Number(floor));
         if (!s) return false;
+        const _old = String(s.text || '');
+        const _force = !!(opts && opts.force === true);
+        /* [v4.0 · R27-C 接线] 摘要编辑守卫（sentence-edits.js）。
+         *  要治什么：`s.text = smartTruncate(t, 2000)` 是**整段覆盖**，且 `edited=true` 之后
+         *  这条摘要不会再被自动重写。于是「把整段换成另一段话」与「改了两个错字」在账本上
+         *  逐字同形 —— 事后没人能回答「这条摘要是被改过，还是被重写过」。
+         *
+         *  处置（不拦编辑，只把编辑**定性**）：
+         *    ① 取新旧最大公共前后缀，中间那截才是「真正被改动的跨度」——整段重写会得到
+         *       接近全文的跨度，改两个错字会得到 2 字跨度；
+         *    ② 把这一条改动交给 applySentenceEdits 判定（它自带 256 字跨度 / 60% 覆盖 /
+         *       短单句豁免三条阈值与 patch-ambiguous 唯一性判定）；
+         *    ③ 判定结果只用于**打标与记账**：命中 too-wide / too-long ⇒ 记 `rewritten` 而不是
+         *       `edited`，opLog 动作名写 rewrite —— 面板与事后审计能区分两类编辑。
+         *  ★ 不据此拒绝编辑：人手有权整段重写（柏宝书同款边界：人改 = 允许，AI 改 = 受限）。
+         *  ★ 唯一的硬拒：编辑把一条**已锁定事实**从摘要里抹掉 —— 锁定事实只确定一次。 */
+        let _editRead = { ok: false, codes: [], reason: 'not-run', spanChars: -1, coverage: -1 };
+        try {
+            let p = 0;
+            const _minL = Math.min(_old.length, t.length);
+            while (p < _minL && _old[p] === t[p]) p++;
+            let sfx = 0;
+            while (sfx < _minL - p && _old[_old.length - 1 - sfx] === t[t.length - 1 - sfx]) sfx++;
+            const _midOld = _old.slice(p, _old.length - sfx);
+            const _midNew = t.slice(p, t.length - sfx);
+            if (!_midOld.length && _midNew.length) {
+                _editRead = { ok: true, codes: [], reason: 'pure-insert', spanChars: _midNew.length, coverage: 0 };
+            } else if (!_midOld.length && !_midNew.length) {
+                _editRead = { ok: true, codes: [], reason: 'noop', spanChars: 0, coverage: 0 };
+            } else {
+                const _se = (typeof window !== 'undefined' ? window.LonShaSentenceEdits : null)
+                    || (typeof require !== 'undefined' ? (() => { try { return require('./sentence-edits.js'); } catch (_e) { return null; } })() : null);
+                if (_se && typeof _se.applySentenceEdits === 'function') {
+                    const _r = _se.applySentenceEdits(
+                        { id: 'sum_' + Number(floor), segments: [{ id: 'sum', text: _old }] },
+                        [{ segmentId: 'sum', oldText: _midOld, newText: _midNew }]
+                    );
+                    const _codes = (_r.rejected || []).map(x => x.code);
+                    const _body = (typeof _se.bodySize === 'function') ? Number(_se.bodySize(_old)) || 0 : _old.length;
+                    _editRead = {
+                        ok: _codes.length === 0,
+                        codes: _codes,
+                        reason: _codes[0] || 'ok',
+                        spanChars: _midOld.length,
+                        coverage: _body > 0 ? Math.round((_midOld.length / _body) * 1000) / 1000 : 0,
+                        line: _r.readings && _r.readings.line
+                    };
+                } else { _editRead = { ok: false, codes: [], reason: 'module-unavailable', spanChars: _midOld.length, coverage: -1 }; }
+            }
+        } catch (e) { this._reportError(e, 'nonfatal'); _editRead = { ok: false, codes: [], reason: 'thrown', spanChars: -1, coverage: -1 }; }
+        this._lastSummaryEditRead = _editRead;   // 读数面：面板/诊断读它
+        /* 唯一的硬拒：编辑抹掉锁定事实。锁定事实「只确定一次」，从摘要里删掉它等于让
+         *  后续注入再也看不到 —— 而它在账本里仍是锁定的，两条路径从此互相矛盾。 */
+        if (!_force) {
+            let _locked = [];
+            try { _locked = (typeof this.getLockedFacts === 'function') ? (this.getLockedFacts() || []) : []; } catch (e) { this._reportError(e, 'nonfatal') }
+            for (const f of _locked) {
+                const _ft = String((f && f.text) || '').trim();
+                if (_ft.length < 6) continue;                 // 太短的片段会误伤（「他」这类）
+                if (_old.indexOf(_ft) < 0) continue;          // 原本就不在摘要里 → 与本条编辑无关
+                if (t.indexOf(_ft) >= 0) continue;            // 仍在 → 没被抹掉
+                _editRead.rejectedBy = 'locked-fact-erased';
+                _editRead.lockedFactFloor = Number(f && f.floor);
+                return false;
+            }
+        }
+        const _rewritten = _editRead.codes.indexOf('patch-span-too-wide') >= 0
+            || _editRead.codes.indexOf('patch-span-too-long') >= 0
+            || _editRead.codes.indexOf('patch-span-multiline') >= 0;
         s.text = this.smartTruncate(t, 2000);
         s.edited = true;
+        if (_rewritten) s.rewritten = true;
         s.editedAt = Date.now();
-        // [v3.75] A: OpLog 埋点（summary/update）
-        try { this.opLog?.log?.('summary', 'update', 'sum_' + floor, floor, String(t).slice(0, 40)); } catch (e) { this._reportError(e, 'nonfatal') }
+        // [v3.75] A: OpLog 埋点（summary/update）；[v4.0] 整段重写记 rewrite，与句级编辑分形
+        try {
+            this.opLog?.log?.('summary', _rewritten ? 'rewrite' : 'update', 'sum_' + floor, floor,
+                String(t).slice(0, 40) + (_editRead.codes.length ? ' [' + _editRead.codes.join(',') + ']' : ''));
+        } catch (e) { this._reportError(e, 'nonfatal') }
         return true;
     }
     /** 手动补摘（柏宝书：任意楼层单独补摘）——为缺失楼层的旧剧情补一条摘要
@@ -757,9 +830,50 @@ class SummarySystem {
      *  防重入 _batchCompleting；调用方须传 chatLookup(floor) → 该楼原文（由引擎层注入） */
     async completeMissingFloors(config, llm, chatLookup, maxBatch = 5) {
         if (this._batchCompleting) return { done: 0, skipped: true };
-        const maxFloor = (window.SillyTavern?.getContext?.()?.chat?.length || 1) - 1;
+        const _chatAll = window.SillyTavern?.getContext?.()?.chat || [];
+        let maxFloor = (_chatAll.length || 1) - 1;
+        /* [v4.0 · R27-A 接线] 批量补齐 = 维护轮 ⇒ 先过维护排期（maintenance-schedule.js）。
+         *  为什么必须在这里拦：本函数把「落下的楼层」逐楼写进 summaries，而摘要一旦落账就
+         *  **不会自动重写**。最新一条 AI 回复可能还在 swipe / 重生成里，玩家也可能刚发了下一句
+         *  —— 此时给它补摘要，落的是「半句事实」：玩家说了话、没人回。之后剧情一变，这条摘要
+         *  永久错位，而它与一条正确摘要在账本上逐字同形，事后无法分辨。
+         *
+         *  处置：把维护区上界截到 `eligibleEnd - 1`（暂缓最新 keep 条回复 + 紧邻的玩家输入）。
+         *  ★ 这不是「少做事」，是「晚点做对的事」：暂缓楼仍在 missingFloors 的下一轮清单里。
+         *  ★ 算不出来时**不降级为截断**：模块缺失/异常则维持原 maxFloor（既有行为），读数记
+         *    `ok:false` —— 宁可补早了，也不能因为守卫坏了就永远补不上（fail-open）。 */
+        let _maint = { ok: false, reason: 'not-run' };
+        try {
+            const _ms = (typeof window !== 'undefined' ? window.LonShaMaintenanceSchedule : null)
+                || (typeof require !== 'undefined' ? (() => { try { return require('./maintenance-schedule.js'); } catch (_e) { return null; } })() : null);
+            if (_ms && typeof _ms.computeSchedule === 'function') {
+                // ST chat → 本模块认的 {role, content, key}；本仓楼层号即数组下标。
+                const _msgs = _chatAll.map((m, i) => ({
+                    role: (m && m.is_user === true) ? 'user' : ((m && m.is_system === true) ? 'system' : 'assistant'),
+                    content: String((m && m.mes) || ''),
+                    key: String(i)
+                }));
+                // 已处理前缀 = 有摘要的连续楼层（遇缺口即停，与 computeSchedule 的对账口径一致）。
+                const _have = new Set(this.summaries.map((s) => Number(s.floor)));
+                const _processed = [];
+                for (let f = 0; f < _msgs.length; f++) { if (!_have.has(f)) break; _processed.push(String(f)); }
+                const _sch = _ms.computeSchedule(_msgs, _processed, {
+                    maintenanceEvery: Number(config?.maintenanceEvery) || 1,
+                    maintenanceKeepRecent: (config?.maintenanceKeepRecent === undefined || config?.maintenanceKeepRecent === null)
+                        ? 1 : Number(config.maintenanceKeepRecent)
+                });
+                const _cap = Number.isFinite(_sch.eligibleEnd) ? (_sch.eligibleEnd - 1) : maxFloor;
+                if (_cap < maxFloor) maxFloor = Math.max(-1, _cap);
+                _maint = {
+                    ok: true, trigger: _sch.trigger, eligibleEnd: _sch.eligibleEnd,
+                    covered: _sch.covered, deferredCount: _sch.deferredCount,
+                    cappedTo: maxFloor, degraded: _sch.degraded.slice()
+                };
+            } else { _maint = { ok: false, reason: 'module-unavailable' }; }
+        } catch (e) { this._reportError(e, 'nonfatal'); _maint = { ok: false, reason: 'thrown' }; }
+        this._maintScheduleRead = _maint;   // 读数面：面板/诊断读它，不参与判定
         const missing = this.missingFloors(maxFloor);
-        if (!missing.length) return { done: 0, missing: 0 };
+        if (!missing.length) return { done: 0, missing: 0, maintenance: _maint };
         this._batchCompleting = true;
         let done = 0;
         try {
