@@ -574,11 +574,37 @@
     // ------------------------------------------------------------------
     // 挂载
     // ------------------------------------------------------------------
+    /* 挂载自诊断：真机上「脚本加载了但界面没变」曾经零痕迹。
+       这里把每个阶段与失败原因都写进 localStorage，排查时可读、可复算。 */
+    const diagWrite = (stage, err) => {
+        try {
+            window.localStorage.setItem('lonsha_shell_diag', JSON.stringify({
+                v: VERSION, stage: String(stage || ''),
+                err: err ? String((err && (err.message || err)) || err).slice(0, 300) : '',
+                at: Date.now(),
+            }));
+        } catch (_e) { /* 写不进也不影响主流程 */ }
+    };
+
     const mount = () => {
         const plugin = window.LonShaMemory;
-        if (!plugin || typeof plugin.showSettingsPanel !== 'function') { setTimeout(mount, 250); return; }
-        if (plugin.__lsDashShell) return;
-        plugin.__lsDashShell = VERSION;
+        if (!plugin || typeof plugin.showSettingsPanel !== 'function') {
+            diagWrite('wait-plugin', 'plugin=' + (!!plugin) + ' showSettingsPanel=' + (plugin && typeof plugin.showSettingsPanel));
+            setTimeout(mount, 250); return;
+        }
+        if (plugin.__lsDashShell) { diagWrite('already-mounted', plugin.__lsDashShell); return; }
+        try {
+            diagWrite('mount-enter');
+            mountInner(plugin);
+            plugin.__lsDashShell = VERSION;   // 只有装配真的走完才落这个标记
+            diagWrite('mounted');
+        } catch (e) {
+            warn('mount', e);
+            diagWrite('mount-failed', e);
+        }
+    };
+
+    function mountInner(plugin) {
 
         applyTheme();
         try {
@@ -593,7 +619,7 @@
         } catch (_) { /* 非致命 */ }
 
         neutralizeLegacyStyle();
-        if (store.get(LS_KEYS.enabled, 'on') === 'off') return;
+        if (store.get(LS_KEYS.enabled, 'on') === 'off') { diagWrite('disabled-by-key', 'lonsha.ui.dashboard=off'); return; }
 
         const original = plugin.showSettingsPanel;
         const wrapped = function () {
