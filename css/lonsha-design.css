@@ -63,6 +63,58 @@
     --ls-r-xl: 18px;
     --ls-r-pill: 9999px;
 
+    /* ---- 间距网格（4px 基准，命名按「单位数」而非像素数） ----
+     * [v3.476] 补登：本文件头自称覆盖「间距」，但 v3.5 实际一条都没有，
+     *   而 style.css / dashboard*.css 合计 **299 处** var(--ls-sp-*) / var(--ls-fs-*)
+     *   且**零 fallback** ⇒ 那些声明全部 invalid-at-computed-value-time：
+     *   padding/margin/gap 回落 0、font-size 回落继承。面板的间距与字阶在源码层就不成立。
+     * 取值与 ruby-phone `phone/design/lonsha-tokens.css` 的 --lt-sp-* **逐档对齐**
+     *   （同一套 4px 网格，两边不许各自发明刻度；改这里必须同步改那边）。 */
+    --ls-sp-0: 0;
+    --ls-sp-1: 4px;
+    --ls-sp-2: 8px;
+    --ls-sp-3: 12px;
+    --ls-sp-4: 16px;
+    --ls-sp-5: 20px;
+    --ls-sp-6: 24px;
+    --ls-sp-8: 32px;
+    --ls-sp-10: 40px;
+    --ls-sp-12: 48px;
+    --ls-sp-16: 64px;
+
+    /* ---- 字号阶梯（对齐 iOS HIG 语义阶，与 ruby-phone --lt-ios-* 同值） ----
+     * [v3.476] 补登：原文件同样缺这一族，而 font-size: var(--ls-fs-*) 有 113 处。
+     *   档位直接沿用 iOS：largeTitle 34 / title1 28 / title2 22 / title3 20 /
+     *   headline 17 / body 17 / callout 16 / subhead 15 / footnote 13 /
+     *   caption1 12 / caption2 11 / tablabel 10。
+     *   额外给 `--ls-fs-caption`（12px，= caption1）：现有 CSS 用的是这个名字，
+     *   保留它而不是去改 113 处调用点 —— 少改一处就少一次改错的机会。 */
+    --ls-fs-largetitle: 34px;
+    --ls-fs-title1: 28px;
+    --ls-fs-title2: 22px;
+    --ls-fs-title3: 20px;
+    --ls-fs-headline: 17px;
+    --ls-fs-body: 17px;
+    --ls-fs-callout: 16px;
+    --ls-fs-subhead: 15px;
+    --ls-fs-footnote: 13px;
+    --ls-fs-caption: 12px;
+    --ls-fs-caption1: 12px;
+    --ls-fs-caption2: 11px;
+    --ls-fs-tablabel: 10px;
+
+    /* ---- 焦点 / 遮罩 / 命中区（[v3.476] 补登，原文件同样缺） ----
+     * 逐个按调用点的**语法位置**反推取值，而不是猜：
+     *   · outline: var(--ls-focus-outline) —— 需整条 outline 简写，故给 2px 实线 + 强调描边色；
+     *   · background: var(--ls-overlay)     —— 需一个颜色，取 bg-0 的 72% 不透明度（与 --ls-bg-glass 同族）；
+     *   · min-height: var(--ls-hit)        —— 需一个长度，取 iOS 最小可达尺寸 44px（与 --ls-r-pill 同源规范）；
+     *   · 未给 --ls-on-accent-strong 之外的值：accent-strong 是 #0284c7 深蓝，其上的字必须取浅色，
+     *     故复用 --ls-text 的 #f1f5f9 —— 这一条属**设计判断**，已标待设计确认。 */
+    --ls-focus-outline: 2px solid var(--ls-accent-line);
+    --ls-overlay: rgba(6, 8, 13, 0.72);
+    --ls-hit: 44px;
+    --ls-on-accent-strong: #f1f5f9;   /* TODO(design): 待设计确认；当前取 --ls-text 同值，保证深蓝底上可读 */
+
     /* ---- 多层景深光影系统（物理仪器暗室分层） ---- */
     --ls-sh-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
     --ls-sh-2: 0 4px 20px -2px rgba(0, 0, 0, 0.65), 0 12px 32px -4px rgba(2, 6, 23, 0.55);

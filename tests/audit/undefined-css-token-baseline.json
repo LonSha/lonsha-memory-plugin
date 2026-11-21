@@ -1,0 +1,14 @@
+{
+  "file": "tests/audit/undefined-css-token-baseline.json",
+  "note": "未定义 CSS 自定义属性的已知欠账登记表。判据 scan_undefined_css_tokens.mjs 用它区分「新欠账」与「已认知的旧欠账」。每条必须有 kind（debt=仓内欠账 / host=宿主注入）、reason（>=20字）与 release（解除条件）。豁免双向：token 一旦被定义、调用点补上 fallback、或消费点被删除，条目必须同步删掉，否则判据报红 —— 债还了不删条目，这道门就变成装饰。",
+  "history": [
+    "v3.476.0 建表时为空：本仓裸用未定义 token 实测 0 处（修前 299 处 var(--ls-sp-*)/var(--ls-fs-*) 已在 css/lonsha-design.css 补齐）。",
+    "建表过程中真抓到一次误报并当场撤销：--ls-ico 与 --ls-chevron-mask 曾按「行首定义的 grep 口径」被登记为欠账，实为 ls-icons.css 里逐图标的**单行规则内定义**（`.x{--ls-ico:url(...)}`），行首锚点看不见它。这条留痕是为了记住：判据读的是语法位置，不是行首。"
+  ],
+  "watched": [
+    "--SmartThemeBodyColor / --SmartThemeBlurTintColor / --SmartThemeBorderColor：SillyTavern 主题编辑器写入 :root 的宿主变量，本仓不定义；调用点自带 fallback（与 ruby-phone 同写法），故不计欠账。",
+    "--lt-hairline-px：ruby-phone phone-tokens.css 定义（0.5px）；本仓 vendored 的 lonsha-tokens-v3.css 引用处自带 `, 1px` 兜底，故不计欠账。",
+    "--v2-ring-len：dashboard-v2 的环形进度弧长，调用点自带兜底值；不计欠账。"
+  ],
+  "entries": []
+}

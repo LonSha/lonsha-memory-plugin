@@ -61,7 +61,9 @@ test('【0】版本三源同源（index / manifest / package）', () => {
   const v = /const VERSION = '([0-9.]+)'/.exec(IDX)[1];
   assert.equal(MANIFEST.version, v, 'manifest.version 必须等于 index.js VERSION');
   assert.equal(PKG.version, v, 'package.version 必须等于 index.js VERSION');
-  assert.ok(/^3\.476\./.test(v), '本判据生于 v3.476.x，当前 ' + v);
+  // 版本钉：本判据生于 v3.476.x；v3.478 只加了呈现层（不改六条语义），
+  // 故放行 3.476 起的同大版本区间 —— 跨大版本时必须回来重新确认六条仍成立。
+  assert.ok(/^3\.(47[6-9]|4[8-9][0-9])\./.test(v), '本判据生于 v3.476.x，当前 ' + v);
   ok('版本 ' + v + ' 三源一致');
 });
 

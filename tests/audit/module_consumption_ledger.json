@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-20T21:36:13.115Z",
-  "extra_js_count": 437,
+  "generated_at": "2026-11-21T08:07:14.118Z",
+  "extra_js_count": 448,
   "host_injected_count": 252,
-  "total_modules": 438,
+  "total_modules": 449,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 438,
+  "active_count": 449,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -4530,8 +4530,8 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 46,
-      "business_call_sites": 46,
+      "prod_call_sites": 57,
+      "business_call_sites": 57,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -5455,6 +5455,30 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "maintenance-schedule.js": {
+      "module": "maintenance-schedule.js",
+      "surface": [
+        "maintenance-schedule"
+      ],
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-core.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
     },
     "material-pack.js": {
       "module": "material-pack.js",
@@ -8930,6 +8954,25 @@
         }
       ]
     },
+    "rules-compile.js": {
+      "module": "rules-compile.js",
+      "surface": [
+        "rules-compile"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "rumor-entropy-gossip-diffusion.js": {
       "module": "rumor-entropy-gossip-diffusion.js",
       "surface": [
@@ -9280,6 +9323,54 @@
         {
           "file": "ledger-replay.js",
           "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "selection-reuse.js": {
+      "module": "selection-reuse.js",
+      "surface": [
+        "selection-reuse"
+      ],
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "sentence-edits.js": {
+      "module": "sentence-edits.js",
+      "surface": [
+        "sentence-edits"
+      ],
+      "prod_call_sites": 4,
+      "business_call_sites": 4,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "memory-core.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
           "type": "file_binding"
         }
       ],
@@ -9772,6 +9863,25 @@
         {
           "file": "ledger-replay.js",
           "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "storage-codec.js": {
+      "module": "storage-codec.js",
+      "surface": [
+        "storage-codec"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
           "type": "file_binding"
         }
       ],
@@ -10349,6 +10459,78 @@
       ],
       "load_surface_callers": []
     },
+    "ui-floor-panel.js": {
+      "module": "ui-floor-panel.js",
+      "surface": [
+        "LonShaFloorPanel"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "v4-panel-ui.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-kit-core.js": {
+      "module": "ui-kit-core.js",
+      "surface": [
+        "LonShaUiKit"
+      ],
+      "prod_call_sites": 6,
+      "business_call_sites": 6,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-floor-panel.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "ui-summary-tree.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-summary-tree.js": {
+      "module": "ui-summary-tree.js",
+      "surface": [
+        "LonShaSummaryTree"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "exclusive_global"
+        },
+        {
+          "file": "v4-panel-ui.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "ui-telemetry-metrics-visualizer.js": {
       "module": "ui-telemetry-metrics-visualizer.js",
       "surface": [
@@ -10496,6 +10678,49 @@
         }
       ]
     },
+    "v4-panel-bridge.js": {
+      "module": "v4-panel-bridge.js",
+      "surface": [
+        "v4-panel-bridge"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-self-check.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "v4-panel-ui.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "v4-panel-ui.js": {
+      "module": "v4-panel-ui.js",
+      "surface": [
+        "LonShaV4PanelUi"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "vector-semantic-sparse-hybrid-retrieval.js": {
       "module": "vector-semantic-sparse-hybrid-retrieval.js",
       "surface": [
@@ -10598,6 +10823,25 @@
         {
           "file": "index.js",
           "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "window-plan.js": {
+      "module": "window-plan.js",
+      "surface": [
+        "window-plan"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "v4-panel-bridge.js",
+          "count": 3,
           "type": "file_binding"
         }
       ],

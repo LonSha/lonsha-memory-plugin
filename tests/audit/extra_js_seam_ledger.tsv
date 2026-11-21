@@ -436,3 +436,14 @@ conflict-advice.js	yes	yes	optional-engine-registry.js	host-seam
 memory-health-board.js	yes	yes	optional-engine-registry.js	host-seam
 batch-op-ledger.js	yes	yes	optional-engine-registry.js	host-seam
 recall-explainer.js	yes	yes	optional-engine-registry.js	host-seam
+maintenance-schedule.js	yes	yes	memory-core.js;v4-panel-bridge.js	host-seam
+window-plan.js	yes	yes	v4-panel-bridge.js	host-seam
+sentence-edits.js	yes	yes	memory-core.js;v4-panel-bridge.js	host-seam
+storage-codec.js	yes	yes	v4-panel-bridge.js	host-seam
+selection-reuse.js	yes	yes	index.js;v4-panel-bridge.js	host-seam
+rules-compile.js	yes	yes	v4-panel-bridge.js	host-seam
+v4-panel-bridge.js	yes	yes	engine-self-check.js;v4-panel-ui.js	host-seam
+v4-panel-ui.js	yes	yes	index.js	host-seam
+ui-kit-core.js	yes	yes	ui-floor-panel.js;ui-summary-tree.js	host-seam
+ui-summary-tree.js	yes	yes	index.js;v4-panel-ui.js	host-seam
+ui-floor-panel.js	yes	yes	index.js;v4-panel-ui.js	host-seam

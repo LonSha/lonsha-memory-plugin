@@ -13,6 +13,7 @@
 @import url("./lonsha-tokens-v3.css");   /* v3：iOS 文字样式 / 系统色 / 玻璃 / --ls3-* 面板色（只声明变量） */
 @import url("./dashboard-v3.css");   /* v3 精修层：只在 .ls-dash[data-ui-rev="3"] 下生效（开关 lonsha.ui.v3，默认关） */   /* v2 视觉层：只在 .ls-dash[data-ui="v2"] 下生效（灰度开关 lonsha.ui.v2，默认关） */
 @import url("./ls-icons.css");        /* v3.1：图标遮罩 .ls-ico[data-i]（不随开关：去 emoji 后的图标靠它显示） */
+@import url("./lonsha-ui-kit.css");   /* v4：呈现层通用件（面板壳/卡片/折叠/徽章/楼层条/书签坠）。纯样式，不声明 token，缺 token 走字面量兜底 */
 @import url("./dev-console-v3.css");   /* v3.1：A 段诊断页 / toast 基础样式（不随开关）；B 段开发者控制台（[data-ls-dc="3"]，开关 lonsha.ui.v3） */
 
 :root { --ls-chevron-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 4.75 16.25 12 9 19.25' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }   /* 折叠箭头（SVG 遮罩，颜色跟随 --ls-accent） */

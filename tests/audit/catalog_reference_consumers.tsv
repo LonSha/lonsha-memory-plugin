@@ -630,3 +630,5 @@ l26_x8_batch_ledger.test.mjs		L26-X8 批量操作台账：谁/多少/哪些、�
 l26_x9_recall_explainer.test.mjs		L26-X9 检索解释器：命中哪一路/哪几个词/哪条证据、说不出就说不知道
 v3475_l26_delivery.test.mjs		v3.475.0 · L26 交付自证：登记可装载、四源同源、判据成组、发布面同源
 v3476_memory_badge.test.mjs		v3.476.0 · 玩家端可见性：楼层记忆徽章（旁路渲染、宿主主链路零改动）
+v3476_v4_six_mechanisms.test.mjs		v3.476.0 · V4 六条机制（维护排期/窗口撤回/句子改写/存档编码/选文复用/规则编译）+ 四处真实接线
+v3478_ui_panels.test.mjs		v3.478.0 · 呈现层四件：ui-kit 原语 / 摘要树 / 楼层面板 / ui-kit 样式，含装载登记、调用点证据与占比不回落

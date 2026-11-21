@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.476.0';
+    const VERSION = '3.478.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -12921,6 +12921,30 @@ function _collectNewFace() {
     plugin.VERSION = VERSION;   // [v3.77] A: 版本真值暴露（settings-ui 原硬编码 '1.3.0' 假版本）
     plugin.init().catch(err => console.error(`[${PLUGIN_NAME}] 初始化失败:`, err));
     window.LonShaMemory = plugin;
+    /* [v3.478.0 · 呈现层接线] V4 面板不再只靠自身 autoMount：
+     *   · autoMount 只在加载那一刻试 3 次，宿主清过 DOM 就没有第二次机会；
+     *   · 而且「谁挂载了它」必须在产品面留下调用点，否则本仓的消费审计
+     *     （tests/audit/scan_module_consumption.mjs）会把 panel-ui / summary-tree /
+     *     floor-panel 判成「已挂载但零消费」—— v3.163 那 68 个版本就是这么废的。
+     * 三条命令都走 fail-open：UI 缺席只影响面板，不影响记忆引擎正常读写。 */
+    const mountV4Ui = () => {
+        try {
+            const ui = (typeof window !== 'undefined') ? window.LonShaV4PanelUi : null;
+            if (ui && typeof ui.mount === 'function') ui.mount(plugin);
+            else if (ui && typeof ui.autoMount === 'function') ui.autoMount();
+        } catch (e) { console.warn('[LonSha] V4 面板挂载失败（不影响引擎）', e); }
+    };
+    plugin.openSummaryTree = function () {
+        const m = (typeof window !== 'undefined') ? window.LonShaSummaryTree : null;
+        if (!m || typeof m.openSummaryTree !== 'function') { try { plugin.lsToast?.('warn', '摘要树模块未加载'); } catch (_e) { /* ignore */ } return false; }
+        try { m.openSummaryTree({ onChanged: () => { try { plugin._memPersist?.(); } catch (_e) { /* ignore */ } } }); return true; } catch (e) { console.warn('[LonSha] 摘要树打开失败', e); return false; }
+    };
+    plugin.openFloorPanel = function () {
+        const m = (typeof window !== 'undefined') ? window.LonShaFloorPanel : null;
+        if (!m || typeof m.openFloorPanel !== 'function') { try { plugin.lsToast?.('warn', '楼层面板模块未加载'); } catch (_e) { /* ignore */ } return false; }
+        try { m.openFloorPanel({ onChanged: () => { try { plugin._memPersist?.(); } catch (_e) { /* ignore */ } } }); return true; } catch (e) { console.warn('[LonSha] 楼层面板打开失败', e); return false; }
+    };
+    try { mountV4Ui(); } catch (_e) { /* fail-open */ }
     // [L22-O1 · b2] repairReceipt 已外移到 index-helpers.js（此处只留同名委托绑定，见文件头部）。
     /**
      * [v3.214.0] R1-F：修订读数的**唯一取值口**（`engine.repairRevision()` 的薄包装）。

@@ -1,3 +1,15 @@
+## v3.478.0
+**呈现层第一批：设计系统 + 摘要树 + 楼层面板（学柏宝书形态纪律，4 件 / 1 判据 12 条）**
+
+- **量化口径先立，再谈做多少**：新增 `tests/audit/ui_ratio.mjs` —— 分母 = 根目录全部 `.js` + `css/*.css`，分子 = 全部 css + 文件名命中 UI 词表的 `.js`。读数从 **11.4% → 12.7%**（21,147 / 166,369 行），距 20% 目标还差 **15,159 行**。这条读数已进 `v3478` 判据守住「不得回落」。
+- **`ui-kit-core.js`（原语层，自检 15 条）**：`esc`（实体表用 `AMP` 拼接构造，防「富文本粘贴把 `"` 还原成裸引号」这一类静默失效）、`fold`（`grid-template-rows` 0fr↔1fr，内容常驻 DOM）、`card / badge / empty`（四态：空 / 未加载 / 错误 / 等待，**不设默认值**，因为「默认成空表」正是把「未运行」显示成 0 的那个坑）、`kv / field / switchRow / toolbar / searchBox / chip / panel / modal / toast / renderList`。
+- **`css/lonsha-ui-kit.css`（901 行）**：18 章设计系统。三条学自柏宝书的形态纪律在注释里逐条对应：①形状即品牌（书签坠 0.78 宽高比 + `clip-path` 燕尾缺口，不是圆 fab）；②贴边半隐（靠边透明度 0.55，hover 滑出；拖到中间就停中间）；③展开不脱流（底部**整条**开关 + grid 撑开，不 `display:none`）。只消费 `--ls-*`，不重声明（判据守护）。
+- **`ui-summary-tree.js`（自检 12 条）**：摘要是按楼层**线性**存的，没有父子关系 —— 硬造 `parentId` 只会得到一棵假树。这里用真实存在的第二维做层级：每 10 楼一「幕」，幕内逐楼倒序；首次展开才建子节点。
+- **`ui-floor-panel.js`（自检 9 条）**：楼层条五态，**「最新未稳定」与「缺失」在屏幕上长得不一样** —— `maintenance-schedule` 把补齐上界截到 `eligibleEnd-1` 是对的，但界面上看不见就会被当成漏了，玩家反复点「补齐」。
+- **接线（防重演 v3.163 的 68 个版本）**：`v4-panel-ui.js` 抽屉底部两个入口指向两个面板；`index.js` 增加 `mountV4Ui()` + `plugin.openSummaryTree()` + `plugin.openFloorPanel()`（fail-open）。三个 UI 模块原先用 `root.X = api` 挂载，**消费审计只认 `window.X =`** —— 因此被判「零消费」，已统一挂载形式；`tools/gen_module_consumption_ledger.mjs` 重生成台账后：**448/448 活跃、0 孤儿**，`loading_surface_proof` 五段全 ✓。
+- **登记**：`manifest.extra_js` 445 → **448**；`extra_css` + `css/lonsha-ui-kit.css`；`css/style.css` 补 `@import`。`audit_scan_probe_matrix.tsv` 补 `ui_ratio.mjs` 一行（G 档实测 exit 2，探针 `--root=/tmp/probe_empty` 与 `--root=/tmp/probe_nocss` 各跑一次）；`catalog_reference_consumers.tsv` 补 `v3476` / `v3478` 两行。
+- **不宣称（如实）**：20% 目标**未达成**（12.7%）。三个面板只做了 Node 自检与调用点证据，**真机渲染未验**（未在 SillyTavern 里点开过）；`describe()` 的人话文案与柏宝书的视觉细节仍有差距；`settings-ui.js` 5907 行尚未迁移到 ui-kit（迁移属重构，不在本期）。
+
 ## v3.475.0
 **第二十六期交付：优化九项 `L26-O1~O9` + 拓展九项 `L26-X1~X9`（18 项 / 18 套判据 / 167 条断言，`node tests/run.mjs l26_` 18 文件全绿）。**
 主题「从『记得住』到『说得清、带得走』」——本期不再加引擎，只把**边界**写成契约。

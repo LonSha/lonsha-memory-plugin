@@ -1,0 +1,900 @@
+/* ============================================================================
+ * lonsha-ui-kit.css — [V4 呈现层] 通用件设计系统
+ *
+ * 【为什么单独成层】
+ *   柏宝书（ST-BaiBai-Book）的 11,269 行 Vue 里，真正的「业务」很少，
+ *   绝大多数是**可复用的形态**：卡片、徽章、折叠条、递归节点、空态、
+ *   骨架屏、工具条、键值表、楼层条、开关、遮罩、书签坠。
+ *   它们被 17 个页面反复复用，于是同一个形态只需要被想清楚一次。
+ *   本仓此前的面板（settings-ui.js 5907 行）把形态与业务写在一起，
+ *   每加一个视图就要重抄一遍样式 —— 这是本层存在的唯一理由。
+ *
+ * 【三条形态纪律（学自柏宝书源码，逐条对应下文章节）】
+ *   1. 形状即品牌：入口是竖长书签（0.78 宽高比 + 燕尾缺口），不是圆 fab。→ 第 16 节
+ *   2. 贴边半隐：靠边只露窄条，hover/聚焦滑出；拖到中间就停中间。→ 第 16 节
+ *   3. 展开不脱流：内容常驻 DOM，用 grid-template-rows 0fr↔1fr 撑开，
+ *      不 display:none、不重建、不闪。→ 第 3 节
+ *
+ * 【依赖】
+ *   --ls-* 设计 token 由 css/lonsha-design.css 与 css/lonsha-tokens*.css 提供。
+ *   本层**不重新声明 token**，只消费；missing token 一律有字面量兜底
+ *   （var(--ls-x, fallback)）—— 因为 panel 可能挂在宿主的 :root 被改写的环境里。
+ *
+ * 【口径】
+ *   本文件全部行数计入「呈现层占比」（tests/audit/ui_ratio.mjs 的分子）。
+ *   禁止在此文件写业务逻辑或写入任何状态：它是纯样式层，删掉不影响功能，
+ *   只影响可读性 —— 这是它敢单独成层的安全前提。
+ * ========================================================================== */
+
+/* ----------------------------------------------------------------
+ * 1. 面板壳（panel shell）
+ *    .lsu-panel      浮层根：铺满、点击遮罩可关（由 JS 决定）
+ *    .lsu-sheet      抽屉本体：右侧滑入，最大宽度受 --lsu-sheet-w 控制
+ *    .lsu-sheet-head 头部：标题 + 副标题 + 关闭
+ *    .lsu-sheet-body 主体：唯一滚动容器
+ *    .lsu-sheet-foot 底部：主操作区（滚动时不动）
+ * ---------------------------------------------------------------- */
+.lsu-panel {
+    position: fixed;
+    inset: 0;
+    z-index: var(--lsu-z, 2147482000);
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(2, 4, 8, 0.55);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+.lsu-panel.is-open { opacity: 1; }
+
+.lsu-sheet {
+    --lsu-sheet-w: 420px;
+    width: min(var(--lsu-sheet-w), 100vw);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--ls-bg-1, #0a0f18);
+    color: var(--ls-fg-1, #e6edf7);
+    border-left: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    box-shadow: -18px 0 48px rgba(0, 0, 0, 0.45);
+    transform: translateX(12px);
+    transition: transform 0.18s ease;
+}
+.lsu-panel.is-open .lsu-sheet { transform: translateX(0); }
+
+.lsu-sheet-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: linear-gradient(180deg, var(--ls-bg-2, #111827), var(--ls-bg-1, #0a0f18));
+}
+.lsu-sheet-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.35;
+}
+.lsu-sheet-sub {
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--ls-fg-3, #8b98ab);
+    line-height: 1.45;
+    /* 副标题常承载「读数口径」这种长句，两行截断防止挤掉头部 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.lsu-sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.lsu-sheet-foot {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-2, #111827);
+}
+.lsu-close {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ls-fg-3, #8b98ab);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+.lsu-close:hover,
+.lsu-close:focus-visible {
+    color: var(--ls-fg-1, #e6edf7);
+    background: var(--ls-accent-soft, rgba(56, 189, 248, 0.10));
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    outline: none;
+}
+
+/* ----------------------------------------------------------------
+ * 2. 卡片（card）
+ *    卡片是面板的最小语义单位：一个主题一块，标题 + 可选副标 + 可选操作。
+ *    此处刻意不做「卡片阴影堆叠」—— 面板本身已有浮层，再叠阴影会糊。
+ * ---------------------------------------------------------------- */
+.lsu-card {
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    border-radius: 10px;
+    background: var(--ls-bg-2, #111827);
+    overflow: hidden;
+}
+.lsu-card.is-flat { background: transparent; }
+.lsu-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 11px;
+    background: var(--ls-bg-3, #1b2436);
+    border-bottom: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+}
+.lsu-card-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lsu-card-body { padding: 10px 11px; }
+.lsu-card-body.is-tight { padding: 6px 8px; }
+
+/* 卡片左缘色条：用来表达「这一块的性质」，不是装饰 */
+.lsu-card.is-ok { border-left: 3px solid var(--ls-ok, #34d399); }
+.lsu-card.is-warn { border-left: 3px solid var(--ls-gold, #fbbf24); }
+.lsu-card.is-bad { border-left: 3px solid var(--ls-bad, #f87171); }
+.lsu-card.is-mute { border-left: 3px solid var(--ls-bg-4, #27334a); }
+
+/* ----------------------------------------------------------------
+ * 3. 折叠（展开不脱流）—— 形态纪律之三
+ *    .lsu-fold 内容常驻 DOM，用 grid-template-rows 从 0fr 撑到 1fr。
+ *    【为什么不用 display:none / max-height】
+ *      display:none 会让内部 scoped 查询、aria、焦点全部失联，
+ *      每次展开都要重建子树 —— 递归摘要树里就是 O(n) 次重建，
+ *      真机上表现为「点一下展开，整棵树闪一下」。
+ *      max-height 需要猜一个够大的值，且动画结束前就开始渲染滚动条。
+ *      grid 0fr↔1fr 的好处是：不需要知道内容高度，DOM 不重建，动画可插值。
+ *    .lsu-fold > * 必须只有一层子元素（内部的滚动/溢出写在这个子元素上）。
+ * ---------------------------------------------------------------- */
+.lsu-fold {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.22s ease;
+}
+.lsu-fold.is-open { grid-template-rows: 1fr; }
+.lsu-fold > * {
+    min-height: 0;
+    overflow: hidden;
+}
+/* 内容在收起时仍可见于读屏，但不吃点击（避免误触收起后的隐藏按钮） */
+.lsu-fold:not(.is-open) > * { visibility: hidden; }
+.lsu-fold.is-open > * { visibility: visible; }
+
+/* 底部整条开关：柏宝书 SummaryNode 的 bbs-expand-bar —— 
+   整条可点，不是一个小三角。触屏上小三角的命中率是灾难级的。 */
+.lsu-foldbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    border-top: 1px dashed var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: transparent;
+    color: var(--ls-fg-3, #8b98ab);
+    font-size: 11.5px;
+    cursor: pointer;
+}
+.lsu-foldbar:hover,
+.lsu-foldbar:focus-visible {
+    color: var(--ls-accent, #38bdf8);
+    background: var(--ls-accent-softer, rgba(56, 189, 248, 0.05));
+    outline: none;
+}
+.lsu-foldbar .lsu-caret {
+    display: inline-block;
+    transition: transform 0.22s ease;
+}
+.lsu-foldbar[aria-expanded="true"] .lsu-caret { transform: rotate(180deg); }
+
+/* ----------------------------------------------------------------
+ * 4. 徽章与角标（badge / dot）
+ *    徽章承载「状态词」，一律短词：ok / warn / bad / mute / info。
+ * ---------------------------------------------------------------- */
+.lsu-badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.7;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+.lsu-badge.is-ok {
+    color: var(--ls-ok, #34d399);
+    background: rgba(52, 211, 153, 0.10);
+    border-color: rgba(52, 211, 153, 0.30);
+}
+.lsu-badge.is-warn {
+    color: var(--ls-gold, #fbbf24);
+    background: rgba(251, 191, 36, 0.10);
+    border-color: rgba(251, 191, 36, 0.30);
+}
+.lsu-badge.is-bad {
+    color: var(--ls-bad, #f87171);
+    background: rgba(248, 113, 113, 0.10);
+    border-color: rgba(248, 113, 113, 0.30);
+}
+.lsu-badge.is-info {
+    color: var(--ls-accent, #38bdf8);
+    background: var(--ls-accent-soft, rgba(56, 189, 248, 0.10));
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+}
+.lsu-badge.is-mute {
+    color: var(--ls-fg-3, #8b98ab);
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.20);
+}
+/* 角标红点：柏宝书 bbs-nav-dot 的同款用途 —— 「这里有事没看」，
+   不是「这里很热闹」。所以它必须能被一次性消掉（由 JS 控制 display）。 */
+.lsu-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ls-bad, #f87171);
+    box-shadow: 0 0 0 2px var(--ls-bg-2, #111827);
+}
+
+/* ----------------------------------------------------------------
+ * 5. 按钮（button）
+ *    只有三种层级：主（is-primary）/ 次（默认）/ 危险（is-danger）。
+ *    第四种「文字按钮」用 .lsu-link，用于卡片内的轻操作。
+ * ---------------------------------------------------------------- */
+.lsu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-3, #1b2436);
+    color: var(--ls-fg-1, #e6edf7);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.lsu-btn:hover,
+.lsu-btn:focus-visible {
+    background: var(--ls-bg-4, #27334a);
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    outline: none;
+}
+.lsu-btn:disabled,
+.lsu-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.lsu-btn.is-primary {
+    background: var(--ls-accent, #38bdf8);
+    border-color: var(--ls-accent-strong, #0284c7);
+    color: var(--ls-on-accent, #04121e);
+    font-weight: 600;
+}
+.lsu-btn.is-primary:hover { background: var(--ls-accent-hover, #7dd3fc); }
+.lsu-btn.is-danger {
+    color: var(--ls-bad, #f87171);
+    border-color: rgba(248, 113, 113, 0.32);
+    background: rgba(248, 113, 113, 0.08);
+}
+.lsu-btn.is-danger:hover { background: rgba(248, 113, 113, 0.16); }
+.lsu-btn.is-sm { padding: 3px 8px; font-size: 11px; border-radius: 6px; }
+.lsu-link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--ls-accent, #38bdf8);
+    font-size: 11.5px;
+    cursor: pointer;
+    text-decoration: none;
+}
+.lsu-link:hover { text-decoration: underline; }
+.lsu-link.is-danger { color: var(--ls-bad, #f87171); }
+
+/* ----------------------------------------------------------------
+ * 6. 工具条与批量条（toolbar / bulkbar）
+ *    工具条：常驻在当前视图顶部，过滤 + 排序 + 动作。
+ *    批量条：选中若干项后才出现，必须显眼且可一键取消。
+ * ---------------------------------------------------------------- */
+.lsu-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 8px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    border-radius: 9px;
+    background: var(--ls-bg-2, #111827);
+}
+.lsu-bulkbar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    border: 1px solid var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    background: var(--ls-accent-soft, rgba(56, 189, 248, 0.10));
+    font-size: 11.5px;
+}
+.lsu-bulkbar.is-on { display: flex; }
+.lsu-bulkbar .lsu-bulk-count { font-weight: 600; color: var(--ls-accent, #38bdf8); }
+.lsu-bulkbar .lsu-spacer { flex: 1 1 auto; }
+
+/* ----------------------------------------------------------------
+ * 7. 段头与分隔（section header / divider）
+ * ---------------------------------------------------------------- */
+.lsu-sec {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 2px 0;
+}
+.lsu-sec-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--ls-fg-3, #8b98ab);
+}
+.lsu-sec-hint {
+    font-size: 10.5px;
+    color: var(--ls-fg-3, #8b98ab);
+    opacity: 0.8;
+}
+.lsu-hr {
+    height: 1px;
+    border: 0;
+    margin: 2px 0;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--ls-line, rgba(148, 163, 184, 0.18)) 12%,
+        var(--ls-line, rgba(148, 163, 184, 0.18)) 88%,
+        transparent);
+}
+
+/* ----------------------------------------------------------------
+ * 8. 空态四态（empty / loading / error / absent）
+ *    【这四种必须长得不一样】本仓被「把未运行显示成 0」坑过一次：
+ *      用户看到 0 会去查数据，看到「模块未加载」才知道要去开开关。
+ *    absent 与其他三态的关键区别是颜色：它用中性灰，不是红 ——
+ *      「没装」不是错误，「算炸了」才是错误。
+ * ---------------------------------------------------------------- */
+.lsu-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 22px 14px;
+    text-align: center;
+    border: 1px dashed var(--ls-line, rgba(148, 163, 184, 0.18));
+    border-radius: 10px;
+    color: var(--ls-fg-3, #8b98ab);
+    font-size: 12px;
+    line-height: 1.6;
+}
+.lsu-empty-icon { font-size: 20px; opacity: 0.7; line-height: 1; }
+.lsu-empty-title { font-size: 12.5px; font-weight: 600; color: var(--ls-fg-2, #b6c2d4); }
+.lsu-empty-hint { font-size: 11px; opacity: 0.85; max-width: 34em; }
+.lsu-empty.is-error {
+    border-style: solid;
+    border-color: rgba(248, 113, 113, 0.30);
+    color: #fca5a5;
+    background: rgba(248, 113, 113, 0.06);
+}
+.lsu-empty.is-absent {
+    border-style: dashed;
+    border-color: rgba(148, 163, 184, 0.22);
+    background: rgba(148, 163, 184, 0.04);
+}
+
+/* 骨架屏：只在「确实在等」时出现，绝不用它冒充空态 */
+.lsu-skel {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.lsu-skel-row {
+    height: 11px;
+    border-radius: 5px;
+    background: linear-gradient(90deg,
+        var(--ls-bg-3, #1b2436) 0%,
+        var(--ls-bg-4, #27334a) 45%,
+        var(--ls-bg-3, #1b2436) 90%);
+    background-size: 220% 100%;
+    animation: lsu-skel-sweep 1.35s ease-in-out infinite;
+}
+.lsu-skel-row.is-w40 { width: 40%; }
+.lsu-skel-row.is-w60 { width: 60%; }
+.lsu-skel-row.is-w80 { width: 80%; }
+@keyframes lsu-skel-sweep {
+    from { background-position: 120% 0; }
+    to { background-position: -60% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .lsu-skel-row { animation: none; }
+    .lsu-fold,
+    .lsu-panel,
+    .lsu-sheet { transition: none; }
+}
+
+/* ----------------------------------------------------------------
+ * 9. 递归摘要树（summary tree）—— 学自柏宝书 SummaryNode.vue
+ *    .lsu-tree      容器：只在最外层设一次缩进基准
+ *    .lsu-node      一个节点 = 卡片（head + meta + body + 折叠条）
+ *    .lsu-node-kids 子节点容器（缩进用 padding-left，不用 margin）
+ *    【缩进为什么用 padding-left】margin 会与外层 card 的 overflow:hidden
+ *      产生层叠上下文问题；padding 不会，且能吃到父级背景色延伸。
+ * ---------------------------------------------------------------- */
+.lsu-tree { display: flex; flex-direction: column; gap: 8px; }
+.lsu-node { position: relative; }
+.lsu-node-kids {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding-left: 12px;
+    border-left: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+}
+/* 树连线：只在有子节点时出现，避免叶子节点凭空多一条竖线 */
+.lsu-node:not(.has-kids) > .lsu-node-kids { border-left-color: transparent; }
+.lsu-node-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 10.5px;
+    color: var(--ls-fg-3, #8b98ab);
+}
+.lsu-node-meta .lsu-loc {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.10);
+}
+.lsu-node-text {
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--ls-fg-1, #e6edf7);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.lsu-node-text.is-clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.lsu-node-acts {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 6px;
+}
+/* 已重写标记：sentence-edits 的 rewritten 在树上的可视化。
+   用左侧虚线而不是删除线 —— 摘要是「改写过」不是「作废」。 */
+.lsu-node.is-rewritten > .lsu-card { border-left: 3px dashed var(--ls-gold, #fbbf24); }
+
+/* ----------------------------------------------------------------
+ * 10. 键值表（kv table）—— 变量 / 物品 / 设置项的通用展示
+ * ---------------------------------------------------------------- */
+.lsu-kv {
+    display: grid;
+    grid-template-columns: minmax(72px, auto) 1fr;
+    gap: 4px 10px;
+    font-size: 12px;
+}
+.lsu-kv dt {
+    color: var(--ls-fg-3, #8b98ab);
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.lsu-kv dd {
+    margin: 0;
+    color: var(--ls-fg-1, #e6edf7);
+    word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+}
+.lsu-kv dd.is-num { color: var(--ls-accent, #38bdf8); }
+.lsu-kv dd.is-null { color: var(--ls-fg-3, #8b98ab); font-style: italic; }
+
+/* ----------------------------------------------------------------
+ * 11. 楼层条（floor strip）五态
+ *    已摘要 / 缺失 / 番外(omit) / 用户楼 / 最新未稳定
+ *    【为什么要有「最新未稳定」这一态】maintenance-schedule 会把上界
+ *      截到 eligibleEnd-1：最新那条 AI 回复可能还在 swipe 重生成里。
+ *      界面上必须让它看起来「故意没做」，而不是「漏了」。
+ * ---------------------------------------------------------------- */
+.lsu-floors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+.lsu-floor {
+    min-width: 26px;
+    padding: 3px 5px;
+    border-radius: 5px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-3, #1b2436);
+    color: var(--ls-fg-2, #b6c2d4);
+    font-size: 10.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-align: center;
+    cursor: pointer;
+}
+.lsu-floor.is-done {
+    border-color: rgba(52, 211, 153, 0.34);
+    background: rgba(52, 211, 153, 0.10);
+    color: var(--ls-ok, #34d399);
+}
+.lsu-floor.is-missing {
+    border-color: rgba(248, 113, 113, 0.34);
+    background: rgba(248, 113, 113, 0.10);
+    color: var(--ls-bad, #f87171);
+}
+.lsu-floor.is-omit {
+    border-style: dashed;
+    color: var(--ls-gold, #fbbf24);
+}
+.lsu-floor.is-user {
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    color: var(--ls-accent, #38bdf8);
+}
+.lsu-floor.is-pending {
+    border-style: dotted;
+    opacity: 0.75;
+    cursor: default;
+}
+.lsu-floor.is-cur {
+    outline: 2px solid var(--ls-accent, #38bdf8);
+    outline-offset: 1px;
+}
+.lsu-floor-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 10.5px;
+    color: var(--ls-fg-3, #8b98ab);
+}
+.lsu-floor-legend i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+/* ----------------------------------------------------------------
+ * 12. 表单件（form）—— 输入 / 文本域 / 选择 / 开关
+ * ---------------------------------------------------------------- */
+.lsu-field { display: flex; flex-direction: column; gap: 4px; }
+.lsu-label {
+    font-size: 11px;
+    color: var(--ls-fg-3, #8b98ab);
+}
+.lsu-input,
+.lsu-textarea,
+.lsu-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-1, #0a0f18);
+    color: var(--ls-fg-1, #e6edf7);
+    font-size: 12px;
+    font-family: inherit;
+    color-scheme: dark;
+}
+.lsu-input:focus,
+.lsu-textarea:focus,
+.lsu-select:focus {
+    outline: none;
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    box-shadow: 0 0 0 2px var(--ls-accent-softer, rgba(56, 189, 248, 0.05));
+}
+.lsu-textarea {
+    min-height: 72px;
+    resize: vertical;
+    line-height: 1.6;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11.5px;
+}
+.lsu-input.is-bad,
+.lsu-textarea.is-bad { border-color: rgba(248, 113, 113, 0.45); }
+.lsu-field-err { font-size: 10.5px; color: var(--ls-bad, #f87171); }
+
+/* 开关：label 包住 input，命中区域是整行 */
+.lsu-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.lsu-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.lsu-switch-track {
+    position: relative;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 19px;
+    border-radius: 999px;
+    background: var(--ls-bg-4, #27334a);
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    transition: background 0.16s ease, border-color 0.16s ease;
+}
+.lsu-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--ls-fg-3, #8b98ab);
+    transition: transform 0.16s ease, background 0.16s ease;
+}
+.lsu-switch input:checked + .lsu-switch-track {
+    background: var(--ls-accent-soft, rgba(56, 189, 248, 0.10));
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+}
+.lsu-switch input:checked + .lsu-switch-track::after {
+    transform: translateX(15px);
+    background: var(--ls-accent, #38bdf8);
+}
+.lsu-switch input:focus-visible + .lsu-switch-track {
+    outline: 2px solid var(--ls-accent, #38bdf8);
+    outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------------
+ * 13. 遮罩与抽屉（overlay / drawer 变体）
+ *    与 .lsu-panel 的区别：从底部升起，用于选择器、轻量确认。
+ * ---------------------------------------------------------------- */
+.lsu-modal {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--lsu-z, 2147482000) + 10);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: rgba(2, 4, 8, 0.55);
+}
+.lsu-modal-card {
+    width: min(440px, 100vw);
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 14px 14px 0 0;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    border-bottom: 0;
+    background: var(--ls-bg-2, #111827);
+    color: var(--ls-fg-1, #e6edf7);
+    overflow: hidden;
+}
+.lsu-modal-head {
+    padding: 12px 14px 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+.lsu-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 14px 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--ls-fg-2, #b6c2d4);
+}
+.lsu-modal-foot {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 10px 14px 14px;
+    border-top: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+}
+
+/* 确认框的危险动作：主按钮换成红色，且默认焦点不给它 */
+.lsu-modal.is-danger .lsu-btn.is-primary {
+    background: var(--ls-bad, #f87171);
+    border-color: #ef4444;
+    color: #1b0505;
+}
+
+/* ----------------------------------------------------------------
+ * 14. Toast（轻提示）—— 与本体 ls-toast 共存，类名前缀不同不冲突
+ * ---------------------------------------------------------------- */
+.lsu-toast-host {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    z-index: calc(var(--lsu-z, 2147482000) + 20);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    pointer-events: none;
+}
+.lsu-toast {
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-glass, rgba(10, 15, 24, 0.92));
+    color: var(--ls-fg-1, #e6edf7);
+    font-size: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: lsu-toast-in 0.18s ease;
+}
+.lsu-toast.is-ok { border-color: rgba(52, 211, 153, 0.34); color: var(--ls-ok, #34d399); }
+.lsu-toast.is-warn { border-color: rgba(251, 191, 36, 0.34); color: var(--ls-gold, #fbbf24); }
+.lsu-toast.is-bad { border-color: rgba(248, 113, 113, 0.34); color: var(--ls-bad, #f87171); }
+@keyframes lsu-toast-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ----------------------------------------------------------------
+ * 15. 搜索与过滤（search / chip）
+ * ---------------------------------------------------------------- */
+.lsu-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 130px;
+    min-width: 0;
+    padding: 5px 9px;
+    border-radius: 8px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: var(--ls-bg-1, #0a0f18);
+}
+.lsu-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ls-fg-1, #e6edf7);
+    font-size: 12px;
+    outline: none;
+}
+.lsu-chip {
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--ls-line, rgba(148, 163, 184, 0.18));
+    background: transparent;
+    color: var(--ls-fg-3, #8b98ab);
+    font-size: 11px;
+    cursor: pointer;
+}
+.lsu-chip.is-on {
+    color: var(--ls-accent, #38bdf8);
+    border-color: var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    background: var(--ls-accent-softer, rgba(56, 189, 248, 0.05));
+}
+
+/* ----------------------------------------------------------------
+ * 16. 书签坠（orb）—— 形态纪律之一与之二
+ *    竖长 0.78 宽高比 + 底部燕尾缺口；贴边只露窄条，hover 滑出。
+ *    【为什么是书签不是圆形 fab】本仓的语义是「记忆 / 存档」，
+ *      圆形 fab 是「新建」的通用符号，会被误读。书签是「夹在某一页」。
+ *    【为什么贴边半隐】正文是玩家主视野，常驻按钮会永久占一块。
+ * ---------------------------------------------------------------- */
+.lsu-orb {
+    position: fixed;
+    z-index: calc(var(--lsu-z, 2147482000) + 5);
+    width: 34px;
+    height: 44px; /* 34/44 ≈ 0.77，取 0.78 视觉比例 */
+    padding: 0;
+    border: 1px solid var(--ls-accent-line, rgba(56, 189, 248, 0.28));
+    /* 燕尾缺口：底部中间剪掉一个 V，形成书签的下沿 */
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    background: linear-gradient(160deg,
+        var(--ls-bg-3, #1b2436),
+        var(--ls-bg-2, #111827));
+    color: var(--ls-accent, #38bdf8);
+    font-size: 15px;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    /* 贴边半隐：靠边时透明度降到 0.55，hover/聚焦才回来 */
+    opacity: 0.55;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.lsu-orb:hover,
+.lsu-orb:focus-visible,
+.lsu-orb.is-dragging {
+    opacity: 1;
+    outline: none;
+}
+.lsu-orb.is-dragging { cursor: grabbing; transform: scale(1.04); }
+/* 吸附到运行时贴边：只露 10px 的窄条，滑出后回到 34px */
+.lsu-orb.is-docked-l { transform: translateX(-24px); }
+.lsu-orb.is-docked-r { transform: translateX(24px); }
+.lsu-orb.is-docked-l:hover,
+.lsu-orb.is-docked-r:hover { transform: translateX(0); }
+/* 有事待看的红点：挂在右上角外侧 */
+.lsu-orb .lsu-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+}
+
+/* ----------------------------------------------------------------
+ * 17. 窄屏与浅色
+ *    【窄屏】SillyTavern 手机端宽度常在 360-414。抽屉改为满宽，
+ *      卡片间距收紧，工具条允许换行（已默认 wrap）。
+ *    【浅色】宿主主题切换时 token 会变，但本层有字面量兜底；
+ *      这里只处理「深色专用」的硬编码阴影与玻璃底色。
+ * ---------------------------------------------------------------- */
+@media (max-width: 480px) {
+    .lsu-sheet { --lsu-sheet-w: 100vw; border-left: 0; }
+    .lsu-sheet-body { padding: 10px 10px 16px; gap: 8px; }
+    .lsu-card-body { padding: 8px 9px; }
+    .lsu-node-kids { padding-left: 8px; }
+    .lsu-kv { grid-template-columns: minmax(60px, auto) 1fr; }
+    .lsu-floor { min-width: 23px; padding: 2px 4px; }
+    .lsu-sheet-foot { padding: 8px 10px; }
+    .lsu-btn { padding: 7px 12px; } /* 触屏抬一点，缩到 6px 会点不准 */
+}
+@media (prefers-color-scheme: light) {
+    .lsu-sheet { box-shadow: -12px 0 32px rgba(15, 23, 42, 0.14); }
+    .lsu-panel,
+    .lsu-modal { background: rgba(15, 23, 42, 0.35); }
+    .lsu-orb { box-shadow: 0 3px 10px rgba(15, 23, 42, 0.18); }
+}
+
+/* ----------------------------------------------------------------
+ * 18. 打印与非显示环境的兜底
+ *    插件被静默加载但没有显示层（Node 自检、服务端渲染）时，
+ *    上面的规则完全不会被求值 —— 这里只登记注释，不做规则。
+ * ---------------------------------------------------------------- */
+@media print {
+    .lsu-panel,
+    .lsu-orb,
+    .lsu-modal,
+    .lsu-toast-host { display: none !important; }
+}

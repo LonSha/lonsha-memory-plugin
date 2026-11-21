@@ -1,0 +1,25 @@
+{
+  "file": "css/vendor-ledger.json",
+  "note": "跨仓 vendored 样式台账。本仓 css/lonsha-tokens*.css 是 LonSha/ruby-phone 设计系统 token 的**整份副本**（跨仓运行时无法共享文件，故只能 vendoring）。登记的意义是：这份重复不再是「第二主人」，而是一份**可校验的副本** —— 判据 scan_vendored_css_drift.mjs 逐份校验 md5，就地手改即红。铁律：要改这些 token，回 ruby-phone 改，然后把整份重新同步过来并更新本表 md5；不许在本仓局部改。",
+  "rule": "vendored 文件 = 只读副本。任何就地修改都必须二选一：①回源仓改 + 整份重同步 + 更新 md5；②从本表摘出，声明为「本仓自有」，并承担与上游分叉的后果。",
+  "entries": [
+    {
+      "localPath": "css/lonsha-tokens.css",
+      "sourceRepo": "LonSha/ruby-phone",
+      "sourcePath": "phone/design/lonsha-tokens.css",
+      "lines": 481,
+      "vendoredMd5": "b1249e5f4fe30907f8c3f9c1bf07d749",
+      "role": "共享 --lt-* token（间距 4px 网格 / iOS 字号阶梯 / 中性色阶 / 宿主变量桥）",
+      "consumers": "css/dashboard*.css、css/dev-console-v3.css、css/ls-icons.css、css/style.css 合计 196 处 var(--lt-*)"
+    },
+    {
+      "localPath": "css/lonsha-tokens-v3.css",
+      "sourceRepo": "LonSha/ruby-phone",
+      "sourcePath": "phone/design/lonsha-tokens-v3.css",
+      "lines": 255,
+      "vendoredMd5": "937834ea91421339d8f23abb77adcee9",
+      "role": "v3 追加层：--ls3-* 卡片/投影语义 token（引用 --lt-hairline-px，自带 1px 兜底）",
+      "consumers": "同上（v3 精修层与开发者控制台）"
+    }
+  ]
+}
