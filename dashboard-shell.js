@@ -229,6 +229,11 @@
             </div>
         </section>`;
     }
+    /* 强调色真源在 dashboard-v2.js 的 ACCENTS；这里只放一份同值名单，
+       用途是给设置页 schema 生成选项（真源写值、这里只写标签）。 */
+    const ACCENT_KEYS = ['ice', 'iris', 'rose', 'jade', 'amber', 'graphite'];
+    const ACCENT_LABELS = { ice: '冰蓝', iris: '鸢尾', rose: '蔷薇', jade: '青玉', amber: '琥珀', graphite: '石墨' };
+
     function settingsExtraHTML(dev) {
         const pref = store.get(LS_KEYS.theme, 'auto');
         const src = store.get(LS_KEYS.themeSource, 'brand');
@@ -243,6 +248,11 @@
             <div class="ls-group">
                 <div class="ls-group-title">进阶</div>
                 <label class="ls-row ls-switch"><span class="ls-switch-text"><span class="ls-switch-title">开发者模式</span><br><span class="ls-switch-sub">显示检索、实验室、体检详情等调参页</span></span><input type="checkbox" data-dash-dev ${dev ? 'checked' : ''}></label>
+            </div>
+            <div class="ls-group">
+                <div class="ls-group-title">外观细则</div>
+                <button type="button" class="ls-btn" data-ls-open-appearance>打开外观设置面板</button>
+                <div class="ls-switch-sub">声明式设置页（ui-settings-panel.js 渲染，lonsha-settings.css 提供视觉）：视觉层 v2 / v3、强调色、开发者模式、外壳总开关。改完重新打开面板即生效。</div>
             </div>
         </div>`;
     }
@@ -434,6 +444,70 @@
             e.stopPropagation();
             store.set(LS_KEYS.themeSource, e.target.checked ? 'st' : 'brand');
             applyTheme();
+        });
+
+        /* 声明式设置页入口：ui-settings-panel.js 的第一个真实消费者。
+           写的是真键（lonsha.ui.v2 / v3 / accent / devMode / dashboard），
+           保存成功后才清脏值 —— 由 ui-settings-panel 的 pickSaveState 保证。 */
+        legacy.querySelector('[data-ls-open-appearance]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const P = window.LonShaSettingsPanel;
+            if (!P || typeof P.openSettingsPanel !== 'function') {
+                warn('settings-panel', new Error('ui-settings-panel.js 未加载（manifest.extra_js 是否登记？）'));
+                return;
+            }
+            const K = { v2: 'lonsha.ui.v2', v3: 'lonsha.ui.v3', accent: 'lonsha.ui.accent', enabled: LS_KEYS.enabled };
+            const accentNow = (() => { const a = store.get(K.accent, 'ice'); return ACCENT_KEYS.indexOf(a) < 0 ? 'ice' : a; })();
+            const res = P.openSettingsPanel({
+                title: '外观设置',
+                schema: {
+                    title: '外观与开关',
+                    sub: '由 ui-settings-panel.js 按 schema 渲染；值写入 lonsha.ui.*，与现网读取点同一份键',
+                    version: '1',
+                    groups: [
+                        {
+                            id: 'visual', title: '视觉层',
+                            rows: [
+                                { key: K.v2, label: 'v2 视觉层', kind: 'switch', default: true, desc: '新概览 / 记忆页骨架。关闭回落 v1 平铺版', effect: '重新打开面板后生效' },
+                                { key: K.v3, label: 'v3 精修层', kind: 'switch', default: true, desc: 'iOS 字阶 / 玻璃 / 更密的分组（需 v2 已开）', effect: '重新打开面板后生效' },
+                                { key: K.accent, label: '强调色', kind: 'select', default: 'ice', options: ACCENT_KEYS.map((k) => ({ value: k, label: ACCENT_LABELS[k] })), effect: '立即生效' },
+                            ],
+                        },
+                        {
+                            id: 'switches', title: '开关',
+                            rows: [
+                                { key: LS_KEYS.dev, label: '开发者模式', kind: 'switch', default: true, desc: '显示检索、实验室、体检详情等调参页' },
+                                { key: K.enabled, label: '面板外壳', kind: 'seg', default: 'on', options: [{ value: 'on', label: '开' }, { value: 'off', label: '关' }], desc: '关闭后不再接管设置面板', effect: '重新打开面板后生效' },
+                            ],
+                        },
+                    ],
+                },
+                values: {
+                    [K.v2]: store.get(K.v2, '1') === '1',
+                    [K.v3]: store.get(K.v3, '1') === '1',
+                    [K.accent]: accentNow,
+                    [LS_KEYS.dev]: dev,
+                    [K.enabled]: store.get(K.enabled, 'on') === 'off' ? 'off' : 'on',
+                },
+                write: (patch) => new Promise((resolve, reject) => {
+                    try {
+                        const has = (k) => Object.prototype.hasOwnProperty.call(patch, k);
+                        if (has(K.v2)) store.set(K.v2, patch[K.v2] ? '1' : '0');
+                        if (has(K.v3)) store.set(K.v3, patch[K.v3] ? '1' : '0');
+                        if (has(K.accent)) store.set(K.accent, String(patch[K.accent]));
+                        if (has(LS_KEYS.dev)) setDev(!!patch[LS_KEYS.dev]);
+                        if (has(K.enabled)) store.set(K.enabled, patch[K.enabled] === 'off' ? 'off' : 'on');
+                        const V2 = window.LonShaDashboardV2;   // 已开着的面板即时跟随
+                        if (V2) {
+                            if (typeof V2.enable === 'function') V2.enable(store.get(K.v2, '1') === '1');
+                            if (typeof V2.enableV3 === 'function') V2.enableV3(store.get(K.v3, '1') === '1');
+                            if (typeof V2.setAccent === 'function') V2.setAccent(store.get(K.accent, 'ice'));
+                        }
+                        resolve();
+                    } catch (err) { reject(err); }
+                }),
+            });
+            if (!res || !res.ok) warn('settings-panel', new Error((res && (res.reason || res.error)) || '设置页渲染失败'));
         });
 
         // 7. 健康度镜像：settings-ui 异步渲染健康卡，这里只读结果

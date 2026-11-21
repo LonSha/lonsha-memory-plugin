@@ -464,7 +464,8 @@
     "ui-panel-seam.js",
     "ui-json-tree.js",
     "ui-table.js",
-    "ui-form-controls.js"
+    "ui-form-controls.js",
+    "ui-settings-panel.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

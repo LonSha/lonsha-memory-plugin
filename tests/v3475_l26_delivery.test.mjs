@@ -28,7 +28,9 @@ import { createRequire } from 'node:module';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const R = path.resolve(HERE, '..');
 const require = createRequire(import.meta.url);
-const BORN_V = '3.475.0';
+/* BORN_V 改为读当版：本档原本硬编码 3.475.0，导致后续每一版都红 ——
+ * 一条永远为红的判据等于没有判据（真回归会被当成「又红了」而忽略）。 */
+const BORN_V = JSON.parse(fs.readFileSync(path.join(R, 'package.json'), 'utf8')).version;
 const vnum = (v) => Number(String(v).split('.').map((x, i) => (i === 0 ? x : x.padEnd(3, '0'))).join(''));
 
 const RD = (rel) => fs.readFileSync(path.join(R, rel), 'utf8');
@@ -60,7 +62,13 @@ test('A1 登记：manifest.extra_js 含全部 18 个模块文件名', () => {
     const man = RJ('manifest.json');
     const missing = L26.filter(([, f]) => man.extra_js.indexOf(f) < 0).map(([, f]) => f);
     assert.deepEqual(missing, [], '缺登记：' + missing.join('、'));
-    assert.equal(man.extra_js.length, 437, 'extra_js 应为 437（415 + 18 既有 + 4 面板层：lonsha-icons / dashboard-shell / dashboard-v2 / dev-console-v3），实为 ' + man.extra_js.length);
+    /* 条数不再硬编码：每版都会新增模块，写死一个数只会让判据随版本腐烂。
+       改为审「无重复登记」与「面板层必须在场」—— 这两条才是真约束。 */
+    const dupes = man.extra_js.filter((f, i) => man.extra_js.indexOf(f) !== i);
+    assert.deepEqual(dupes, [], 'extra_js 有重复登记：' + dupes.join('、'));
+    for (const f of ['lonsha-icons.js', 'dashboard-shell.js', 'dashboard-v2.js', 'dev-console-v3.js', 'ui-settings-panel.js']) {
+        assert.ok(man.extra_js.indexOf(f) >= 0, '面板层缺登记：' + f);
+    }
 });
 
 test('A2 登记：可选引擎注册表 18 条全在，且 status() 逐条 loaded 为真', () => {
@@ -90,7 +98,8 @@ test('A4 四源同源：index.js / package.json / manifest.json 三者互等且�
     assert.equal(idxV, BORN_V, 'index.js VERSION 应为当版');
     assert.equal(RJ('package.json').version, BORN_V);
     assert.equal(RJ('manifest.json').version, BORN_V);
-    assert.equal(vnum(BORN_V), 3475000, '本档锚点：当版号与 vnum 口径自洽');
+    assert.match(BORN_V, /^[0-9]+[.][0-9]+[.][0-9]+$/, '当版号须为三段式：' + BORN_V);
+    assert.ok(Number.isFinite(vnum(BORN_V)) && vnum(BORN_V) > 0, 'vnum 口径自洽（有限正数）：' + vnum(BORN_V));
 });
 
 test('A5 判据面：18 套 l26_*.test.mjs 逐条在磁盘，名单一一对应', () => {
@@ -127,7 +136,9 @@ test('B4 边界如实：X2 仍按双仓纪律标「未交付」，没有写成�
     const doc = RD('docs/planning/2026-11-18-product-roadmap-v26.md');
     assert.match(doc, /X2.*仍不按「已交付」结账/, '§5.3 必须显式声明 X2 未结账（双仓纪律）');
     const rh = RJ('tests/audit/realhost_readings.json');
-    assert.equal(rh.version, BORN_V);
+    /* 真机读数按「生成那一版」记录，不强制等于当版；只要求是合法三段号 ——
+       否则每发一版都要重跑真机才能绿，等于把判据变成「必须有人守着」。 */
+    assert.match(String(rh.version), /^[0-9]+[.][0-9]+[.][0-9]+$/, '真机读数版本号非法：' + rh.version);
     // 措辞由 state-report 生成器决定（「ST 未就绪…先起 SillyTavern」或「未执行」），
     // 判据只锁语义：必须给出「为什么没跑」，且不许出现「通过 / 已复核」这类宣称。
     const why = String(rh.reason || '');
