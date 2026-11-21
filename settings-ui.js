@@ -5906,3 +5906,50 @@
         setTimeout(mount, 300);
     }
 })();
+
+/* ---------------------------------------------------------------------------
+ * 外壳自举（v3.482.1）
+ *
+ * 为什么放在这里：宿主在真机上用一个串行 loader 逐个注入 manifest.extra_js。
+ * 实测 settings-ui.js（第 16 个）执行了，而紧随其后的 dashboard-shell.js（第 17 个）
+ * 从未执行（对照探针 lonsha_boot_settings=1 / lonsha_boot_dash1=0），文件本身完好。
+ * 与其继续猜 loader，不如让「确定能跑的这一份」自己去 import 外壳 ——
+ * 成功即接管，失败就把真实错误留在 localStorage，不再有黑箱。
+ * ------------------------------------------------------------------------- */
+(function shellBootstrap() {
+    var tried = false;
+    function note(k, v) { try { window.localStorage.setItem(k, String(v)); } catch (_e) { /* 忽略 */ } }
+    function go(left) {
+        if (window.LonShaDashboardShell) return;                 // 已由宿主装载成功
+        var p = window.LonShaMemory;
+        if (!p || typeof p.showSettingsPanel !== 'function') {
+            if (left > 0) setTimeout(function () { go(left - 1); }, 250);
+            return;
+        }
+        if (tried) return;
+        tried = true;
+        var srcs = Array.prototype.map.call(document.scripts || [], function (s) { return s.src; });
+        var hit = null;
+        for (var i = 0; i < srcs.length; i++) {
+            if (/settings-ui\.js(\?|$)/.test(srcs[i])) { hit = srcs[i]; break; }
+        }
+        if (!hit) { note('lonsha_shell_import_err', 'no-self-url'); return; }
+        var url = hit.replace(/settings-ui\.js(\?.*)?$/, 'dashboard-shell.js');
+        note('lonsha_shell_import_start', url);
+        import(url).then(function () {
+            note('lonsha_shell_import_ok', Date.now());
+            /* 外壳自带 mount()，此处只兜底：极端情况下手动开一次概览 */
+            setTimeout(function () {
+                try {
+                    if (!document.querySelector('.ls-dash') && window.LonShaDashboardShell
+                        && typeof window.LonShaDashboardShell.open === 'function') {
+                        window.LonShaDashboardShell.open('overview');
+                    }
+                } catch (_e) { /* 兜底失败不影响已接管的面板 */ }
+            }, 400);
+        }).catch(function (e) {
+            note('lonsha_shell_import_err', String((e && e.message) || e).slice(0, 240));
+        });
+    }
+    go(20);
+})();
