@@ -287,7 +287,7 @@
     function navHTML() {
         const tabs = [['overview', 'rings', '概览'], ['memory', 'brain', '记忆'], ['settings', 'gear', '设置'], ['dev', 'cmd', '开发者']];
         return `<div class="ls-dash-nav" role="tablist" aria-label="记忆引擎" aria-orientation="horizontal">
-            ${tabs.map(([id, ico, label]) => `<button type="button" class="ls-dash-tab" role="tab" id="ls-dash-tab-${id}" data-dash-tab="${id}" aria-selected="false" tabindex="-1" aria-controls="${id === 'settings' || id === 'dev' ? 'ls-dash-legacy' : 'ls-dash-' + id}"><span class="ls-dash-tab-ico" aria-hidden="true">${I(ico)}${I(ico, { fill: true, className: 'lt-icon lt-icon-on' })}</span><span class="ls-dash-tab-label">${label}</span></button>`).join('')}
+            ${tabs.map(([id, ico, label]) => `<button type="button" class="ls-dash-tab" role="tab" id="ls-dash-tab-${id}" data-dash-tab="${id}" aria-selected="false" tabindex="-1" aria-controls="${id === 'settings' || id === 'dev' ? 'ls-dash-legacy' : 'ls-dash-' + id}"><span class="ls-dash-tab-ico" aria-hidden="true">${I(ico, { fill: true }) || I(ico)}</span><span class="ls-dash-tab-label">${label}</span></button>`).join('')}
         </div>`;
     }
 

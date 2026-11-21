@@ -1224,3 +1224,77 @@ html.ls-locked body {
     .ls-tile[data-tone="warn"]::before { content: "! "; }
     .ls-tile[data-tone="bad"]::before { content: "× "; }
 }
+
+/* ============================================================================
+ * v3.482.2 · 排版修正（真机截图暴露的三处硬伤）
+ *
+ * 这不是换肤，是修错位：
+ *   · 页签曾把同一图标渲染两次，图标缺席时留下空盒，把「概览」挤成一字一行；
+ *   · 数字列用默认比例数字，和标签基线不齐；
+ *   · 开发者页签被染成高饱和黄色，抢走全部注意力。
+ * 全部用 nowrap + 明确 sizing，避免再被容器宽度挤变形。
+ * ========================================================================== */
+
+/* 页签：iOS 分段控件式，永远横排 */
+.ls-dash-nav {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    border-radius: 13px !important;
+    background: rgba(120, 130, 150, 0.16) !important;
+}
+.ls-dash-nav .ls-dash-tab {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    padding: 8px 6px !important;
+    border: 0 !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    color: var(--ls-text-2, #6b7280) !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+.ls-dash-nav .ls-dash-tab-label,
+.ls-dash-nav .ls-dash-tab-ico {
+    display: inline-flex !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+    min-width: 0 !important;
+}
+.ls-dash-nav .ls-dash-tab-ico:empty { display: none !important; }   /* 图标缺席时不留空盒 */
+.ls-dash-nav .ls-dash-tab-ico svg { width: 15px; height: 15px; display: block; }
+.ls-dash-nav .ls-dash-tab[aria-selected="true"] {
+    background: #fff !important;
+    color: #111 !important;
+    font-weight: 600 !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14) !important;
+}
+/* 开发者页签不再高饱和黄：与其它页签同为中性色，仅选中态区分 */
+.ls-dash-nav .ls-dash-tab[data-dash-tab="dev"],
+.ls-dash-nav .ls-dash-tab[data-dash-tab="dev"][aria-selected="false"] {
+    color: var(--ls-text-2, #6b7280) !important;
+}
+
+/* KPI：数字等宽、基线对齐，读数缺失用弱化的「—」而不是空白 */
+.ls-kpi-v {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+.ls-kpi-k { margin-top: 6px; line-height: 1.35; }
+
+/* 宿主遗留内容里的装饰图不许压字 */
+.ls-dash-legacy img {
+    max-width: 100%;
+    height: auto;
+}

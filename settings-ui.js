@@ -5936,7 +5936,12 @@
         if (!hit) { note('lonsha_shell_import_err', 'no-self-url'); return; }
         var url = hit.replace(/settings-ui\.js(\?.*)?$/, 'dashboard-shell.js');
         note('lonsha_shell_import_start', url);
-        import(url).then(function () {
+        /* 图标模块（清单第 15 个）同样没被执行过，读数里写着「图标=未加载」。
+           外壳的页签/磁贴全靠它，缺失就会留下空图标盒子并挤坏排版 —— 先把它拉起来。 */
+        var iconUrl = url.replace(/dashboard-shell\.js$/, 'lonsha-icons.js');
+        var pre = window.LonShaIcons ? Promise.resolve()
+            : import(iconUrl).catch(function (e) { note('lonsha_icons_import_err', String((e && e.message) || e).slice(0, 160)); });
+        pre.then(function () { return import(url); }).then(function () {
             note('lonsha_shell_import_ok', Date.now());
             /* 外壳自带 mount()，此处只兜底：极端情况下手动开一次概览 */
             setTimeout(function () {
