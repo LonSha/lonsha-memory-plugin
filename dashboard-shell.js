@@ -296,7 +296,9 @@
         if (head) { head.textContent = ''; head.classList.add('ls-dash-title'); head.insertAdjacentHTML('afterbegin', `<span class="ls-dash-title-ico" aria-hidden="true">${I('brain', { fill: true })}</span><span class="ls-dash-title-text">${diag ? '记忆引擎 · 开发者' : '记忆引擎'}</span>`); }
         scrubChromeGlyphs(overlay);
 
-        let dev = diag || store.get(LS_KEYS.dev, '0') === '1';
+        /* 默认开（默认值 '0' -> '1'）：做完了却默认关着，用户永远不知道有这一层。
+         * 显式关过仍尊重（存 '0' 即关），只是「没存过」时算开。 */
+        let dev = diag || store.get(LS_KEYS.dev, '1') === '1';
         const st = readState(plugin);
 
         // 1. 原 body 内容整体搬入 .ls-dash-legacy（节点搬家，监听器与 id 不变）
@@ -506,7 +508,7 @@
         getTheme: () => store.get(LS_KEYS.theme, 'auto'),
         applyTheme,
         setDevMode: (on) => store.set(LS_KEYS.dev, on ? '1' : '0'),
-        isDevMode: () => store.get(LS_KEYS.dev, '0') === '1',
+        isDevMode: () => store.get(LS_KEYS.dev, '1') === '1',   // 默认开，见上
         open: (view) => { pendingView = view || 'overview'; window.LonShaMemory?.showSettingsPanel(); },
         enhance: (overlay, diag) => enhance(overlay, window.LonShaMemory, diag === true),
         neutralizeLegacyStyle,
