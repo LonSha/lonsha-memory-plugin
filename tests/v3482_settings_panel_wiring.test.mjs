@@ -70,3 +70,15 @@ test('W4 负控制：schema 写错必须看得见（未知 kind 不静默丢弃�
     assert.equal(row.kind, 'unsupported', '未知 kind 未被标成 unsupported');
     assert.ok(row.unsupported && row.unsupported.length > 0, '未知 kind 没有说明文字');
 });
+
+test('W5 日常入口接线：showPlayerHome 也被包到外壳上（否则用户根本看不到新界面）', () => {
+    const src = RD('dashboard-shell.js');
+    /* 真因记录：外壳此前只包 showSettingsPanel（#lonsha-settings-overlay）。
+       但用户日常停留的是 showPlayerHome 生成的 #lonsha-home-overlay —— 于是
+       「新外壳」永远藏在设置按钮后面，日常界面逐字节不变。 */
+    assert.ok(src.includes('plugin.showPlayerHome = wrappedHome'),
+        'showPlayerHome 没有被包裹：日常入口仍是旧主页');
+    assert.ok(src.includes("homeTarget: 'lonsha.ui.homeTarget'"),
+        '缺 homeTarget 键：用户无法回落旧主页');
+    assert.ok(src.includes('__lsOriginal'), '包装没留原函数：出问题无法回退');
+});

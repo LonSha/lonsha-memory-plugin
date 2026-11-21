@@ -31,6 +31,7 @@
         dev: 'lonsha.ui.devMode',         // '1' 开启开发者模式
         fab: 'lonsha.ui.fabTarget',       // 'dashboard'（默认）| 'home'
         view: 'lonsha.ui.lastView',
+        homeTarget: 'lonsha.ui.homeTarget',   // 'dashboard'（默认）| 'home'（回落旧主页）
     };
     const LEGACY_STYLE_MARKER = 'LonSha 设置面板 · 精密档案室微质感';
     const OVERLAY_ID = 'lonsha-settings-overlay';
@@ -588,6 +589,22 @@
         };
         wrapped.__lsOriginal = original;
         plugin.showSettingsPanel = wrapped;
+
+        /* 日常入口同样接线：showPlayerHome 生成 #lonsha-home-overlay（标题「记忆」），
+           这是用户真正停留的那一屏。此前只包了 showSettingsPanel，所以新外壳只在
+           「设置」按钮后面，日常界面一点没变 —— 本处补上。存 'home' 可回落旧主页。 */
+        if (typeof plugin.showPlayerHome === 'function') {
+            const originalHome = plugin.showPlayerHome;
+            const wrappedHome = function () {
+                if (store.get(LS_KEYS.homeTarget, 'dashboard') === 'home') {
+                    return originalHome.apply(this, arguments);
+                }
+                pendingView = 'overview';
+                return plugin.showSettingsPanel();
+            };
+            wrappedHome.__lsOriginal = originalHome;
+            plugin.showPlayerHome = wrappedHome;
+        }
 
         // FAB 默认直达 Dashboard 概览；localStorage 'lonsha.ui.fabTarget' = 'home' 可恢复旧主页
         if (typeof plugin.showFabMenu === 'function' && store.get(LS_KEYS.fab, 'dashboard') === 'dashboard') {
