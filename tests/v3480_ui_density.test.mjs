@@ -38,7 +38,10 @@ test('【0】版本三源对齐（读现行版本，不写死字面量）', () =
     const v = m[1];
     assert.equal(manifest.version, v, 'manifest 应跟随 index.js 的 ' + v);
     assert.equal(pkg.version, v, 'package 应跟随 index.js 的 ' + v);
-    assert.equal(v, '3.480.0', '本判据文件对应的版本应为 3.480.0');
+    // [v3.481.0] 这里原来是 assert.equal(v, '3.480.0')——写死版本，抬版必红。
+    //   同一形态已经复发过三次（v3478 / v3479 / 本节初版），所以改成判**形态**：
+    //   文件对应的版本由文件名表达，判据只负责「六处同版、且是 x.y.z 形状」。
+    assert.ok(/^\d+\.\d+\.\d+$/.test(v), '版本号形态应是 x.y.z，实际 ' + v);
 });
 
 /* ── 【1】ui-json-tree 自检全绿 ─────────────────────────────────── */

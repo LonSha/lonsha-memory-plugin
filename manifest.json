@@ -7,7 +7,7 @@
   "css": "css/style.css",
   "author": "LonSha",
   "license": "MIT",
-  "version": "3.480.0",
+  "version": "3.481.0",
   "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
   "auto_update": false,
   "minimum_client_version": "1.12.0",
@@ -463,12 +463,14 @@
     "ui-data-panels.js",
     "ui-panel-seam.js",
     "ui-json-tree.js",
-    "ui-table.js"
+    "ui-table.js",
+    "ui-form-controls.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",
     "css/visualizer.css",
     "css/lonsha-ui-kit.css",
-    "css/lonsha-ui-kit-ext.css"
+    "css/lonsha-ui-kit-ext.css",
+    "css/lonsha-settings.css"
   ]
 }

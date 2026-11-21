@@ -1,0 +1,1560 @@
+/* ============================================================
+ * css/lonsha-settings.css — 设置类部件样式层（v3.481.0）
+ * ------------------------------------------------------------
+ * 分工（三层各管一件事，不重复）：
+ *   lonsha-design.css       ← token 真源（只声明变量）
+ *   lonsha-ui-kit.css       ← 通用件形状与四态（卡片/面板/徽章/按钮）
+ *   lonsha-ui-kit-ext.css   ← 高密度数据件（表格/树/时间线/步骤条）
+ *   **本文件**              ← 设置页专用：行式设置项、开关、滑杆、分段、
+ *                             步进、输入、危险区、粘性保存条、导入导出
+ * ------------------------------------------------------------
+ * 为什么单独一层：设置页和「看数据」的页面对属性的要求相反。
+ *   看数据要密度高、信息多；设置要**每行只做一件事**、误触代价高，
+ *   所以这里的控件普遍更大（≥44px 触摸目标）、禁用态更明显、
+ *   危险动作单独分区。混进 ui-kit 会让两边互相拖累（密度件被撑大、
+ *   设置件被挤小）。
+ * ------------------------------------------------------------
+ * 纪律：
+ *   · 0 处 `--ls-*:` 定义 —— 只消费，不重声明 token
+ *   · 所有颜色都走 var(--ls-*, 兜底字面量) —— 宿主没注入 token 时也不白屏
+ *   · 状态不只靠颜色 —— 每处「用色表达状态」都同时给形状/文字/图标
+ *   · 结尾有 prefers-reduced-motion / @media print 双降级
+ * ============================================================ */
+
+/* ============================================================
+ * 1. 设置页骨架
+ * ------------------------------------------------------------
+ * 为什么要 inner-scroll 而不是整页滚：宿主是 WebView 抽屉，
+ * 整页滚会把抽屉把手一起滚走，用户找不到关闭的地方。
+ * ============================================================ */
+.ls-set {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    background: var(--ls-bg-0, #0b0e14);
+    color: var(--ls-text, #e6edf7);
+    font-family: var(--ls-font, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif);
+    font-size: var(--ls-fs-body, 15px);
+    line-height: 1.55;
+}
+
+/* 粘性头部：标题 + 搜索 + 一个能看到的「脏」指示。
+ * 头部必须比内容层高一点（z-index），否则滚动时行会从标题底下穿过去。 */
+.ls-set-head {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-3, 12px) var(--ls-sp-4, 16px);
+    background: var(--ls-bg-glass, rgba(11, 14, 20, 0.82));
+    -webkit-backdrop-filter: blur(var(--ls-blur, 18px));
+    backdrop-filter: blur(var(--ls-blur, 18px));
+    border-bottom: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.ls-set-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--ls-fs-title3, 20px);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 滚动区：flex:1 + min-height:0 是「内部滚动」的必要条件。
+ * 只写 overflow:auto 不写 min-height:0，在 flex 列里会被内容撑开而不滚。 */
+.ls-set-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--ls-sp-3, 12px) var(--ls-sp-4, 16px)
+             calc(var(--ls-sp-16, 64px) + env(safe-area-inset-bottom, 0px));
+}
+
+/* 分组：一组内行与行之间贴边，组与组之间留大空隙。
+ * 用「卡片包住整组」而不是「每行一张卡片」，因为设置项天然成组，
+ * 每行一张卡会把一组 6 项拆成 6 个视觉块，反而更难扫。 */
+.ls-set-group {
+    margin-bottom: var(--ls-sp-5, 20px);
+}
+
+.ls-set-group:last-child {
+    margin-bottom: 0;
+}
+
+.ls-set-group-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ls-sp-2, 8px);
+    padding: 0 var(--ls-sp-1, 4px) var(--ls-sp-2, 8px);
+}
+
+.ls-set-group-title {
+    font-size: var(--ls-fs-footnote, 13px);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ls-text-3, #93a1b5);
+}
+
+/* 组说明：一句话讲清「这组是干什么的」，而不是重复组名。
+ * 单靠组名，用户不知道「高级」里有什么；一句话能省掉 80% 的试错。 */
+.ls-set-group-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-4, #6b7a90);
+}
+
+.ls-set-list {
+    background: var(--ls-bg-1, #12161f);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    border-radius: var(--ls-r-lg, 14px);
+    overflow: hidden;
+    box-shadow: var(--ls-sh-1, 0 1px 2px rgba(0, 0, 0, 0.28));
+}
+
+/* ============================================================
+ * 2. 行式设置项
+ * ------------------------------------------------------------
+ * 三段式：左（标签+说明） / 右（控件）。这是设置页唯一该有的骨架，
+ * 因为它让「读一行」的成本固定：眼睛只要在同一水平线上扫。
+ * ------------------------------------------------------------
+ * 窄屏时不许把控件挤到标签下面 —— 那会让每一行变成两行，
+ * 一屏只看得到 4 项。改用「控件贴右但可换行 + 最小宽度」。
+ * ============================================================ */
+.ls-set-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-3, 12px);
+    min-height: 52px;
+    padding: var(--ls-sp-3, 12px) var(--ls-sp-4, 16px);
+    border-top: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.ls-set-row:first-child {
+    border-top: 0;
+}
+
+/* 整行可点时（比如整行就是开关）给一点反馈，否则用户不知道能点哪里。
+ * 只对 data-clickable 生效：不可点的行不该有 hover 高亮，
+ * 否则会把「这一行能点」这个信息稀释掉。 */
+.ls-set-row[data-clickable="1"] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ls-set-row[data-clickable="1"]:hover {
+    background: var(--ls-bg-2, #171c27);
+}
+
+.ls-set-row[data-clickable="1"]:active {
+    background: var(--ls-bg-3, #1d2330);
+}
+
+/* 禁用行：整行压暗 + 光标明示 + **不许**保留 hover。
+ * 保留 hover 会让用户反复点一个永远不生效的行。 */
+.ls-set-row[data-disabled="1"] {
+    opacity: 0.46;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.ls-set-row[data-disabled="1"]:hover {
+    background: transparent;
+}
+
+.ls-set-row-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ls-set-label {
+    font-size: var(--ls-fs-body, 15px);
+    font-weight: 500;
+    color: var(--ls-text, #e6edf7);
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-1, 4px);
+    flex-wrap: wrap;
+}
+
+/* 说明文字：允许两行就截断，因为设置说明常有细节，
+ * 但三行以上的说明会破坏「一行一件事」的节奏 —— 长说明应该进帮助页。 */
+.ls-set-desc {
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-3, #93a1b5);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* 依赖提示：「改这项要先开某某」—— 不给提示，用户会以为功能坏了。 */
+.ls-set-desc[data-warn="1"] {
+    color: var(--ls-warn, #fbbf24);
+}
+
+/* 生效时机角标：有些项要重启/重载才生效，必须当场说，
+ * 否则用户改完看不到变化就判定「没保存」。 */
+.ls-set-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: var(--ls-r-xs, 4px);
+    font-size: var(--ls-fs-caption2, 11px);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: var(--ls-bg-3, #1d2330);
+    color: var(--ls-text-3, #93a1b5);
+    border: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.ls-set-tag[data-kind="restart"] {
+    color: var(--ls-warn, #fbbf24);
+    border-color: rgba(251, 191, 36, 0.32);
+    background: var(--ls-warn-soft, rgba(251, 191, 36, 0.10));
+}
+
+.ls-set-tag[data-kind="beta"] {
+    color: var(--ls-info, #60a5fa);
+    border-color: rgba(96, 165, 250, 0.32);
+    background: var(--ls-info-soft, rgba(96, 165, 250, 0.10));
+}
+
+/* 控件槽：给一个稳定的最小宽度，避免行与行之间控件左右跳。
+ * 这是设置页最容易忽略的一点 —— 控件位置飘会让整页看起来像没对齐。 */
+.ls-set-ctl {
+    flex: 0 0 auto;
+    min-width: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ls-sp-2, 8px);
+}
+
+.ls-set-ctl[data-wide="1"] {
+    min-width: 180px;
+}
+
+/* ============================================================
+ * 3. 开关
+ * ------------------------------------------------------------
+ * 用 48×28 的胶囊：低于 44px 高的开关在触屏上误触率高，
+ * 而 28 是视觉高度（外圈还有 padding 撑到 44 的点击区）。
+ * ------------------------------------------------------------
+ * 状态**不只靠颜色**：开启时拇指右移 + 轨道变实色；
+ * 关闭时拇指左移 + 轨道描边。灰度下也能分辨。
+ * ============================================================ */
+.ls-switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 48px;
+    height: 28px;
+    border-radius: var(--ls-r-pill, 999px);
+    background: var(--ls-bg-3, #1d2330);
+    border: 1px solid var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+    cursor: pointer;
+    transition: background var(--ls-t-fast, 140ms) var(--ls-ease, ease),
+                border-color var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+    -webkit-tap-highlight-color: transparent;
+    padding: 0;
+    /* 触摸目标外扩：视觉 48×28，实际可点区域 48×44 */
+    outline-offset: 0;
+}
+
+/* 用 ::after 撑出 44px 高的点击热区，不改变视觉尺寸。
+ * 负 top/bottom 让它溢出，父元素不需 overflow:hidden。 */
+.ls-switch::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -8px;
+    bottom: -8px;
+}
+
+.ls-switch[data-on="1"] {
+    background: var(--ls-accent, #7c8cff);
+    border-color: var(--ls-accent-strong, #6d7cf0);
+}
+
+.ls-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--ls-text, #e6edf7);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    transition: transform var(--ls-t-fast, 140ms) var(--ls-ease-out, cubic-bezier(.2,.8,.2,1));
+    pointer-events: none;
+}
+
+.ls-switch[data-on="1"] .ls-switch-thumb {
+    transform: translateX(20px);
+    background: var(--ls-on-accent, #0b0e14);
+}
+
+.ls-switch[data-busy="1"] {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.ls-switch:focus-visible {
+    outline: var(--ls-focus-outline, 2px solid #7c8cff);
+    outline-offset: 3px;
+}
+
+/* 开关旁边的即时状态词：开/关/不可用。
+ * 为什么还要文字：开关是「位置」表达状态，位置在灰度、
+ * 屏幕反光、缩小视图下都不如一个词直接。 */
+.ls-switch-state {
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-3, #93a1b5);
+    min-width: 2.4em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * 4. 滑杆
+ * ------------------------------------------------------------
+ * 原生 input[type=range] 的默认样式在各 WebView 里差异极大
+ * （Android 是圆形拇指、iOS 是插入式），所以这里统一重画。
+ * ------------------------------------------------------------
+ * 关键：已填充部分用 background: linear-gradient 按 --p 截断，
+ * 而不是叠一个伪元素 —— 伪元素在 RTL 与右到左滑杆上会翻边。
+ * ============================================================ */
+.ls-slider {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    width: 100%;
+    min-width: 160px;
+}
+
+.ls-slider-track {
+    position: relative;
+    flex: 1 1 auto;
+    height: 32px; /* 视觉轨道只有 4px，但容器要 32px 撑触摸区 */
+    display: flex;
+    align-items: center;
+}
+
+.ls-slider-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: var(--ls-r-pill, 999px);
+    background: linear-gradient(
+        to right,
+        var(--ls-accent, #7c8cff) 0%,
+        var(--ls-accent, #7c8cff) var(--p, 50%),
+        var(--ls-bg-3, #1d2330) var(--p, 50%),
+        var(--ls-bg-3, #1d2330) 100%
+    );
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+}
+
+/* 拇指：14px 视觉，但用 22px 的透明边框撑到 36px 触摸区。
+ * 直接做大拇指会让轨道显得被压扁。 */
+.ls-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ls-text, #e6edf7);
+    border: 2px solid var(--ls-accent, #7c8cff);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+    cursor: grab;
+    transition: transform var(--ls-t-fast, 140ms) var(--ls-ease-out, cubic-bezier(.2,.8,.2,1));
+}
+
+.ls-slider-input:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+    cursor: grabbing;
+}
+
+.ls-slider-input::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ls-text, #e6edf7);
+    border: 2px solid var(--ls-accent, #7c8cff);
+    cursor: grab;
+}
+
+.ls-slider-input:focus-visible {
+    outline: var(--ls-focus-outline, 2px solid #7c8cff);
+    outline-offset: 4px;
+    border-radius: var(--ls-r-pill, 999px);
+}
+
+.ls-slider-input[disabled] {
+    cursor: not-allowed;
+    filter: grayscale(1);
+    opacity: 0.5;
+}
+
+/* 数值读数：必须用 tabular-nums，否则拖动时数字宽度变化会让整行抖动。 */
+.ls-slider-val {
+    flex: 0 0 auto;
+    min-width: 3.2em;
+    text-align: right;
+    font-size: var(--ls-fs-footnote, 13px);
+    font-variant-numeric: tabular-nums;
+    color: var(--ls-text-2, #c3cddd);
+    padding: 2px 6px;
+    border-radius: var(--ls-r-xs, 4px);
+    background: var(--ls-bg-2, #171c27);
+    border: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+    cursor: text;
+}
+
+.ls-slider-val[data-editing="1"] {
+    border-color: var(--ls-accent, #7c8cff);
+    background: var(--ls-bg-3, #1d2330);
+    outline: none;
+}
+
+/* 刻度：只在有意义的档位上画，不是均匀撒。
+ * 均匀撒的刻度会暗示「每格一样重」，而实际上 0/50/100 才是锚点。 */
+.ls-slider-ticks {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 6px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+}
+
+.ls-slider-tick {
+    width: 1px;
+    height: 4px;
+    background: var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.ls-slider-tick[data-key="1"] {
+    height: 6px;
+    background: var(--ls-text-4, #6b7a90);
+}
+
+/* ============================================================
+ * 5. 分段控件（2–4 选一）
+ * ------------------------------------------------------------
+ * 不用 tab 是因为 tab 暗示「换页面」，而分段是「换同一个值的取值」。
+ * 不用下拉是因为 2–4 项时下拉多一次点击，且看不到全部选项。
+ * ------------------------------------------------------------
+ * 指示器用一个绝对定位的滑块（--seg-i / --seg-n 定位），
+ * 而不是给选中项加背景 —— 加背景会让切换没有连续性。
+ * ============================================================ */
+.ls-seg {
+    position: relative;
+    display: inline-flex;
+    padding: 2px;
+    border-radius: var(--ls-r-md, 10px);
+    background: var(--ls-bg-2, #171c27);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    gap: 0;
+}
+
+/* 指示器：宽度 = 1/n，位置由 --seg-i 决定。
+ * 用 calc((100% - 4px) / var(--seg-n)) 而不是百分比，
+ * 因为内边距 2px×2 要扣掉，否则最后一段会溢出容器。 */
+.ls-seg::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    left: 2px;
+    width: calc((100% - 4px) / var(--seg-n, 2));
+    border-radius: calc(var(--ls-r-md, 10px) - 3px);
+    background: var(--ls-accent-soft, rgba(124, 140, 255, 0.16));
+    border: 1px solid var(--ls-accent-line, rgba(124, 140, 255, 0.34));
+    transform: translateX(calc(var(--seg-i, 0) * 100%));
+    transition: transform var(--ls-t-med, 220ms) var(--ls-ease-out, cubic-bezier(.2,.8,.2,1));
+    pointer-events: none;
+}
+
+.ls-seg[data-reduce="1"]::before {
+    transition: none;
+}
+
+.ls-seg-item {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    min-width: 56px;
+    height: 34px;
+    padding: 0 var(--ls-sp-2, 8px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--ls-text-3, #93a1b5);
+    font-size: var(--ls-fs-footnote, 13px);
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: calc(var(--ls-r-md, 10px) - 3px);
+    white-space: nowrap;
+    transition: color var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ls-seg-item:hover {
+    color: var(--ls-text-2, #c3cddd);
+}
+
+.ls-seg-item[data-active="1"] {
+    color: var(--ls-text, #e6edf7);
+    font-weight: 600;
+}
+
+/* 禁用段：保留在原位但淡出，不用 display:none ——
+ * 消失的选项会让指示器位置计算错乱，也会让用户以为功能被删了。 */
+.ls-seg-item[data-disabled="1"] {
+    opacity: 0.36;
+    cursor: not-allowed;
+}
+
+.ls-seg-item:focus-visible {
+    outline: var(--ls-focus-outline, 2px solid #7c8cff);
+    outline-offset: 2px;
+}
+
+/* 段内小徽标（比如「推荐」「新」）：不抢主色，用极轻的边框 */
+.ls-seg-badge {
+    margin-left: 4px;
+    font-size: var(--ls-fs-caption2, 11px);
+    padding: 0 4px;
+    height: 14px;
+    line-height: 14px;
+    border-radius: var(--ls-r-xs, 4px);
+    background: var(--ls-gold-soft, rgba(212, 175, 92, 0.14));
+    color: var(--ls-gold, #d4af5c);
+}
+
+/* ============================================================
+ * 6. 步进器（− 数字 +）
+ * ------------------------------------------------------------
+ * 为什么不用 input[type=number]：原生步进箭头在触屏上小到点不中，
+ * 而且长按不加速。这里自己画，支持长按连击（由 JS 负责）。
+ * ============================================================ */
+.ls-stepper {
+    display: inline-flex;
+    align-items: stretch;
+    height: 36px;
+    border-radius: var(--ls-r-md, 10px);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    background: var(--ls-bg-2, #171c27);
+    overflow: hidden;
+}
+
+.ls-stepper-btn {
+    width: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--ls-text-2, #c3cddd);
+    font-size: 18px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+}
+
+.ls-stepper-btn:hover:not([disabled]) {
+    background: var(--ls-bg-3, #1d2330);
+    color: var(--ls-text, #e6edf7);
+}
+
+.ls-stepper-btn:active:not([disabled]) {
+    background: var(--ls-accent-soft, rgba(124, 140, 255, 0.16));
+}
+
+/* 到边界必须禁用并明示 —— 否则用户会以为是卡了 */
+.ls-stepper-btn[disabled] {
+    color: var(--ls-text-4, #6b7a90);
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ls-stepper-val {
+    min-width: 52px;
+    padding: 0 var(--ls-sp-2, 8px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-left: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+    border-right: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+    font-size: var(--ls-fs-footnote, 13px);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ls-text, #e6edf7);
+}
+
+.ls-stepper-unit {
+    margin-left: 3px;
+    font-size: var(--ls-fs-caption2, 11px);
+    font-weight: 400;
+    color: var(--ls-text-4, #6b7a90);
+}
+
+/* ============================================================
+ * 7. 文本输入 / 文本域
+ * ------------------------------------------------------------
+ * 16px 是硬底线：iOS Safari 在 font-size < 16px 的输入框上聚焦会
+ * 自动放大页面，用户点一次输入框页面就跳一下。
+ * ============================================================ */
+.ls-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ls-input2 {
+    height: 38px;
+    padding: 0 var(--ls-sp-3, 12px);
+    border-radius: var(--ls-r-md, 10px);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    background: var(--ls-bg-2, #171c27);
+    color: var(--ls-text, #e6edf7);
+    font-size: 16px; /* 不许降：见上方 iOS 缩放说明 */
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+    transition: border-color var(--ls-t-fast, 140ms) var(--ls-ease, ease),
+                background var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+}
+
+.ls-input2::placeholder {
+    color: var(--ls-text-4, #6b7a90);
+}
+
+.ls-input2:hover {
+    border-color: var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+.ls-input2:focus {
+    border-color: var(--ls-accent, #7c8cff);
+    background: var(--ls-bg-3, #1d2330);
+    box-shadow: 0 0 0 3px var(--ls-accent-softer, rgba(124, 140, 255, 0.10));
+}
+
+/* 错误态：边框变色 + 有文字说明。只变色等于没提示。 */
+.ls-input2[data-invalid="1"] {
+    border-color: var(--ls-danger, #f87171);
+    background: var(--ls-danger-soft, rgba(248, 113, 113, 0.08));
+}
+
+.ls-input2[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ls-textarea {
+    min-height: 88px;
+    padding: var(--ls-sp-2, 8px) var(--ls-sp-3, 12px);
+    resize: vertical;
+    line-height: 1.5;
+}
+
+/* 前缀/后缀（单位、协议头）：贴在输入框内两侧，视觉上是一体 */
+.ls-input-affix {
+    display: flex;
+    align-items: stretch;
+    border-radius: var(--ls-r-md, 10px);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    background: var(--ls-bg-2, #171c27);
+    overflow: hidden;
+}
+
+.ls-input-affix > .ls-input2 {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+}
+
+.ls-input-affix > .ls-input2:focus {
+    box-shadow: none;
+    background: transparent;
+}
+
+.ls-input-affix:focus-within {
+    border-color: var(--ls-accent, #7c8cff);
+    box-shadow: 0 0 0 3px var(--ls-accent-softer, rgba(124, 140, 255, 0.10));
+}
+
+.ls-affix {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--ls-sp-2, 8px);
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-4, #6b7a90);
+    background: var(--ls-bg-3, #1d2330);
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.ls-affix[data-side="left"] {
+    border-right: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.ls-affix[data-side="right"] {
+    border-left: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+/* 字数统计：接近上限才变色，平时保持安静 */
+.ls-input-count {
+    align-self: flex-end;
+    font-size: var(--ls-fs-caption2, 11px);
+    color: var(--ls-text-4, #6b7a90);
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-input-count[data-near="1"] {
+    color: var(--ls-warn, #fbbf24);
+}
+
+.ls-input-count[data-over="1"] {
+    color: var(--ls-danger, #f87171);
+    font-weight: 600;
+}
+
+/* ============================================================
+ * 8. 选择器 / 多选 / 颜色
+ * ============================================================ */
+.ls-select {
+    height: 38px;
+    padding: 0 var(--ls-sp-2, 8px);
+    border-radius: var(--ls-r-md, 10px);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    background: var(--ls-bg-2, #171c27);
+    color: var(--ls-text, #e6edf7);
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    min-width: 120px;
+    cursor: pointer;
+}
+
+.ls-select:focus {
+    border-color: var(--ls-accent, #7c8cff);
+}
+
+/* 多选：用「可点的胶囊」而不是原生 multiple ——
+ * 原生 multiple 在触屏上要按住 ctrl，手机上根本没法用。 */
+.ls-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ls-chip2 {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 30px;
+    padding: 0 var(--ls-sp-2, 8px);
+    border-radius: var(--ls-r-pill, 999px);
+    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    background: var(--ls-bg-2, #171c27);
+    color: var(--ls-text-3, #93a1b5);
+    font-size: var(--ls-fs-footnote, 13px);
+    font-family: inherit;
+    cursor: pointer;
+    transition: all var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ls-chip2:hover {
+    color: var(--ls-text-2, #c3cddd);
+    border-color: var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+}
+
+/* 选中态：边框 + 底 + 前置勾。三重表达，灰度下靠勾仍可辨。 */
+.ls-chip2[data-on="1"] {
+    color: var(--ls-text, #e6edf7);
+    border-color: var(--ls-accent-line, rgba(124, 140, 255, 0.34));
+    background: var(--ls-accent-soft, rgba(124, 140, 255, 0.16));
+}
+
+.ls-chip2[data-on="1"]::before {
+    content: "✓";
+    font-size: 11px;
+    color: var(--ls-accent, #7c8cff);
+}
+
+/* 颜色：色块 + hex 文本，两者都能读 */
+.ls-color {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+}
+
+.ls-color-swatch {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--ls-r-sm, 6px);
+    border: 1px solid var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    flex: 0 0 auto;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+/* 棋盘格底：透明色的色块必须能看出「这是透明」而不是「这是白色」 */
+.ls-color-swatch[data-alpha="1"] {
+    background-image:
+        linear-gradient(45deg, #2a3140 25%, transparent 25%),
+        linear-gradient(-45deg, #2a3140 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #2a3140 75%),
+        linear-gradient(-45deg, transparent 75%, #2a3140 75%);
+    background-size: 8px 8px;
+    background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+}
+
+.ls-color-hex {
+    font-family: var(--ls-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-2, #c3cddd);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+/* ============================================================
+ * 9. 危险区
+ * ------------------------------------------------------------
+ * 危险按钮**一律靠右**且**必须二次确认**。
+ * 靠右不是审美：设置页里「保存」在右、「取消」在左是全局惯例，
+ * 危险动作如果放左边，会被误读成「返回」。
+ * ============================================================ */
+.ls-danger-zone {
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    border-radius: var(--ls-r-lg, 14px);
+    background: var(--ls-danger-soft, rgba(248, 113, 113, 0.08));
+    overflow: hidden;
+}
+
+.ls-danger-zone .ls-set-row {
+    border-top-color: rgba(248, 113, 113, 0.16);
+}
+
+.ls-danger-zone .ls-set-label {
+    color: var(--ls-danger, #f87171);
+}
+
+.ls-btn-danger {
+    height: 34px;
+    padding: 0 var(--ls-sp-3, 12px);
+    border-radius: var(--ls-r-md, 10px);
+    border: 1px solid rgba(248, 113, 113, 0.42);
+    background: transparent;
+    color: var(--ls-danger, #f87171);
+    font-size: var(--ls-fs-footnote, 13px);
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+}
+
+.ls-btn-danger:hover {
+    background: rgba(248, 113, 113, 0.14);
+}
+
+/* 需要二次确认时，按钮进入 armed 态：实心红底 + 文字变成追问。
+ * 只淡出/闪烁是不够的 —— 用户会以为点失败了，反复点。 */
+.ls-btn-danger[data-armed="1"] {
+    background: var(--ls-danger, #f87171);
+    color: #1a0e0e;
+    border-color: var(--ls-danger, #f87171);
+    animation: ls-set-armed 1.2s var(--ls-ease, ease) infinite;
+}
+
+@keyframes ls-set-armed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.5); }
+    50% { box-shadow: 0 0 0 4px rgba(248, 113, 113, 0); }
+}
+
+/* ============================================================
+ * 10. 粘性保存条
+ * ------------------------------------------------------------
+ * 只在**有未保存改动**时出现。常驻会出现两个问题：
+ *   ① 用户以为必须点它才算保存，每次改一项就点一次；
+ *   ② 它盖住最后一行内容。
+ * 所以默认隐藏（translateY 下移 + opacity 0），脏了才升起。
+ * ============================================================ */
+.ls-set-savebar {
+    position: sticky;
+    bottom: 0;
+    z-index: 7;
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-2, 8px) var(--ls-sp-4, 16px)
+             calc(var(--ls-sp-2, 8px) + env(safe-area-inset-bottom, 0px));
+    background: var(--ls-bg-glass, rgba(11, 14, 20, 0.9));
+    -webkit-backdrop-filter: blur(var(--ls-blur, 18px));
+    backdrop-filter: blur(var(--ls-blur, 18px));
+    border-top: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
+    transform: translateY(0);
+    transition: transform var(--ls-t-med, 220ms) var(--ls-ease-out, cubic-bezier(.2,.8,.2,1)),
+                opacity var(--ls-t-med, 220ms) var(--ls-ease, ease);
+}
+
+.ls-set-savebar[data-dirty="0"] {
+    transform: translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ls-set-dirty-count {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--ls-fs-footnote, 13px);
+    color: var(--ls-text-3, #93a1b5);
+}
+
+/* 脏计数用一个圆点 + 数字：圆点是「有改动」的第一眼信号，
+ * 数字是「改了几项」。只有数字时，用户会把它当成别的东西。 */
+.ls-set-dirty-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ls-gold, #d4af5c);
+    margin-right: 6px;
+    vertical-align: middle;
+    animation: ls-set-pulse 1.6s var(--ls-ease, ease) infinite;
+}
+
+@keyframes ls-set-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* ============================================================
+ * 11. 搜索与无结果
+ * ------------------------------------------------------------
+ * 搜索命中要能看见「命中在哪」——只过滤不标注，
+ * 用户会怀疑还有别的符合项没显示。
+ * ============================================================ */
+.ls-set-search {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.ls-set-search > .ls-input2 {
+    padding-left: 30px;
+    height: 34px;
+    font-size: 15px;
+}
+
+.ls-set-search::before {
+    content: "⌕";
+    position: absolute;
+    left: 10px;
+    font-size: 15px;
+    color: var(--ls-text-4, #6b7a90);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.ls-hit {
+    background: var(--ls-gold-soft, rgba(212, 175, 92, 0.14));
+    color: var(--ls-gold, #d4af5c);
+    border-radius: 3px;
+    padding: 0 1px;
+    box-shadow: inset 0 -1px 0 rgba(212, 175, 92, 0.4);
+}
+
+.ls-set-nohit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-10, 40px) var(--ls-sp-4, 16px);
+    text-align: center;
+    color: var(--ls-text-3, #93a1b5);
+}
+
+.ls-set-nohit-title {
+    font-size: var(--ls-fs-body, 15px);
+    font-weight: 500;
+    color: var(--ls-text-2, #c3cddd);
+}
+
+.ls-set-nohit-hint {
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-4, #6b7a90);
+    max-width: 32ch;
+}
+
+/* ============================================================
+ * 12. 导入导出
+ * ------------------------------------------------------------
+ * 拖拽区在手机上没用（没有拖拽），所以同一块区域在窄屏下
+ * 自动变成「点我选文件」的大按钮 —— 复用同一份 DOM。
+ * ============================================================ */
+.ls-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ls-sp-2, 8px);
+    min-height: 96px;
+    padding: var(--ls-sp-4, 16px);
+    border: 1px dashed var(--ls-line-strong, rgba(255, 255, 255, 0.16));
+    border-radius: var(--ls-r-lg, 14px);
+    background: var(--ls-bg-2, #171c27);
+    color: var(--ls-text-3, #93a1b5);
+    text-align: center;
+    transition: all var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+    cursor: pointer;
+}
+
+.ls-drop[data-over="1"] {
+    border-color: var(--ls-accent, #7c8cff);
+    border-style: solid;
+    background: var(--ls-accent-softer, rgba(124, 140, 255, 0.10));
+    color: var(--ls-text, #e6edf7);
+}
+
+.ls-drop-icon {
+    font-size: 24px;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.ls-drop-text {
+    font-size: var(--ls-fs-footnote, 13px);
+}
+
+.ls-drop-sub {
+    font-size: var(--ls-fs-caption2, 11px);
+    color: var(--ls-text-4, #6b7a90);
+}
+
+/* 文件行：名称 + 大小 + 进度 + 结果。
+ * 结果不能只有颜色 —— 失败要有「失败」两个字和一个 ✕。 */
+.ls-file-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-2, 8px) var(--ls-sp-3, 12px);
+    border-radius: var(--ls-r-md, 10px);
+    background: var(--ls-bg-2, #171c27);
+    border: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+    font-size: var(--ls-fs-footnote, 13px);
+}
+
+.ls-file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ls-text, #e6edf7);
+}
+
+.ls-file-size {
+    flex: 0 0 auto;
+    font-size: var(--ls-fs-caption2, 11px);
+    color: var(--ls-text-4, #6b7a90);
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-file-row[data-state="ok"] {
+    border-color: rgba(52, 211, 153, 0.28);
+}
+
+.ls-file-row[data-state="ok"]::after {
+    content: "✓ 完成";
+    color: var(--ls-success, #34d399);
+    font-size: var(--ls-fs-caption2, 11px);
+    flex: 0 0 auto;
+}
+
+.ls-file-row[data-state="fail"] {
+    border-color: rgba(248, 113, 113, 0.28);
+    background: var(--ls-danger-soft, rgba(248, 113, 113, 0.08));
+}
+
+.ls-file-row[data-state="fail"]::after {
+    content: "✕ 失败";
+    color: var(--ls-danger, #f87171);
+    font-size: var(--ls-fs-caption2, 11px);
+    font-weight: 600;
+    flex: 0 0 auto;
+}
+
+/* 进度条：宽度由 --p 控制，同滑杆口径 */
+.ls-file-progress {
+    width: 56px;
+    height: 4px;
+    border-radius: var(--ls-r-pill, 999px);
+    background: var(--ls-bg-3, #1d2330);
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+
+.ls-file-progress > i {
+    display: block;
+    height: 100%;
+    width: var(--p, 0%);
+    background: var(--ls-accent, #7c8cff);
+    border-radius: inherit;
+    transition: width var(--ls-t-med, 220ms) var(--ls-ease, ease);
+}
+
+/* ============================================================
+ * 13. 高级折叠
+ * ------------------------------------------------------------
+ * 「展开不脱流」是硬要求：折叠区展开时把下方内容推下去，
+ * 而不是浮在上面遮住 —— 在设置页里遮住内容等于让用户没法对照。
+ * ============================================================ */
+.ls-adv {
+    border-top: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.ls-adv-head {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-3, 12px) var(--ls-sp-4, 16px);
+    cursor: pointer;
+    color: var(--ls-text-3, #93a1b5);
+    font-size: var(--ls-fs-footnote, 13px);
+    font-weight: 500;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ls-adv-head:hover {
+    color: var(--ls-text-2, #c3cddd);
+    background: var(--ls-bg-2, #171c27);
+}
+
+.ls-adv-head::before {
+    content: "▸";
+    font-size: 10px;
+    transition: transform var(--ls-t-fast, 140ms) var(--ls-ease, ease);
+    display: inline-block;
+    color: var(--ls-text-4, #6b7a90);
+}
+
+.ls-adv[data-open="1"] .ls-adv-head::before {
+    transform: rotate(90deg);
+}
+
+/* 用 grid-template-rows 0fr↔1fr 做高度过渡：
+ * max-height 过渡需要猜一个值，猜大了动画快、猜小了内容被切。 */
+.ls-adv-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--ls-t-med, 220ms) var(--ls-ease-out, cubic-bezier(.2,.8,.2,1));
+}
+
+.ls-adv[data-open="1"] .ls-adv-body {
+    grid-template-rows: 1fr;
+}
+
+.ls-adv-body > div {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.ls-adv-warn {
+    margin: var(--ls-sp-2, 8px) var(--ls-sp-4, 16px) var(--ls-sp-3, 12px);
+    padding: var(--ls-sp-2, 8px) var(--ls-sp-3, 12px);
+    border-radius: var(--ls-r-md, 10px);
+    background: var(--ls-warn-soft, rgba(251, 191, 36, 0.10));
+    border-left: 3px solid var(--ls-warn, #fbbf24);
+    font-size: var(--ls-fs-caption, 12px);
+    color: var(--ls-text-2, #c3cddd);
+}
+
+/* ============================================================
+ * 14. 键值原始视图
+ * ------------------------------------------------------------
+ * 设置页给的永远是「整理过的视图」，排查时必须能看到原始键值，
+ * 否则分不清「值没存」和「界面没读」。
+ * ============================================================ */
+.ls-kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--ls-fs-footnote, 13px);
+    font-family: var(--ls-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.ls-kv-table th,
+.ls-kv-table td {
+    text-align: left;
+    padding: 6px var(--ls-sp-3, 12px);
+    border-bottom: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
+    vertical-align: top;
+    word-break: break-all;
+}
+
+.ls-kv-table th {
+    color: var(--ls-text-3, #93a1b5);
+    font-weight: 500;
+    font-size: var(--ls-fs-caption2, 11px);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--ls-bg-2, #171c27);
+    position: sticky;
+    top: 0;
+}
+
+.ls-kv-table td[data-kind="key"] {
+    color: var(--ls-info, #60a5fa);
+    white-space: nowrap;
+}
+
+.ls-kv-table td[data-kind="num"] {
+    color: var(--ls-gold, #d4af5c);
+    text-align: right;
+}
+
+.ls-kv-table td[data-kind="bool"] {
+    color: var(--ls-accent, #7c8cff);
+}
+
+.ls-kv-table td[data-kind="null"] {
+    color: var(--ls-text-4, #6b7a90);
+    font-style: italic;
+}
+
+/* ============================================================
+ * 15. 权限与风险提示条
+ * ------------------------------------------------------------
+ * 三种严重度用三种形状，不只换颜色：
+ *   info  → 左侧细线
+ *   warn  → 左侧粗线 + 图标
+ *   danger→ 左侧粗线 + 图标 + 底色
+ * ============================================================ */
+.ls-notice {
+    display: flex;
+    gap: var(--ls-sp-2, 8px);
+    padding: var(--ls-sp-2, 8px) var(--ls-sp-3, 12px);
+    border-radius: var(--ls-r-md, 10px);
+    font-size: var(--ls-fs-caption, 12px);
+    line-height: 1.5;
+    color: var(--ls-text-2, #c3cddd);
+    background: var(--ls-bg-2, #171c27);
+    border-left: 2px solid var(--ls-info, #60a5fa);
+}
+
+.ls-notice[data-kind="warn"] {
+    border-left-width: 3px;
+    border-left-color: var(--ls-warn, #fbbf24);
+    background: var(--ls-warn-soft, rgba(251, 191, 36, 0.10));
+}
+
+.ls-notice[data-kind="warn"]::before {
+    content: "!";
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ls-warn, #fbbf24);
+    color: #231a05;
+    font-weight: 700;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.ls-notice[data-kind="danger"] {
+    border-left-width: 3px;
+    border-left-color: var(--ls-danger, #f87171);
+    background: var(--ls-danger-soft, rgba(248, 113, 113, 0.08));
+}
+
+.ls-notice[data-kind="danger"]::before {
+    content: "✕";
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ls-danger, #f87171);
+    color: #1a0e0e;
+    font-weight: 700;
+    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.ls-notice-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ls-notice-title {
+    font-weight: 600;
+    color: var(--ls-text, #e6edf7);
+    margin-bottom: 2px;
+}
+
+/* ============================================================
+ * 16. 脚注与帮助
+ * ============================================================ */
+.ls-set-footnote {
+    padding: var(--ls-sp-4, 16px) var(--ls-sp-1, 4px);
+    font-size: var(--ls-fs-caption2, 11px);
+    color: var(--ls-text-4, #6b7a90);
+    line-height: 1.6;
+    text-align: center;
+}
+
+.ls-set-footnote a {
+    color: var(--ls-accent, #7c8cff);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--ls-accent-line, rgba(124, 140, 255, 0.34));
+}
+
+/* ============================================================
+ * 17. 窄屏适配
+ * ------------------------------------------------------------
+ * 480px 以下：控件不再贴右，而是独占一行放在说明下方。
+ * 这不是「退化」，而是「一条信息占两行」——比把控件压到 60px
+ * 宽以至于标签全是省略号要好得多。
+ * ============================================================ */
+@media (max-width: 480px) {
+    .ls-set-body {
+        padding-left: var(--ls-sp-3, 12px);
+        padding-right: var(--ls-sp-3, 12px);
+    }
+
+    .ls-set-row {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        padding: var(--ls-sp-3, 12px);
+    }
+
+    .ls-set-row-main {
+        flex: 1 1 100%;
+    }
+
+    /* 控件独占一行并靠左：靠右时手指够不到右上角 */
+    .ls-set-ctl {
+        flex: 1 1 100%;
+        justify-content: flex-start;
+        min-width: 0;
+        padding-top: var(--ls-sp-1, 4px);
+    }
+
+    /* 开关/步进这类小控件不该撑满整行 —— 撑满会显得像输入框 */
+    .ls-set-ctl[data-compact="1"] {
+        flex: 0 0 auto;
+        width: auto;
+    }
+
+    .ls-set-ctl[data-wide="1"] {
+        min-width: 0;
+    }
+
+    .ls-slider {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .ls-seg {
+        width: 100%;
+    }
+
+    .ls-seg-item {
+        min-width: 0;
+    }
+
+    .ls-set-savebar {
+        padding-left: var(--ls-sp-3, 12px);
+        padding-right: var(--ls-sp-3, 12px);
+    }
+}
+
+/* 360px 以下：字号降一档，分组标题不再大写（大写+字距在窄屏上太占位） */
+@media (max-width: 360px) {
+    .ls-set {
+        font-size: 14px;
+    }
+
+    .ls-set-group-title {
+        text-transform: none;
+        letter-spacing: 0.02em;
+    }
+
+    .ls-stepper-btn {
+        width: 34px;
+    }
+
+    .ls-stepper-val {
+        min-width: 44px;
+    }
+}
+
+/* ============================================================
+ * 18. 降级
+ * ============================================================ */
+/* 减少动效：所有过渡与循环动画都关掉。
+ * 保留 transition 的「即时」效果会让 hover 变得像跳变，
+ * 所以直接设成 none 而不是 0s（0s 在某些 WebView 里仍会排队一帧）。 */
+@media (prefers-reduced-motion: reduce) {
+    .ls-switch,
+    .ls-switch-thumb,
+    .ls-seg::before,
+    .ls-adv-head::before,
+    .ls-adv-body,
+    .ls-set-savebar,
+    .ls-file-progress > i,
+    .ls-slider-input::-webkit-slider-thumb,
+    .ls-chip2,
+    .ls-input2 {
+        transition: none !important;
+    }
+
+    .ls-set-dirty-dot,
+    .ls-btn-danger[data-armed="1"] {
+        animation: none !important;
+    }
+}
+
+/* 打印：设置页常被用来截图存档或对照。
+ * 打印时把交互控件换成文字/框图，并把颜色转成边框，
+ * 因为多数打印机灰度化后色块全糊。 */
+@media print {
+    .ls-set {
+        background: #fff;
+        color: #000;
+        height: auto;
+    }
+
+    .ls-set-head,
+    .ls-set-savebar {
+        position: static;
+        background: #fff;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border-color: #ccc;
+    }
+
+    .ls-set-savebar {
+        display: none; /* 打印时「保存」无意义 */
+    }
+
+    .ls-set-body {
+        overflow: visible;
+        padding: 0;
+    }
+
+    .ls-set-list,
+    .ls-danger-zone,
+    .ls-notice,
+    .ls-drop {
+        border-color: #bbb;
+        background: #fff;
+        box-shadow: none;
+    }
+
+    .ls-set-row {
+        border-top-color: #ddd;
+        break-inside: avoid;
+    }
+
+    /* 开关打印成「开 / 关」文字，位置在灰度下看不出 */
+    .ls-switch {
+        display: none;
+    }
+
+    .ls-switch-state {
+        display: inline-block;
+        color: #000;
+        font-weight: 600;
+        border: 1px solid #999;
+        padding: 1px 6px;
+        border-radius: 3px;
+        min-width: 0;
+    }
+
+    /* 分段控件打印成带方括号的选项列表 */
+    .ls-seg {
+        background: none;
+        border-color: #bbb;
+    }
+
+    .ls-seg::before {
+        display: none;
+    }
+
+    .ls-seg-item {
+        color: #000;
+    }
+
+    .ls-seg-item[data-active="1"]::before {
+        content: "[";
+    }
+
+    .ls-seg-item[data-active="1"]::after {
+        content: "]";
+    }
+
+    .ls-slider-input {
+        background: #ddd;
+    }
+
+    .ls-adv-body {
+        grid-template-rows: 1fr; /* 打印时全部展开 */
+    }
+
+    .ls-adv-head::before {
+        content: "";
+    }
+
+    .ls-hit {
+        background: none;
+        box-shadow: none;
+        text-decoration: underline;
+    }
+
+    .ls-btn-danger {
+        border-color: #000;
+        color: #000;
+    }
+}

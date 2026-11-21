@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-21T10:01:31.123Z",
-  "extra_js_count": 452,
+  "generated_at": "2026-11-21T10:15:07.272Z",
+  "extra_js_count": 453,
   "host_injected_count": 252,
-  "total_modules": 453,
+  "total_modules": 454,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 453,
+  "active_count": 454,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -10507,6 +10507,25 @@
       ],
       "load_surface_callers": []
     },
+    "ui-form-controls.js": {
+      "module": "ui-form-controls.js",
+      "surface": [
+        "LonShaFormControls"
+      ],
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-data-panels.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "ui-json-tree.js": {
       "module": "ui-json-tree.js",
       "surface": [
@@ -10531,8 +10550,8 @@
       "surface": [
         "LonShaUiKit"
       ],
-      "prod_call_sites": 15,
-      "business_call_sites": 15,
+      "prod_call_sites": 18,
+      "business_call_sites": 18,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -10544,6 +10563,11 @@
         },
         {
           "file": "ui-floor-panel.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "ui-form-controls.js",
           "count": 3,
           "type": "file_binding+exclusive_global"
         },

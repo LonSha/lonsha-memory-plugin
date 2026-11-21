@@ -64,6 +64,15 @@
         return typeof require === 'function' ? safeRequire('./ui-json-tree.js') : null;
     }
 
+    /* 取值件的库（开关/滑杆/分段/步进）。回退顺序同上。 */
+    function formLib() {
+        try { if (root && root.LonShaFormControls) return root.LonShaFormControls; } catch (_e) { /* ignore */ }
+        try {
+            if (typeof window !== 'undefined' && window.LonShaFormControls) return window.LonShaFormControls;
+        } catch (_e) { /* ignore */ }
+        return typeof require === 'function' ? safeRequire('./ui-form-controls.js') : null;
+    }
+
     /* ================================================================
      * 0. 通用小工具（纯函数，Node 可测）
      * ================================================================ */
@@ -315,15 +324,48 @@
         }
         const host = k.el('div', { class: 'lsu-table-host', style: { minHeight: '140px' } });
         const panelObj = k.panel({ title: o.title || '表格', sub: o.sub || '', width: o.width || '780px' });
+
+        let pageSize = Number(o.pageSize) || 20;
+
+        function paintTable() {
+            while (host.firstChild) host.removeChild(host.firstChild);
+            return T.renderTable({
+                container: host,
+                rows: o.rows,
+                columns: o.columns || [],
+                pageSize,
+                emptyText: o.emptyText || '这里没有数据',
+            });
+        }
+
+        /* 每页条数：分段控件而不是下拉。20/50/100 三档是「一屏能扫多少」的
+         * 三档直觉，下拉要多点一次且看不到全部选项。
+         * 库缺失时这一栏**整块不出现**，而不是出现一个点了没反应的控件。 */
+        const F = formLib();
+        let seg = null;
+        if (F && typeof F.renderSeg === 'function') {
+            const built = F.renderSeg({
+                options: [20, 50, 100],
+                value: pageSize,
+                onChange: (v) => {
+                    const n = Number(v);
+                    if (!Number.isFinite(n) || n <= 0) return;
+                    pageSize = n;
+                    paintTable();
+                },
+            });
+            if (built && built.ok) {
+                seg = built;
+                const bar = k.el('div', { class: 'ls-table-bar' });
+                bar.appendChild(k.el('span', { class: 'lsu-node-meta', text: '每页' }));
+                bar.appendChild(seg.root);
+                panelObj.body.appendChild(bar);
+            }
+        }
+
         panelObj.body.appendChild(host);
-        const r = T.renderTable({
-            container: host,
-            rows: o.rows,
-            columns: o.columns || [],
-            pageSize: o.pageSize || 20,
-            emptyText: o.emptyText || '这里没有数据',
-        });
-        return { ok: true, kind: 'ok', close: panelObj.close, render: r };
+        const r = paintTable();
+        return { ok: true, kind: 'ok', close: panelObj.close, render: r, seg };
     }
 
     /* 打开原始结构树：面板只给派生视图，看不出「真没有」与「读错了」的区别，
@@ -665,6 +707,10 @@
         const rt = openRowsTable({ rows: [{ a: 1 }], columns: [{ key: 'a', label: 'A' }] });
         ok('无 DOM 时 openRowsTable 判 absent 且带理由',
             !!rt && rt.ok === false && !!rt.reason, JSON.stringify(rt));
+        ok('formLib 可解析（Node 下走 require 回退）', !!formLib());
+        ok('formLib 带 renderSeg（表格的每页条数用它）',
+            !!formLib() && typeof formLib().renderSeg === 'function');
+
         const rt2 = openRowsTable({ rows: null, columns: [] });
         ok('rows 非数组时 openRowsTable 报结构漂移（不是报环境）',
             !!rt2 && rt2.ok === false && /数组/.test(String(rt2.reason)), JSON.stringify(rt2));
@@ -686,6 +732,7 @@
         openRawTree,
         tableLib,
         jsonLib,
+        formLib,
         // 面板
         openNpcPanel,
         openScenePanel,
