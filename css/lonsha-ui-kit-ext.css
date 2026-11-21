@@ -1,0 +1,1226 @@
+/* ============================================================
+ * css/lonsha-ui-kit-ext.css — 呈现层组件样式第二层（[v3.480.0]）
+ * ------------------------------------------------------------
+ * 与 lonsha-ui-kit.css 的分工：
+ *   · lonsha-ui-kit.css = 设计系统底座（形状、四态、卡片、面板、抽屉）
+ *   · 本文件 = 数据密度更高的部件（表格 / 树 / 确认层 / 命令面板 /
+ *     时间线 / 迷你图 / 步骤条 / 键帽 / 进度 / 骨架）
+ *
+ * 三条纪律（与底座同源，写在这里免得后来人各写一套）：
+ *   ① **只消费 `--ls-*`，不重声明。** 本文件 0 处 `--ls-xxx:` 定义 ——
+ *      token 的真源只有 css/lonsha-design.css 一处，重声明会让暗色/主题切换半生效。
+ *   ② **展开不脱流。** 所有可折叠件用 grid-template-rows 0fr↔1fr 撑开，
+ *      不用 display:none（display:none 会让「有没有这一节」在屏幕上长得一样）。
+ *   ③ **状态不只靠颜色。** 危险/警告/成功都另带形状或前景字，
+ *      灰度打印或色弱时仍然读得出来（末尾有 @media print 兜底）。
+ *
+ * 尺寸一律走 token（--ls-r-* / --ls-sp-* / --ls-fs-*），
+ * 只有「数据密度」相关的行高与列宽用明写的 px，因为那是表格语义不是间距语义。
+ * ============================================================ */
+
+/* ── 1. 数据表格 ─────────────────────────────────────────────
+ * 为什么不用 <table> 的默认外观：宿主主题（Catppuccin / 深色）会把
+ * border-collapse 与背景污染成与面板底同色，行与行糊成一片。
+ * 这里显式接管三件事：斑马纹、粘性表头、列宽上限。 */
+.ls-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--ls-fs-footnote);
+    color: var(--ls-text);
+    background: var(--ls-bg-2);
+    border: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-md);
+    overflow: hidden;
+}
+
+.ls-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    font-weight: 600;
+    font-size: var(--ls-fs-caption1);
+    letter-spacing: 0.02em;
+    color: var(--ls-text-2);
+    padding: 8px 10px;
+    background: var(--ls-bg-3);
+    border-bottom: 1px solid var(--ls-line-strong);
+    white-space: nowrap;
+    user-select: none;
+}
+
+/* 可排序列表头：箭头用 ::after 的 CSS 三角形，不额外塞 DOM 节点，
+   排序状态由 aria-sort 驱动 —— 屏幕阅读器与视觉读同一个来源。 */
+.ls-table thead th[data-sortable="1"] {
+    cursor: pointer;
+}
+
+.ls-table thead th[data-sortable="1"]:hover {
+    color: var(--ls-accent);
+}
+
+.ls-table thead th[data-sortable="1"]::after {
+    content: "";
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 4px;
+    vertical-align: middle;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+    opacity: 0.25;
+    transition: opacity var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-table thead th[aria-sort="ascending"]::after {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+
+.ls-table thead th[aria-sort="descending"]::after {
+    opacity: 1;
+}
+
+.ls-table tbody td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--ls-line-subtle);
+    vertical-align: top;
+    max-width: 320px;
+    overflow-wrap: anywhere;
+}
+
+.ls-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ls-table tbody tr:nth-child(even) {
+    background: var(--ls-accent-softer);
+}
+
+.ls-table tbody tr:hover {
+    background: var(--ls-accent-soft);
+}
+
+/* 被点中的行：左侧实心竖条 + 底色。只用底色在深色主题里几乎看不见。 */
+.ls-table tbody tr[data-selected="1"] {
+    background: var(--ls-accent-soft);
+    box-shadow: inset 3px 0 0 var(--ls-accent);
+}
+
+.ls-table td[data-align="right"],
+.ls-table th[data-align="right"] {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-table td[data-align="center"],
+.ls-table th[data-align="center"] {
+    text-align: center;
+}
+
+/* 单元格里的次要说明：不换行、超长省略，hover 由 title 兜底 */
+.ls-table .ls-cell-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ls-table-wrap {
+    position: relative;
+    overflow: auto;
+    max-height: 52vh;
+    border-radius: var(--ls-r-md);
+    scrollbar-width: thin;
+    scrollbar-color: var(--ls-line-strong) transparent;
+}
+
+.ls-table-wrap::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.ls-table-wrap::-webkit-scrollbar-thumb {
+    background: var(--ls-line-strong);
+    border-radius: var(--ls-r-pill);
+}
+
+.ls-table-wrap::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* 表格工具条：搜索 + 计数 + 操作，三者一行；窄屏自动折行不挤压输入框 */
+.ls-table-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    margin-bottom: var(--ls-sp-2);
+}
+
+.ls-table-bar .ls-grow {
+    flex: 1 1 160px;
+    min-width: 120px;
+}
+
+.ls-table-count {
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 分页：上一页 / 页码 / 下一页 */
+.ls-pager {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ls-sp-1);
+    margin-top: var(--ls-sp-2);
+}
+
+.ls-pager button {
+    min-width: 30px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: var(--ls-r-sm);
+    border: 1px solid var(--ls-line);
+    background: var(--ls-bg-3);
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-caption1);
+    cursor: pointer;
+    transition: color var(--ls-t-fast) var(--ls-ease),
+        border-color var(--ls-t-fast) var(--ls-ease),
+        background var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-pager button:hover:not(:disabled) {
+    color: var(--ls-accent);
+    border-color: var(--ls-accent-line);
+    background: var(--ls-accent-soft);
+}
+
+.ls-pager button[aria-current="page"] {
+    color: var(--ls-on-accent);
+    background: var(--ls-accent);
+    border-color: var(--ls-accent-strong);
+}
+
+.ls-pager button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── 2. JSON 树 ─────────────────────────────────────────────
+ * 桩（stub）与展开体都在 DOM 里，用 0fr↔1fr 折叠：
+ * 这样「折叠着」与「这一层是空的」在屏幕上不同形 —— 前者有三角。 */
+.ls-tree {
+    font-family: var(--ls-mono);
+    font-size: var(--ls-fs-caption1);
+    line-height: 1.65;
+    color: var(--ls-text-2);
+    background: var(--ls-bg-1);
+    border: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-md);
+    padding: var(--ls-sp-2) var(--ls-sp-3);
+    overflow: auto;
+    max-height: 56vh;
+}
+
+.ls-tree-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ls-sp-1);
+    padding: 1px 0;
+    border-radius: var(--ls-r-xs);
+}
+
+.ls-tree-row:hover {
+    background: var(--ls-accent-softer);
+}
+
+.ls-tree-row[data-hit="1"] {
+    background: var(--ls-gold-soft);
+    box-shadow: inset 2px 0 0 var(--ls-gold);
+}
+
+.ls-tree-toggle {
+    flex: 0 0 auto;
+    width: 14px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ls-text-3);
+    cursor: pointer;
+    user-select: none;
+    transition: transform var(--ls-t-fast) var(--ls-ease),
+        color var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-tree-toggle:hover {
+    color: var(--ls-accent);
+}
+
+.ls-tree-toggle[data-open="1"] {
+    transform: rotate(90deg);
+}
+
+.ls-tree-toggle[data-leaf="1"] {
+    cursor: default;
+    opacity: 0.35;
+    transform: none;
+}
+
+.ls-tree-key {
+    flex: 0 0 auto;
+    color: var(--ls-accent-hover);
+    cursor: copy;
+}
+
+.ls-tree-key:hover {
+    text-decoration: underline dotted;
+}
+
+.ls-tree-sep {
+    color: var(--ls-text-4);
+    flex: 0 0 auto;
+}
+
+/* 叶子值按类型着色 —— 但**同时**挂类型徽章，
+   只靠颜色区分类型在灰度下会全糊成一片。 */
+.ls-tree-val[data-type="string"] { color: var(--ls-success); }
+.ls-tree-val[data-type="number"] { color: var(--ls-gold); }
+.ls-tree-val[data-type="boolean"] { color: var(--ls-info); }
+.ls-tree-val[data-type="null"] { color: var(--ls-text-4); font-style: italic; }
+.ls-tree-val[data-type="circular"] {
+    color: var(--ls-danger);
+    text-decoration: line-through wavy;
+    text-decoration-thickness: 1px;
+}
+
+.ls-tree-type {
+    flex: 0 0 auto;
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: var(--ls-r-xs);
+    font-size: 10px;
+    line-height: 14px;
+    letter-spacing: 0.02em;
+    color: var(--ls-text-3);
+    border: 1px solid var(--ls-line);
+    background: var(--ls-bg-3);
+    text-transform: lowercase;
+}
+
+.ls-tree-summary {
+    flex: 0 0 auto;
+    color: var(--ls-text-3);
+    font-size: var(--ls-fs-caption2);
+    margin-left: 4px;
+}
+
+.ls-tree-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--ls-t-med) var(--ls-ease);
+}
+
+.ls-tree-body[data-open="0"] {
+    grid-template-rows: 0fr;
+}
+
+.ls-tree-body > .ls-tree-children {
+    overflow: hidden;
+    min-height: 0;
+    padding-left: 16px;
+    border-left: 1px dashed var(--ls-line);
+    margin-left: 6px;
+}
+
+.ls-tree-empty {
+    color: var(--ls-text-4);
+    font-style: italic;
+}
+
+/* ── 3. 确认层（ConfirmDialog）────────────────────────────────
+ * 与 ui-kit 的 modal 的区别：这一层**管栈**，且危险按钮在右（中文习惯），
+ * 危险级别越高越靠右且越晚被聚焦 —— 手指/拇指误触时先碰到取消。 */
+.ls-confirm-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--ls-sp-4);
+    background: var(--ls-overlay);
+    backdrop-filter: blur(var(--ls-blur));
+    -webkit-backdrop-filter: blur(var(--ls-blur));
+    animation: ls-fade-in var(--ls-t-fast) var(--ls-ease-out);
+}
+
+.ls-confirm {
+    width: min(380px, 100%);
+    background: var(--ls-bg-glass);
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-lg);
+    box-shadow: var(--ls-sh-3), var(--ls-inner-rim);
+    padding: var(--ls-sp-5);
+    animation: ls-rise-in var(--ls-t-med) var(--ls-ease-out);
+}
+
+.ls-confirm[data-level="danger"] {
+    border-color: var(--ls-danger-line);
+}
+
+.ls-confirm-title {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    font-size: var(--ls-fs-headline);
+    font-weight: 600;
+    color: var(--ls-fs-title3, var(--ls-text));
+    margin: 0 0 var(--ls-sp-2);
+}
+
+.ls-confirm-mark {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--ls-r-pill);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.ls-confirm-mark[data-level="info"] {
+    color: var(--ls-info);
+    background: var(--ls-info-soft);
+    border: 1px solid var(--ls-accent-line);
+}
+
+.ls-confirm-mark[data-level="warn"] {
+    color: var(--ls-warn);
+    background: var(--ls-warn-soft);
+    border: 1px solid var(--ls-gold-line);
+}
+
+.ls-confirm-mark[data-level="danger"] {
+    color: var(--ls-danger);
+    background: var(--ls-danger-soft);
+    border: 1px solid var(--ls-danger-line);
+}
+
+.ls-confirm-body {
+    font-size: var(--ls-fs-footnote);
+    line-height: 1.7;
+    color: var(--ls-text-2);
+    margin-bottom: var(--ls-sp-4);
+    overflow-wrap: anywhere;
+}
+
+/* 不可撤销的附加说明：单独一条，用左侧竖线标出，不与正文混读 */
+.ls-confirm-note {
+    margin-top: var(--ls-sp-2);
+    padding: var(--ls-sp-2) var(--ls-sp-3);
+    border-left: 2px solid var(--ls-danger-line);
+    background: var(--ls-danger-soft);
+    border-radius: 0 var(--ls-r-sm) var(--ls-r-sm) 0;
+    font-size: var(--ls-fs-caption1);
+    color: var(--ls-text-2);
+}
+
+.ls-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--ls-sp-2);
+}
+
+.ls-confirm-actions button {
+    min-width: 76px;
+    height: 32px;
+    padding: 0 var(--ls-sp-3);
+    border-radius: var(--ls-r-sm);
+    font-size: var(--ls-fs-footnote);
+    cursor: pointer;
+    border: 1px solid var(--ls-line-strong);
+    background: var(--ls-bg-3);
+    color: var(--ls-text-2);
+    transition: color var(--ls-t-fast) var(--ls-ease),
+        background var(--ls-t-fast) var(--ls-ease),
+        border-color var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-confirm-actions button:hover {
+    color: var(--ls-text);
+    background: var(--ls-bg-4);
+}
+
+.ls-confirm-actions button[data-primary="1"] {
+    color: var(--ls-on-accent);
+    background: var(--ls-accent);
+    border-color: var(--ls-accent-strong);
+    font-weight: 600;
+}
+
+.ls-confirm-actions button[data-primary="1"]:hover {
+    background: var(--ls-accent-hover);
+}
+
+.ls-confirm-actions button[data-primary="1"][data-level="danger"] {
+    color: var(--ls-inverse);
+    background: var(--ls-danger);
+    border-color: var(--ls-danger-line);
+}
+
+.ls-confirm-body code {
+    font-family: var(--ls-mono);
+    font-size: 0.94em;
+    padding: 1px 4px;
+    border-radius: var(--ls-r-xs);
+    background: var(--ls-bg-4);
+    color: var(--ls-gold);
+}
+
+/* 遮罩栈：第二层起压暗更多，且**只允许最上层接事件**（JS 维护 data-depth） */
+.ls-confirm-mask[data-depth="2"] { background: color-mix(in srgb, var(--ls-overlay) 88%, #000); }
+.ls-confirm-mask[data-depth="3"] { background: color-mix(in srgb, var(--ls-overlay) 78%, #000); }
+
+/* 背景滚动锁：锁在 html 上而不是 body，iOS Safari 只认 html */
+html.ls-locked,
+html.ls-locked body {
+    overflow: hidden;
+    touch-action: none;
+}
+
+/* ── 4. 命令面板（CommandPalette）───────────────────────────── */
+.ls-cmd-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 9100;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12vh;
+    background: var(--ls-overlay);
+    backdrop-filter: blur(var(--ls-blur));
+    -webkit-backdrop-filter: blur(var(--ls-blur));
+    animation: ls-fade-in var(--ls-t-fast) var(--ls-ease-out);
+}
+
+.ls-cmd {
+    width: min(520px, 92vw);
+    max-height: 62vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--ls-bg-glass);
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-lg);
+    box-shadow: var(--ls-sh-3), var(--ls-sh-accent);
+    overflow: hidden;
+    animation: ls-rise-in var(--ls-t-med) var(--ls-ease-out);
+}
+
+.ls-cmd-input {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 44px;
+    padding: 0 var(--ls-sp-3);
+    border: none;
+    border-bottom: 1px solid var(--ls-line);
+    background: transparent;
+    color: var(--ls-text);
+    font-size: var(--ls-fs-body);
+    outline: none;
+}
+
+.ls-cmd-input::placeholder {
+    color: var(--ls-text-4);
+}
+
+.ls-cmd-list {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: var(--ls-sp-1);
+}
+
+.ls-cmd-item {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    padding: 7px var(--ls-sp-2);
+    border-radius: var(--ls-r-sm);
+    cursor: pointer;
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-footnote);
+}
+
+.ls-cmd-item[data-active="1"] {
+    background: var(--ls-accent-soft);
+    color: var(--ls-text);
+    box-shadow: inset 2px 0 0 var(--ls-accent);
+}
+
+.ls-cmd-item-key {
+    margin-left: auto;
+    font-family: var(--ls-mono);
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-4);
+}
+
+.ls-cmd-empty {
+    padding: var(--ls-sp-4);
+    text-align: center;
+    color: var(--ls-text-3);
+    font-size: var(--ls-fs-footnote);
+}
+
+.ls-cmd-foot {
+    flex: 0 0 auto;
+    display: flex;
+    gap: var(--ls-sp-3);
+    padding: 6px var(--ls-sp-3);
+    border-top: 1px solid var(--ls-line);
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-4);
+}
+
+/* ── 5. 键帽 ─────────────────────────────────────────────────
+ * 键帽用「底边厚」表达可按下（柏宝书那条形态纪律），
+ * 纯色方块看不出是键盘按键。 */
+.ls-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    font-family: var(--ls-mono);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--ls-text-2);
+    background: var(--ls-bg-3);
+    border: 1px solid var(--ls-line-strong);
+    border-bottom-width: 2px;
+    border-radius: var(--ls-r-xs);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── 6. 时间线 ───────────────────────────────────────────────
+ * 中轴用伪元素画；首尾节点各削一半，避免线头露出来。 */
+.ls-timeline {
+    position: relative;
+    margin: 0;
+    padding: 0 0 0 var(--ls-sp-4);
+    list-style: none;
+}
+
+.ls-timeline::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 5px;
+    width: 1px;
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        var(--ls-line-strong) 8%,
+        var(--ls-line-strong) 92%,
+        transparent
+    );
+}
+
+.ls-timeline-item {
+    position: relative;
+    padding: 0 0 var(--ls-sp-3) 0;
+}
+
+.ls-timeline-item::before {
+    content: "";
+    position: absolute;
+    left: calc(-1 * var(--ls-sp-4) + 2px);
+    top: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--ls-r-pill);
+    background: var(--ls-bg-2);
+    border: 1px solid var(--ls-line-strong);
+}
+
+.ls-timeline-item[data-kind="ok"]::before {
+    background: var(--ls-success);
+    border-color: var(--ls-success);
+}
+
+.ls-timeline-item[data-kind="warn"]::before {
+    background: var(--ls-warn);
+    border-color: var(--ls-warn);
+}
+
+.ls-timeline-item[data-kind="bad"]::before {
+    background: var(--ls-danger);
+    border-color: var(--ls-danger);
+}
+
+.ls-timeline-when {
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-timeline-what {
+    font-size: var(--ls-fs-footnote);
+    color: var(--ls-text);
+    overflow-wrap: anywhere;
+}
+
+.ls-timeline-extra {
+    font-size: var(--ls-fs-caption1);
+    color: var(--ls-text-3);
+}
+
+/* ── 7. 迷你图（纯 SVG，无依赖）──────────────────────────────── */
+.ls-spark {
+    display: block;
+    width: 100%;
+    height: 40px;
+    overflow: visible;
+}
+
+.ls-spark-line {
+    fill: none;
+    stroke: var(--ls-accent);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.ls-spark-area {
+    fill: var(--ls-accent-softer);
+    stroke: none;
+}
+
+.ls-spark-dot {
+    fill: var(--ls-accent);
+    stroke: var(--ls-bg-1);
+    stroke-width: 1;
+}
+
+.ls-spark-baseline {
+    stroke: var(--ls-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.ls-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 44px;
+}
+
+.ls-bars > i {
+    flex: 1 1 auto;
+    background: var(--ls-accent-soft);
+    border-top: 2px solid var(--ls-accent);
+    border-radius: var(--ls-r-xs) var(--ls-r-xs) 0 0;
+    min-height: 2px;
+    transition: background var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-bars > i:hover {
+    background: var(--ls-accent-soft);
+    border-top-color: var(--ls-accent-hover);
+}
+
+.ls-bars > i[data-zero="1"] {
+    background: var(--ls-line-subtle);
+    border-top-color: var(--ls-line-strong);
+}
+
+/* ── 8. 进度 / 环形 ─────────────────────────────────────────── */
+.ls-progress {
+    height: 6px;
+    border-radius: var(--ls-r-pill);
+    background: var(--ls-bg-4);
+    overflow: hidden;
+}
+
+.ls-progress > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--ls-accent-strong), var(--ls-accent));
+    transition: width var(--ls-t-med) var(--ls-ease);
+}
+
+.ls-progress[data-tone="warn"] > i {
+    background: linear-gradient(90deg, var(--ls-gold, #fbbf24), var(--ls-warn));
+}
+
+.ls-progress[data-tone="bad"] > i {
+    background: linear-gradient(90deg, var(--ls-danger), var(--ls-danger-line));
+}
+
+.ls-ring {
+    --p: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background:
+        conic-gradient(var(--ls-accent) calc(var(--p) * 1%), var(--ls-bg-4) 0);
+}
+
+.ls-ring::after {
+    content: attr(data-label);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--ls-bg-2);
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-caption2);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── 9. 步骤条 ─────────────────────────────────────────────── */
+.ls-steps {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    font-size: var(--ls-fs-caption1);
+    color: var(--ls-text-3);
+}
+
+.ls-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.ls-step::before {
+    content: attr(data-n);
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--ls-r-pill);
+    border: 1px solid var(--ls-line-strong);
+    background: var(--ls-bg-3);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ls-step[data-state="done"] {
+    color: var(--ls-success);
+}
+
+.ls-step[data-state="done"]::before {
+    content: "✓";
+    color: var(--ls-success);
+    border-color: var(--ls-success);
+    background: var(--ls-success-soft);
+}
+
+.ls-step[data-state="now"] {
+    color: var(--ls-text);
+    font-weight: 600;
+}
+
+.ls-step[data-state="now"]::before {
+    color: var(--ls-on-accent);
+    background: var(--ls-accent);
+    border-color: var(--ls-accent-strong);
+}
+
+.ls-step-line {
+    flex: 1 1 12px;
+    height: 1px;
+    background: var(--ls-line-strong);
+    min-width: 8px;
+}
+
+/* ── 10. 统计磁贴 ──────────────────────────────────────────── */
+.ls-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+    gap: var(--ls-sp-2);
+}
+
+.ls-tile {
+    padding: var(--ls-sp-2) var(--ls-sp-3);
+    border-radius: var(--ls-r-sm);
+    border: 1px solid var(--ls-line);
+    background: var(--ls-bg-3);
+    box-shadow: var(--ls-inner-glow);
+}
+
+.ls-tile-label {
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-3);
+    letter-spacing: 0.02em;
+}
+
+.ls-tile-value {
+    font-size: var(--ls-fs-title2, 1.25rem);
+    font-weight: 600;
+    color: var(--ls-text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+.ls-tile-hint {
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-4);
+}
+
+.ls-tile[data-tone="warn"] { border-color: var(--ls-gold-line); }
+.ls-tile[data-tone="bad"] { border-color: var(--ls-danger-line); }
+
+/* ── 11. 表单网格 ────────────────────────────────────────────
+ * 两列表单在窄屏自动单列 —— 用 auto-fit 而不是媒体查询，
+ * 因为面板宽度由抽屉决定，不由视口决定。 */
+.ls-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--ls-sp-2) var(--ls-sp-3);
+    align-items: start;
+}
+
+.ls-form .ls-span-2 {
+    grid-column: 1 / -1;
+}
+
+.ls-form-label {
+    display: block;
+    font-size: var(--ls-fs-caption1);
+    color: var(--ls-text-2);
+    margin-bottom: 3px;
+}
+
+.ls-form-hint {
+    display: block;
+    margin-top: 3px;
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-4);
+    line-height: 1.5;
+}
+
+.ls-input,
+.ls-select,
+.ls-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px var(--ls-sp-2);
+    border-radius: var(--ls-r-sm);
+    border: 1px solid var(--ls-line-strong);
+    background: var(--ls-bg-2);
+    color: var(--ls-text);
+    font-size: var(--ls-fs-footnote);
+    font-family: inherit;
+    outline: none;
+    transition: border-color var(--ls-t-fast) var(--ls-ease),
+        box-shadow var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-textarea {
+    min-height: 68px;
+    resize: vertical;
+    line-height: 1.6;
+}
+
+.ls-input:focus,
+.ls-select:focus,
+.ls-textarea:focus {
+    border-color: var(--ls-accent-line);
+    box-shadow: 0 0 0 3px var(--ls-accent-soft);
+}
+
+/* 脏值与错误态都带左侧 2px 竖条：只靠边框变色在深色主题里很淡 */
+.ls-input[data-dirty="1"],
+.ls-select[data-dirty="1"],
+.ls-textarea[data-dirty="1"] {
+    border-color: var(--ls-gold-line);
+}
+
+.ls-input[data-invalid="1"],
+.ls-select[data-invalid="1"],
+.ls-textarea[data-invalid="1"] {
+    border-color: var(--ls-danger-line);
+    box-shadow: inset 2px 0 0 var(--ls-danger);
+}
+
+.ls-field-error {
+    display: block;
+    margin-top: 3px;
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-danger);
+    line-height: 1.5;
+}
+
+/* ── 12. 标签页 ────────────────────────────────────────────── */
+.ls-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--ls-line);
+    margin-bottom: var(--ls-sp-3);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.ls-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.ls-tab {
+    flex: 0 0 auto;
+    padding: 7px var(--ls-sp-3);
+    border: none;
+    background: transparent;
+    color: var(--ls-text-3);
+    font-size: var(--ls-fs-footnote);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color var(--ls-t-fast) var(--ls-ease),
+        border-color var(--ls-t-fast) var(--ls-ease);
+}
+
+.ls-tab:hover {
+    color: var(--ls-text-2);
+}
+
+.ls-tab[aria-selected="true"] {
+    color: var(--ls-accent);
+    border-bottom-color: var(--ls-accent);
+    font-weight: 600;
+}
+
+/* ── 13. 提示气泡（纯 CSS，靠 data-open 控制）──────────────── */
+.ls-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.ls-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%) translateY(2px);
+    padding: 3px 7px;
+    border-radius: var(--ls-r-xs);
+    background: var(--ls-bg-glass);
+    border: 1px solid var(--ls-line-strong);
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-caption2);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--ls-t-fast) var(--ls-ease),
+        transform var(--ls-t-fast) var(--ls-ease);
+    z-index: 20;
+}
+
+.ls-tip:hover::after,
+.ls-tip:focus-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ── 14. 骨架屏 ──────────────────────────────────────────────
+ * 加载中与「真的没有」必须不同形：骨架有脉动条，空态有插画与文案。 */
+.ls-skeleton-line {
+    height: 10px;
+    border-radius: var(--ls-r-xs);
+    background: linear-gradient(
+        90deg,
+        var(--ls-bg-3) 0%,
+        var(--ls-bg-4) 40%,
+        var(--ls-bg-3) 80%
+    );
+    background-size: 220% 100%;
+    animation: ls-shimmer 1.4s linear infinite;
+    margin-bottom: 6px;
+}
+
+.ls-skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+.ls-skeleton-line[data-w="40"] { width: 40%; }
+.ls-skeleton-line[data-w="60"] { width: 60%; }
+.ls-skeleton-line[data-w="80"] { width: 80%; }
+
+@keyframes ls-shimmer {
+    from { background-position: 140% 0; }
+    to { background-position: -60% 0; }
+}
+
+/* ── 15. 分隔与分组标题 ────────────────────────────────────── */
+.ls-group-title {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    margin: var(--ls-sp-3) 0 var(--ls-sp-1);
+    font-size: var(--ls-fs-caption1);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ls-text-3);
+    text-transform: uppercase;
+}
+
+.ls-group-title::after {
+    content: "";
+    flex: 1 1 auto;
+    height: 1px;
+    background: linear-gradient(to right, var(--ls-line-strong), transparent);
+}
+
+.ls-divider {
+    height: 1px;
+    border: none;
+    margin: var(--ls-sp-3) 0;
+    background: linear-gradient(
+        to right,
+        transparent,
+        var(--ls-line-strong) 15%,
+        var(--ls-line-strong) 85%,
+        transparent
+    );
+}
+
+/* ── 16. 头像 / 身份块 ─────────────────────────────────────── */
+.ls-avatar {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--ls-r-sm);
+    display: grid;
+    place-items: center;
+    font-size: var(--ls-fs-caption1);
+    font-weight: 600;
+    color: var(--ls-accent);
+    background: var(--ls-accent-soft);
+    border: 1px solid var(--ls-accent-line);
+    overflow: hidden;
+}
+
+.ls-avatar[data-shape="round"] {
+    border-radius: var(--ls-r-pill);
+}
+
+.ls-identity {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    min-width: 0;
+}
+
+.ls-identity-main {
+    min-width: 0;
+}
+
+.ls-identity-name {
+    font-size: var(--ls-fs-footnote);
+    color: var(--ls-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ls-identity-sub {
+    font-size: var(--ls-fs-caption2);
+    color: var(--ls-text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── 17. 动画（统一在这里，避免各处各写一套关键帧）─────────── */
+@keyframes ls-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes ls-rise-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ls-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+/* ── 18. 无障碍与降级 ───────────────────────────────────────
+ * 三件事：焦点可见（宿主主题常把 outline:none 写死）、
+ * 尊重 prefers-reduced-motion、灰度打印仍能分辨状态。 */
+.ls-table thead th[data-sortable="1"]:focus-visible,
+.ls-pager button:focus-visible,
+.ls-confirm-actions button:focus-visible,
+.ls-cmd-item:focus-visible,
+.ls-tab:focus-visible,
+.ls-input:focus-visible,
+.ls-select:focus-visible,
+.ls-textarea:focus-visible,
+.ls-tree-toggle:focus-visible {
+    outline: var(--ls-focus-outline);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ls-tree-body,
+    .ls-progress > i,
+    .ls-skeleton-line,
+    .ls-confirm,
+    .ls-cmd,
+    .ls-confirm-mask,
+    .ls-cmd-mask {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@media print {
+    .ls-confirm-mask,
+    .ls-cmd-mask,
+    .ls-pager {
+        display: none !important;
+    }
+
+    .ls-table,
+    .ls-tree {
+        border-color: #999;
+        background: #fff;
+        color: #000;
+    }
+
+    .ls-table thead th {
+        background: #eee;
+        color: #000;
+    }
+
+    /* 灰度下颜色全丢 → 选中的行改用粗左边框，警告/危险改用前缀符号 */
+    .ls-table tbody tr[data-selected="1"] {
+        box-shadow: inset 3px 0 0 #000;
+    }
+
+    .ls-tile[data-tone="warn"]::before { content: "! "; }
+    .ls-tile[data-tone="bad"]::before { content: "× "; }
+}

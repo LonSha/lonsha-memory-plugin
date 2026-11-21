@@ -633,3 +633,4 @@ v3476_memory_badge.test.mjs		v3.476.0 · 玩家端可见性：楼层记忆徽章
 v3476_v4_six_mechanisms.test.mjs		v3.476.0 · V4 六条机制（维护排期/窗口撤回/句子改写/存档编码/选文复用/规则编译）+ 四处真实接线
 v3478_ui_panels.test.mjs		v3.478.0 · 呈现层四件：ui-kit 原语 / 摘要树 / 楼层面板 / ui-kit 样式，含装载登记、调用点证据与占比不回落
 v3479_data_panels.test.mjs		v3.479.0 · 四个数据面板（NPC关系/在场/状态变量/物品）+ absent与empty分离 + 调用点负控制
+v3480_ui_density.test.mjs		v3.480.0 · 表格与结构树两件（排序/分页/拍平/判环）+ 面板接线（表格视图/原始结构）+ el 签名静态守卫

@@ -45,6 +45,25 @@
         return (p && p.engine) || null;
     }
 
+    /* 表格视图的库。三级回退：全局（宿主已加载）→ 本仓 require → null。
+     * 解析不到时**不抛**：面板要能照常开，只是少了表格能力，并如实提示。 */
+    function tableLib() {
+        try { if (root && root.LonShaUiTable) return root.LonShaUiTable; } catch (_e) { /* ignore */ }
+        try {
+            if (typeof window !== 'undefined' && window.LonShaUiTable) return window.LonShaUiTable;
+        } catch (_e) { /* ignore */ }
+        return typeof require === 'function' ? safeRequire('./ui-table.js') : null;
+    }
+
+    /* 原始结构树的库。回退顺序同上。 */
+    function jsonLib() {
+        try { if (root && root.LonShaJsonTree) return root.LonShaJsonTree; } catch (_e) { /* ignore */ }
+        try {
+            if (typeof window !== 'undefined' && window.LonShaJsonTree) return window.LonShaJsonTree;
+        } catch (_e) { /* ignore */ }
+        return typeof require === 'function' ? safeRequire('./ui-json-tree.js') : null;
+    }
+
     /* ================================================================
      * 0. 通用小工具（纯函数，Node 可测）
      * ================================================================ */
@@ -216,13 +235,21 @@
             onInput: (v) => { filter = v; paint(); },
         });
 
+        /* 底栏按钮按能力装配：面板没提供 onTable / onRaw 就不出现对应按钮，
+         * 避免「按钮在那儿但点了没反应」——那是比不放按钮更差的状态。 */
+        const footBtns = [k.btn('重读', { onClick: () => { data = o.read(); paint(); } })];
+        if (typeof o.onTable === 'function') {
+            footBtns.push(k.btn('表格视图', { onClick: () => o.onTable(data, k) }));
+        }
+        if (typeof o.onRaw === 'function') {
+            footBtns.push(k.btn('原始结构', { onClick: () => o.onRaw(data, k) }));
+        }
+
         const panelObj = k.panel({
             title: o.title,
             sub: o.sub,
             width: o.width || '440px',
-            foot: k.el('div', { style: { display: 'flex', gap: '8px', width: '100%' } }, [
-                k.btn('重读', { onClick: () => { data = o.read(); paint(); } }),
-            ]),
+            foot: k.el('div', { style: { display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap' } }, footBtns),
         });
 
         panelObj.body.appendChild(k.toolbar([search.root]));
@@ -266,6 +293,51 @@
 
         paint();
         return { close: panelObj.close, refresh: () => { data = o.read(); paint(); } };
+    }
+
+    /* ================================================================
+     * 5.1 通用表格视图（消费 ui-table.js）
+     *     卡片视图答「这件东西是什么」，表格答「一共多少、怎么排、谁跟谁」。
+     *     判定顺序与 ui-table 保持一致：结构漂移 → 环境缺失 → 正常。
+     * ================================================================ */
+    function openRowsTable(opts) {
+        const k = kit();
+        const T = tableLib();
+        const o = opts || {};
+        if (!T || typeof T.renderTable !== 'function') {
+            return { ok: false, kind: 'absent', reason: 'ui-table.js 未加载（表格视图不可用）' };
+        }
+        if (!Array.isArray(o.rows)) {
+            return { ok: false, kind: 'absent', reason: 'rows 不是数组（结构漂移，读不出来）' };
+        }
+        if (typeof document === 'undefined' || !document.body) {
+            return { ok: false, kind: 'absent', reason: '没有 document（非浏览器环境）' };
+        }
+        const host = k.el('div', { class: 'lsu-table-host', style: { minHeight: '140px' } });
+        const panelObj = k.panel({ title: o.title || '表格', sub: o.sub || '', width: o.width || '780px' });
+        panelObj.body.appendChild(host);
+        const r = T.renderTable({
+            container: host,
+            rows: o.rows,
+            columns: o.columns || [],
+            pageSize: o.pageSize || 20,
+            emptyText: o.emptyText || '这里没有数据',
+        });
+        return { ok: true, kind: 'ok', close: panelObj.close, render: r };
+    }
+
+    /* 打开原始结构树：面板只给派生视图，看不出「真没有」与「读错了」的区别，
+     * 所以留一个口子摊开同一份数据。 */
+    function openRawTree(data, title, k) {
+        const kk = k || kit();
+        const J = jsonLib();
+        if (!J || typeof J.openJsonTree !== 'function') {
+            kk.toast('ui-json-tree.js 未加载，原始结构不可用');
+            return { ok: false, kind: 'absent', reason: 'ui-json-tree.js 未加载' };
+        }
+        const r = J.openJsonTree({ data: data, title: title || '原始结构' });
+        if (r && r.ok === false) kk.toast(r.reason || '原始结构打不开');
+        return r;
     }
 
     /* ================================================================
@@ -345,6 +417,34 @@
             emptyHint: '基线与漂移在角色被「锁定人设」或出现明显变化时落记录。',
             searchPlaceholder: '搜人名 / 性格词…',
             width: '460px',
+            onTable: (d) => openRowsTable({
+                title: '状态变量（表格）',
+                sub: '与卡片视图同一份 read()：这里看全量、能按列排序；卡片视图看单个人的细节。',
+                width: '800px',
+                emptyText: '还没有状态变量',
+                rows: d.rows.map((r) => ({
+                    name: r.name,
+                    traits: (r.baseline && Array.isArray(r.baseline.traits)) ? r.baseline.traits.join('、') : '',
+                    belief: (r.baseline && r.baseline.coreBelief) || '',
+                    mood: (r.drift && r.drift.mood) || '',
+                    up: (r.drift && r.drift.reinforced) || '',
+                    down: (r.drift && r.drift.weakened) || '',
+                    floor: (r.drift && r.drift.floor !== undefined)
+                        ? '漂移 ' + r.drift.floor + ' 楼'
+                        : ((r.baseline && r.baseline.lockedAtFloor !== undefined)
+                            ? '锁定 ' + r.baseline.lockedAtFloor + ' 楼' : ''),
+                })),
+                columns: [
+                    { key: 'name', label: '人名', sortable: true },
+                    { key: 'traits', label: '基线性格' },
+                    { key: 'belief', label: '核心信念' },
+                    { key: 'mood', label: '心情' },
+                    { key: 'up', label: '被强化' },
+                    { key: 'down', label: '被弱化' },
+                    { key: 'floor', label: '楼层' },
+                ],
+            }),
+            onRaw: (d, kk) => openRawTree(d, '状态变量 · 原始结构', kk),
             build: (d, filter, kk) => {
                 const rows = d.rows.filter((r) => {
                     if (!filter) return true;
@@ -409,6 +509,31 @@
             },
             emptyTitle: '台账里还没有物品',
             emptyHint: '物品在剧情里被明确记录（获得 / 转移 / 损坏）时才入账。',
+            onTable: (d) => openRowsTable({
+                title: '物品台账（表格）',
+                sub: '同一份 readItems()：表格看全量与持有者分布，卡片看单件的描述。',
+                width: '820px',
+                emptyText: '台账里还没有物品',
+                rows: d.rows.map((it) => ({
+                    name: it.name,
+                    holder: it.holder,
+                    state: it.state,
+                    carried: it.carried ? '是' : '否',
+                    location: it.location || '',
+                    due: it.returnDue || '',
+                    floor: it.floor ? it.floor + ' 楼' : '',
+                })),
+                columns: [
+                    { key: 'name', label: '物品名', sortable: true },
+                    { key: 'holder', label: '持有者' },
+                    { key: 'state', label: '状态' },
+                    { key: 'carried', label: '随身' },
+                    { key: 'location', label: '地点' },
+                    { key: 'due', label: '归还期限' },
+                    { key: 'floor', label: '最近变动' },
+                ],
+            }),
+            onRaw: (d, kk) => openRawTree(d, '物品台账 · 原始结构', kk),
             searchPlaceholder: '搜物品名 / 持有者 / 地点…',
             build: (d, filter, kk) => {
                 const out = [];
@@ -530,6 +655,20 @@
         ok('导出四个面板函数', ['openNpcPanel', 'openScenePanel', 'openVarsPanel', 'openItemsPanel']
             .every((n) => typeof api[n] === 'function'));
 
+        /* v3.480.0：两个新消费面必须真的可装配 —— 否则底栏按钮会出现「点了没反应」。
+         * 这里只判「能解析到」，不判渲染（没有 DOM）；渲染失败由 openRowsTable
+         * 自己返回 absent 并带理由，属于界面侧的事。 */
+        ok('导出 openRowsTable', typeof openRowsTable === 'function');
+        ok('导出 openRawTree', typeof openRawTree === 'function');
+        ok('tableLib 可解析（Node 下走 require 回退）', !!tableLib());
+        ok('jsonLib 可解析（Node 下走 require 回退）', !!jsonLib());
+        const rt = openRowsTable({ rows: [{ a: 1 }], columns: [{ key: 'a', label: 'A' }] });
+        ok('无 DOM 时 openRowsTable 判 absent 且带理由',
+            !!rt && rt.ok === false && !!rt.reason, JSON.stringify(rt));
+        const rt2 = openRowsTable({ rows: null, columns: [] });
+        ok('rows 非数组时 openRowsTable 报结构漂移（不是报环境）',
+            !!rt2 && rt2.ok === false && /数组/.test(String(rt2.reason)), JSON.stringify(rt2));
+
         return { ok: fails.length === 0, version: VERSION, total: checks.length, failed: fails.length, fails, checks };
     }
 
@@ -542,6 +681,11 @@
         readItems,
         groupBy,
         matches,
+        // 视图装配（表格 / 原始结构）—— 导出是为了能在 Node 侧验 absent 口径
+        openRowsTable,
+        openRawTree,
+        tableLib,
+        jsonLib,
         // 面板
         openNpcPanel,
         openScenePanel,

@@ -449,3 +449,5 @@ ui-summary-tree.js	yes	yes	index.js;v4-panel-ui.js	host-seam
 ui-floor-panel.js	yes	yes	index.js;v4-panel-ui.js	host-seam
 ui-data-panels.js	yes	yes	index.js;v4-panel-ui.js	host-seam
 ui-panel-seam.js	yes	yes	v4-panel-ui.js	host-seam
+ui-json-tree.js	yes	yes	ui-data-panels.js	host-seam
+ui-table.js	yes	yes	ui-data-panels.js	host-seam

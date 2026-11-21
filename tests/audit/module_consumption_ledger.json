@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-21T09:04:55.777Z",
-  "extra_js_count": 450,
+  "generated_at": "2026-11-21T10:01:31.123Z",
+  "extra_js_count": 452,
   "host_injected_count": 252,
-  "total_modules": 451,
+  "total_modules": 453,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 451,
+  "active_count": 453,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -10507,13 +10507,32 @@
       ],
       "load_surface_callers": []
     },
+    "ui-json-tree.js": {
+      "module": "ui-json-tree.js",
+      "surface": [
+        "LonShaJsonTree"
+      ],
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-data-panels.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "ui-kit-core.js": {
       "module": "ui-kit-core.js",
       "surface": [
         "LonShaUiKit"
       ],
-      "prod_call_sites": 9,
-      "business_call_sites": 9,
+      "prod_call_sites": 15,
+      "business_call_sites": 15,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -10529,7 +10548,17 @@
           "type": "file_binding+exclusive_global"
         },
         {
+          "file": "ui-json-tree.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
+        {
           "file": "ui-summary-tree.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "ui-table.js",
           "count": 3,
           "type": "file_binding+exclusive_global"
         }
@@ -10575,6 +10604,25 @@
           "file": "v4-panel-ui.js",
           "count": 1,
           "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-table.js": {
+      "module": "ui-table.js",
+      "surface": [
+        "LonShaUiTable"
+      ],
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-data-panels.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []

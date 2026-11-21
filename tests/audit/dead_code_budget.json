@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 161313,
+  "ceiling": 162313,
   "maxSlack": 400,
-  "note": "\"v3.479",
+  "note": "v3.480.0 呈现层第二批：新增 ui-table.js（441 行，排序/分页/筛选纯函数 + 表格渲染）与 ui-json-tree.js（410 行，拍平/折叠/搜索 + 结构树渲染）两个数据呈现件，ui-data-panels.js 因接线表格视图与原始结构 +140 行。均为真实消费（ui-data-panels.js 各 5 处调用点，消费台账 0 零消费），属活跃功能增长而非死代码回流。",
   "history": [
     {
       "ceiling": 21000,
@@ -501,7 +501,11 @@
     {
       "ceiling": 161313,
       "reason": "\"v3.479"
+    },
+    {
+      "ceiling": 162313,
+      "reason": "v3.480.0 呈现层第二批：新增 ui-table.js（441 行，排序/分页/筛选纯函数 + 表格渲染）与 ui-json-tree.js（410 行，拍平/折叠/搜索 + 结构树渲染）两个数据呈现件，ui-data-panels.js 因接线表格视图与原始结构 +140 行。均为真实消费（ui-data-panels.js 各 5 处调用点，消费台账 0 零消费），属活跃功能增长而非死代码回流。"
     }
   ],
-  "_history_last": "ceiling 160484 → 161313（实测 160913 + slack 400）：\"v3.479"
+  "_history_last": "ceiling 161313 → 162313（实测 161913 + slack 400）：v3.480.0 呈现层第二批：新增 ui-table.js（441 行，排序/分页/筛选纯函数 + 表格渲染）与 ui-json-tree.js（410 行，拍平/折叠/搜索 + 结构树渲染）两个数据呈现件，ui-data-panels.js 因接线表格视图与原始结构 +140 行。均为真实消费（ui-data-panels.js 各 5 处调用点，消费台账 0 零消费），属活跃功能增长而非死代码回流。"
 }

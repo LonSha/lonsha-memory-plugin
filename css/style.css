@@ -15,6 +15,7 @@
 @import url("./ls-icons.css");        /* v3.1：图标遮罩 .ls-ico[data-i]（不随开关：去 emoji 后的图标靠它显示） */
 @import url("./lonsha-ui-kit.css");   /* v4：呈现层通用件（面板壳/卡片/折叠/徽章/楼层条/书签坠）。纯样式，不声明 token，缺 token 走字面量兜底 */
 @import url("./dev-console-v3.css");   /* v3.1：A 段诊断页 / toast 基础样式（不随开关）；B 段开发者控制台（[data-ls-dc="3"]，开关 lonsha.ui.v3） */
+@import url("lonsha-ui-kit-ext.css");
 
 :root { --ls-chevron-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 4.75 16.25 12 9 19.25' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }   /* 折叠箭头（SVG 遮罩，颜色跟随 --ls-accent） */
 

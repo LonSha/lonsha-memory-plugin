@@ -38,16 +38,22 @@ function withEngine(plugin, fn) {
     }
 }
 
-test('【0】版本三源对齐 3.479.0', () => {
+test('【0】版本三源对齐（读现行版本，不写死字面量）', () => {
+    // [v3.480.0] 这条原本把 3.479.0 写死，每升一次版就必红一次——那是抬版仪式，
+    //   不是判据（v3478 已经治理过一次同一形态，我写 v3479 时又照抄了）。
+    //   现在以 index.js 为真源，其余各处必须跟它同版：既不会随抬版而腐，
+    //   也仍能抓住「六处里只改了一处」这种真实碑子。
     const manifest = JSON.parse(read('manifest.json'));
     const pkg = JSON.parse(read('package.json'));
-    assert.equal(manifest.version, '3.479.0', 'manifest.version');
-    assert.equal(pkg.version, '3.479.0', 'package.version');
-    for (const rel of ['index.js', 'memory-organs.js', 'memory-config.js', 'memory-core.js']) {
-        const src = read(rel);
-        assert.ok(src.includes("'3.479.0'"), rel + ' 未抬到 3.479.0');
-        assert.ok(!src.includes("'3.478.0'"), rel + ' 还残留 3.478.0');
+    const m = /const VERSION = '([0-9.]+)'/.exec(read('index.js'));
+    assert.ok(m, 'index.js 里没有 const VERSION');
+    const v = m[1];
+    assert.equal(manifest.version, v, 'manifest 应跟随 index.js 的 ' + v);
+    assert.equal(pkg.version, v, 'package 应跟随 index.js 的 ' + v);
+    for (const rel of ['memory-organs.js', 'memory-config.js', 'memory-core.js']) {
+        assert.ok(read(rel).includes("'" + v + "'"), rel + ' 未与 index.js 同版（' + v + '）');
     }
+    assert.ok(!read('index.js').includes("'3.479.0'"), 'index.js 还残留 3.479.0');
 });
 
 test('【1】ui-data-panels 自检全绿', () => {
