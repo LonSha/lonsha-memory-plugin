@@ -294,6 +294,18 @@
     // ------------------------------------------------------------------
     let pendingView = null;
 
+    /* 接管失败必须是看得见的：修前这里只 console.warn，用户在真机上只能得到
+       「和以前一样」，而排查者拿不到任何信号。 */
+    function showEnhanceError(overlay, err, stage) {
+        try {
+            if (!overlay || !overlay.insertAdjacentHTML) return;
+            const msg = (err && (err.message || err)) || '未知错误';
+            overlay.insertAdjacentHTML('afterbegin',
+                '<div class="ls-dash-devnote" role="note" data-ls-enhance-error="1" style="border-left:3px solid #c0392b">'
+                + '<span>外壳接管失败（' + esc(String(stage || '')) + '）：' + esc(String(msg).slice(0, 180)) + '</span></div>');
+        } catch (_e) { /* 提示失败也不能再抛 */ }
+    }
+
     function enhance(overlay, plugin, diag) {
         if (!overlay || overlay.dataset.lsDash === '1') return null;
         const sheet = overlay.querySelector('.lonsha-sheet');
@@ -301,8 +313,11 @@
         if (!sheet || !body) return null;
         neutralizeLegacyStyle();
         overlay.dataset.lsDash = '1';
-        overlay.dataset.lsDashCaps = probeModules();
+        /* 读数探针失败不许把整个接管拖崩（修前：这里抛错会带着 lsDash='1' 一起留下，
+           面板从此再也接管不了，而用户只看到「和以前一样」）。 */
+        try { overlay.dataset.lsDashCaps = probeModules(); } catch (_e) { overlay.dataset.lsDashCaps = 'probe-failed'; }
         sheet.classList.add('ls-dash-sheet');
+        try { overlay.querySelectorAll('[data-ls-shell-mark]').forEach((n) => n.remove()); } catch (_e) { /* 记号清理失败无妨 */ }
         const head = overlay.querySelector('.lonsha-sheet-header > span');
         if (head) { head.textContent = ''; head.classList.add('ls-dash-title'); head.insertAdjacentHTML('afterbegin', `<span class="ls-dash-title-ico" aria-hidden="true">${I('brain', { fill: true })}</span><span class="ls-dash-title-text">${diag ? '记忆引擎 · 开发者' : '记忆引擎'}</span>`); }
         scrubChromeGlyphs(overlay);
@@ -582,9 +597,35 @@
 
         const original = plugin.showSettingsPanel;
         const wrapped = function () {
+            const diag = arguments[0] === true;
             const ret = original.apply(this, arguments);
-            try { enhance(document.getElementById(OVERLAY_ID), plugin, arguments[0] === true); }
-            catch (e) { warn('enhance', e); }   // 包装失败 = 旧面板原样可用
+            /* 宿主可能在 original 返回后才把面板挂进 DOM（异步渲染 / rAF），
+               修前只试一次，撞上就是「外壳没接管」而毫无痕迹。改为有限重试。 */
+            const attempt = (left) => {
+                const ov = document.getElementById(OVERLAY_ID);
+                if (!ov) {
+                    if (left > 0) setTimeout(() => attempt(left - 1), 50);
+                    return;
+                }
+                /* 自证记号：证明「这条路径确实执行了」。接管成功会被 enhance 一并搬走，
+                   失败则留在原地面板上 —— 用户截一张图就能区分「没走这条路 / 走了但失败」。 */
+                try {
+                    if (!ov.querySelector('[data-ls-shell-mark]')) {
+                        ov.insertAdjacentHTML('afterbegin',
+                            '<div data-ls-shell-mark="1" class="ls-dash-devnote" role="note">'
+                            + '<span>外壳 v' + esc(VERSION) + ' 已进入（尝试接管…）</span></div>');
+                    }
+                } catch (_e) { /* 记号失败不影响接管 */ }
+                try {
+                    const out = enhance(ov, plugin, diag);
+                    if (!out && left > 0 && ov.dataset.lsDash !== '1') setTimeout(() => attempt(left - 1), 50);
+                } catch (e) {
+                    warn('enhance', e);
+                    delete ov.dataset.lsDash;          // 允许重新尝试
+                    showEnhanceError(ov, e, 'enhance');
+                }
+            };
+            attempt(6);
             return ret;
         };
         wrapped.__lsOriginal = original;
@@ -602,9 +643,38 @@
                 pendingView = 'overview';
                 return plugin.showSettingsPanel();
             };
+            /* 注意：这里直接走 plugin.showSettingsPanel（已是包裹版），
+               因此增强与重试逻辑只有一份，不在两处维护。 */
             wrappedHome.__lsOriginal = originalHome;
             plugin.showPlayerHome = wrappedHome;
         }
+
+        /* 覆盖「不是经过 plugin.showSettingsPanel」的创建路径（重新渲染、其它入口）。
+           修前只包函数，一旦宿主自己重建面板，外壳就再也接不上，且毫无痕迹。 */
+        try {
+            if (typeof MutationObserver === 'function' && document.body) {
+                const mo = new MutationObserver((muts) => {
+                    for (const m of muts) {
+                        for (const n of m.addedNodes) {
+                            if (!n || n.nodeType !== 1) continue;
+                            const cand = (n.id === OVERLAY_ID) ? n
+                                : (n.querySelector ? n.querySelector('#' + OVERLAY_ID) : null);
+                            if (!cand || cand.dataset.lsDash === '1') continue;
+                            requestAnimationFrame(() => {
+                                if (!cand.isConnected || cand.dataset.lsDash === '1') return;
+                                try { enhance(cand, plugin, false); }
+                                catch (e) {
+                                    warn('enhance-mo', e);
+                                    delete cand.dataset.lsDash;
+                                    showEnhanceError(cand, e, 'observer');
+                                }
+                            });
+                        }
+                    }
+                });
+                mo.observe(document.body, { childList: true, subtree: true });
+            }
+        } catch (e) { warn('observer', e); }
 
         // FAB 默认直达 Dashboard 概览；localStorage 'lonsha.ui.fabTarget' = 'home' 可恢复旧主页
         if (typeof plugin.showFabMenu === 'function' && store.get(LS_KEYS.fab, 'dashboard') === 'dashboard') {
