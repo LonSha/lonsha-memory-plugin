@@ -1,6 +1,7 @@
 // LonSha记忆引擎 - 设置与状态面板 (v1.3)
 // settings-ui.js - 移动端适配的设置界面，通过原型扩展挂载到 LonShaMemoryPlugin
 (function() {
+    try { window.localStorage.setItem('lonsha_boot_settings', String(Date.now())); } catch (_e) { /* 忽略 */ }
     'use strict';
 
     // 等插件就绪后挂载

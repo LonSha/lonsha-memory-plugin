@@ -19,6 +19,8 @@
 //       样式由 css/style.css 顶部 @import 的 dashboard.css 提供。
 // 关闭：localStorage.setItem('lonsha.ui.dashboard', 'off') 后刷新，即回到旧面板。
 (function () {
+    /* 执行探针：证明本文件确实被浏览器执行过（对照 lonsha_boot_settings）。 */
+    try { window.localStorage.setItem('lonsha_boot_dash1', String(Date.now())); } catch (_e) { /* 忽略 */ }
     'use strict';
     /* v1.2：图标一律走 LonShaIcons（ui/lonsha-icons.js，原创 SVG）；没加载时退化为空，不再出现任何字符图标 */
     const I = (name, opts) => { try { const L = window.LonShaIcons; return L ? L.svg(name, opts) : ''; } catch (_) { return ''; } };
@@ -727,6 +729,7 @@
         _internals: { detectHostScheme, readState, relLum, parseRgb },
     };
 
+    try { window.localStorage.setItem('lonsha_boot_dash2', String(Date.now())); } catch (_e) { /* 忽略 */ }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount, { once: true });
     else mount();
 })();
