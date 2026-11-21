@@ -444,6 +444,8 @@ selection-reuse.js	yes	yes	index.js;v4-panel-bridge.js	host-seam
 rules-compile.js	yes	yes	v4-panel-bridge.js	host-seam
 v4-panel-bridge.js	yes	yes	engine-self-check.js;v4-panel-ui.js	host-seam
 v4-panel-ui.js	yes	yes	index.js	host-seam
-ui-kit-core.js	yes	yes	ui-floor-panel.js;ui-summary-tree.js	host-seam
+ui-kit-core.js	yes	yes	ui-data-panels.js;ui-floor-panel.js;ui-summary-tree.js	host-seam
 ui-summary-tree.js	yes	yes	index.js;v4-panel-ui.js	host-seam
 ui-floor-panel.js	yes	yes	index.js;v4-panel-ui.js	host-seam
+ui-data-panels.js	yes	yes	index.js;v4-panel-ui.js	host-seam
+ui-panel-seam.js	yes	yes	v4-panel-ui.js	host-seam

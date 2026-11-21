@@ -1,3 +1,17 @@
+## v3.479.0
+**呈现层第二批：四个数据面板（NPC 关系 / 在场 / 状态变量 / 物品）+ 把 UI 接线搬出入口（1 判据 16 条 / 接缝自检 14 条）**
+
+- **占比读数如实**：呈现层 **12.7% → 13.0%**（21,745 / 166,999 行），距 20% 仍差 **14,569 行**。**目标未达成**，不宣称。
+- **`ui-data-panels.js`（557 行 / 自检 21 条）**：四个**只读**面板合成一个文件而不是四个 —— 柏宝书拆四个 Vue 页是因为每页还有自己的表单与动作，本仓这四张表都只读，拆开就是四份相同骨架。四个读者先分清 **absent（判不了）与 empty（真没有）**：无引擎 → absent 并带人话理由；有引擎但表空 → empty。`items.records` 若不是数组判 **absent（结构漂移）**，不当成「一件物品都没有」。
+- **数据源逐个核过（不是猜的）**：NPC 关系 = `engine.getNpcTiesRecords()`（合并 `status.npcTies` 与 `graph.edges` 里的长期羁绊边）；在场 = `engine.scene.presence`（**Map**，转行后按楼层倒序）；状态变量 = `status.baselines`（人设基线）∪ `status.drifts`（近期漂移）；物品 = `items.records`（**派生视图，硬上限 25 条**，另有 `_stale` 失活计数，满 25 条判 `capped` 提示可能被截断）。
+- **一个如实标注的空槽**：`worldProg.scenes` 全仓**只有声明、导出/导入与初始化，没有任何写入方**。所以场景面板只做「在场角色」，场景槽单列一节写明「暂无写入方 —— 这一节空着是事实，不是故障」，而不是渲染成「没有场景」。
+- **`ui-panel-seam.js`（229 行 / 自检 14 条）：把 UI 接线从 `index.js` 搬出来**。`index.js` 有「行数只降不涨」的 ratchet（`scan_index_split.mjs` R2），而 v3.478/v3.479 两批的 `mountV4Ui` + 三个 `plugin.openXxx` 直接写进入了口，把 R2 撑红。这些行是 UI 接线不是引擎装配，搬到接缝模块后 `index.js` **13,249 → 13,226**（判据口径），接线一条不少。搬完还要回答「谁用它」：`v4-panel-ui.js` 在抽屉**真正挂上**那一刻请接缝再试一次接线（宿主重排 extra_js 顺序时装载期那次会落空）—— 这是真实需要，不是凑消费点。
+- **`index.js` 行数 ratchet 第四轮重定基（带账）**：天花板 13,180 → **13,226**。本轮先减后定：搬走 32 行、留 1 行指向注释；残留的 44 行来自 `275d94b` 的选文复用闸门接线，**搬不走** —— `tests/v3476_v4_six_mechanisms.test.mjs:215-216` 断言 `index.js` 里必须出现 `LonShaSelectionReuse` 与 `_aiSelectReuseRead`，搬进模块会让判据整片失效。四条机器证据 + 回降路径已写进 `index_split_ledger.json` 的 `rebase`。
+- **判据修正两处（都是判据自己的毛病）**：① `v3478【0】` 原把版本写死成 `3.478.0`，每升版必红 —— 抬版仪式不是判据，改成「以 `index.js` 为真源，其余五处必须同版」；② `v3479【8】【9】` 的调用点证据跟着接线走（`index.js` → `ui-panel-seam.js`），并新增 `【14】反向守卫`：`plugin.openSummaryTree/openFloorPanel/openDataPanel` **不许写回 `index.js`**。
+- **登记面**：`extra_js` **448 → 450**（`ui-data-panels.js` / `ui-panel-seam.js`）；`extra_js_seam_ledger.tsv` 450/450（`ui-panel-seam.js` 的 `referenced_by` 由真 grep 得出 = `v4-panel-ui.js`）；`module_consumption_ledger.json` **450/450 活跃、0 孤儿**；`loading_surface_proof` 五段全 ✓（S4 mounted=533）；死代码预算 `160484 → 161313`（实测 160913，bump 带理由）；`catalog_reference_consumers.tsv` 补 `v3479_data_panels.test.mjs`。
+- **全量实测（含上一轮的更正）**：`node tests/run.mjs` 全量 **628 文件 / 598 通过 / 30 失败**（62 条断言）。上一轮 v3.478 交付时我写的是「回归全绿」，那是**我跑过的那一批**，不是全量 —— 本轮在 `11156d5` 上另开 worktree 实测：**592/627 通过、35 文件红、69 条断言红**。两相对照：**本期修好 5 个**（`l22_o1_index_split` / `l23_o1_index_layer_blocker` / `l23_o6_write_only_key_level` / `l23_o9_frozen_freshness_all` / `v3121_time_anchor_change`，后三者的根因都是 `275d94b` 插行后台账没重生成、以及判据锚点没跟着改写法），**新增红 0 个**。剩下 30 个是既有欠账（版本串/行数基线/夹具零观测点等），本轮不假装它们不存在，也不在收口时把它们算成通过。
+- **不宣称（如实）**：①20% **未达成**（13.0%）；②四个面板只做了 Node 自检与调用点证据，**真机未点开过**（未在 SillyTavern 里验渲染）；③接缝模块的「抽屉挂上时补一次接线」也只有静态证据，真机时序未取证；④`scan_fixture_sync` 仍有 2 项既有欠账（`scan_undefined_css_tokens` / `scan_vendored_css_drift` 零观测点），**非本期引入**，仍在 `v3159` 的那条红里挂着。
+
 ## v3.478.0
 **呈现层第一批：设计系统 + 摘要树 + 楼层面板（学柏宝书形态纪律，4 件 / 1 判据 12 条）**
 

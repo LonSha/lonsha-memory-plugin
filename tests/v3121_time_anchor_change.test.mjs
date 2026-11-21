@@ -100,7 +100,9 @@ test('v3.124 echo 合并必须保留变化驱动候选池而非只保留普通�
 });
 
 test('v3.125 变化候选精选后进入追踪与注入构建', () => {
-  const selectAt = src.indexOf('const selRes = await this.aiSelect.route');
+  // [v3.479.0] 锚点放宽：275d94b 起这行是 `let selRes;` + `selRes = await ...`（先判缓存再真调），
+  //   判据要守的是「精选 → 追踪 → 注入构建」的顺序，不是 const 这个关键字。
+  const selectAt = src.search(/\b(?:const |let )?selRes = await this\.aiSelect\.route/);
   const trackAt = src.indexOf('this._lastSelectedIds = Array.from', selectAt);
   const buildAt = src.indexOf('this.buildInjection(candidateItems)', trackAt);
   assert.ok(selectAt >= 0 && trackAt > selectAt && buildAt > trackAt);

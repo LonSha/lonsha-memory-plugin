@@ -327,6 +327,34 @@
         tools.appendChild(openTree);
         tools.appendChild(openFloors);
         body.appendChild(tools);
+        /* —— 数据面板入口（v3.479.0）——
+         * 这四张表全只读，只做「把引擎里已有的账摊开给人看」。
+         * 同一理由再写一遍：这里是 ui-data-panels.js 的**唯一**真实消费点，
+         * 删掉按钮就等于删掉功能，账本会立刻把它记成零消费。 */
+        const panelsMod = root.LonShaDataPanels || null;
+        const tools2 = el('div', 'v4-tools');
+        const DATA_ENTRIES = [
+            ['npc', 'NPC 关系', 'openNpcPanel'],
+            ['scene', '在场', 'openScenePanel'],
+            ['vars', '状态变量', 'openVarsPanel'],
+            ['items', '物品', 'openItemsPanel'],
+        ];
+        for (const [k, label, fnName] of DATA_ENTRIES) {
+            const b = el('button', 'v4-btn', label);
+            b.type = 'button';
+            b.setAttribute('data-v4-data', k);
+            if (panelsMod && typeof panelsMod[fnName] === 'function') {
+                b.addEventListener('click', () => {
+                    close.click();
+                    try { panelsMod[fnName](); } catch (e) { console.warn('[lonsha] 数据面板打开失败 ' + k, e); }
+                });
+            } else {
+                b.disabled = true;
+                b.title = 'ui-data-panels.js 未加载';
+            }
+            tools2.appendChild(b);
+        }
+        body.appendChild(tools2);
         return data;
     }
 
@@ -336,6 +364,16 @@
         if (!d || !d.body) return false;
         injectCss();
         if (d.getElementById(HOST_ID)) return true;
+
+        /* [v3.479.0] 抽屉真正出现的这一刻，请接缝再试一次接线。
+         *   为什么不能只靠接缝自己装载期那一次：它的接线前提是
+         *   `window.LonShaMemory` 已存在，而 extra_js 的加载顺序由宿主定，
+         *   重排一次就能让那次接接空。抽屉能挂上，说明宿主与 DOM 都已就位，
+         *   此刻补一次是最便宜也最可靠的机会。接缝缺席或抛错不影响抽屉本身。 */
+        try {
+            const seam = root && root.LonShaUiSeam;
+            if (seam && typeof seam.attach === 'function') seam.attach(root.LonShaMemory);
+        } catch (_e) { /* 接缝不在就不接，不把抽屉拖死 */ }
 
         const wrapper = el('div');
         wrapper.id = HOST_ID;

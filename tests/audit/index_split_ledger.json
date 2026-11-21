@@ -4,7 +4,7 @@
   "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
   "source": "index.js",
   "lines_before_split": 13546,
-  "index_lines_max": 13180,
+  "index_lines_max": 13226,
   "module": "index-helpers.js",
   "module_lines": 815,
   "wiring": {
@@ -528,19 +528,19 @@
     "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
   },
   "rebase": {
-    "at": "v3.475.0（L26 十八项宿主装配后重绑）",
-    "from": 13087,
-    "to": 13180,
-    "measured_index_lines": 13180,
-    "what": "第三轮重定基：L26 十八项（O1~O9 / X1~X9）全部以「取库口 + 两项能力守卫 + 槽位装配」四行块落到宿主，18 块 × 5 行（4 行代码 + 1 行逐项注释）= 90 行，加段头两行注释 = 92 行；另 1 行 VERSION 换版（3.474.0 → 3.475.0）、1 行与前文分隔的空行，合计 +94 / -1 ⇒ 判据口径 13087 → 13180。",
-    "why_not_moved": "同前两轮：这 92 行是**宿主装配点**，不是可搬的业务代码。v3461_r18_wiring_truth / v3163_module_wiring / v3173 三套接线判据断言的是「index.js 里存在 this.engine.<slot> 的取库口 + 能力守卫 + 装配」；把装配块搬进 host 模块会让三套判据整片失效（判据读的是入口面）。本版零行为变更，只增加装配。",
-    "discipline": "天花板 13180 仍低于拆前 13546；此后仅降不涨，任何再涨必须在此处补同形留痕。",
+    "at": "v3.479.0（呈现层第二批：四个数据面板；UI 接线搬出入口）",
+    "from": 13180,
+    "to": 13226,
+    "measured_index_lines": 13226,
+    "what": "第四轮重定基。本期做两件事：①新建 ui-data-panels.js（四个只读数据面板）；②把 v3.478/v3.479 写进 index.js 的呈现层接线（mountV4Ui + plugin.openSummaryTree / openFloorPanel / openDataPanel）整体搬到新模块 ui-panel-seam.js —— 净 -23 行（git diff --numstat 2/25）。搬完之后 index.js 仍有 45 行超出旧天花板 13180，来源已逐条点数：275d94b 的选文复用闸门接线 44 行（本期之前就已超，那版没补重定基账）+ 本期留下的 1 行指向注释。",
+    "why_not_moved": "那 44 行是宿主装配，不是可搬的业务函数：tests/v3476_v4_six_mechanisms.test.mjs 第 215/216 行断言 index.js 里必须出现 `LonShaSelectionReuse|selection-reuse.js` 与 `_aiSelectReuseRead` —— 它验的是「选文复用闸门确实接在入口的 AI 精选面上」。搬进 host 模块后这两条断言会整片失效（判据读的是入口面），等于用「搬走」换「判据看不见」。与上一轮 rebase.why_not_moved 同一理由。",
+    "discipline": "天花板 13226 仍低于拆前 13546；闸仍是「必须 === 实测行数」，涨一行即红。回降路径写在这里：①把选文复用闸门改成「入口留 3 行取库口 + 闸体进模块」并同步改 v3476 判据；②或继续 L22 后续批次把其它引擎块外移。两条都属重构，不在本期。",
     "evidence": [
-      "git diff --numstat 497a366..HEAD -- index.js ⇒ 94 / 1（净 +93）；同口径 git show 497a366:index.js 判据行数 13087 / wc 行数 13086，HEAD 判据行数 13180 / wc 行数 13179 —— 两端同一把尺，差 93 与 numstat 净增逐位相等",
-      "grep -c 'L26-' index.js ⇒ 18（十八个装配块注释，18 × 5 = 90 行；段头注释 2 行另计），行数来源可逐条点数，不存在回流死代码",
-      "tests/audit/scan_index_split.mjs 在 13180 行上 R1 / R3 / R4 / R5 / R6 / R7 / R8 全绿，唯一红点即 R2 行数（说明这次增量只动了行数这一维，搬运等价性、取库惰性、注入面自洽均未退化）",
-      "tests/audit/host_beast_probe.cjs 实测 entry_lines = 13180（与 wc -l + 1 同读数，两路互证），host_beast_baseline 同步重绑 entry 13180 / surface 37364，行上界 13392 不抬（余量 212）"
+      "git diff --numstat HEAD -- index.js ⇒ 2 / 25（净 -23）；wc -l index.js ⇒ 13225，判据 linesOf(indexText) ⇒ 13226 —— 两端同一把尺（文件末换行算一行），差值与 numstat 逐位相等",
+      "git show HEAD~2:index.js ⇒ 13179（wc）/ 13180（判据口径，恰在旧天花板上）；HEAD~1 ⇒ 13224 / 13225；HEAD ⇒ 13248 / 13249。三期读数连起来看：超天花板的 44 行全部由 275d94b 引入，本期先减后留指向注释，最终 13225 / 13226",
+      "tests/v3476_v4_six_mechanisms.test.mjs:215-216 断言 index.js 含 LonShaSelectionReuse 与 _aiSelectReuseRead —— 44 行留在入口不是懒，是判据要求它在那儿",
+      "tests/audit/scan_index_split.mjs 在 13226 行上 R1 / R3 / R4 / R5 / R6 / R7 / R8 全绿，唯一红点即 R2 行数本身 —— 说明这次位移只动了行数这一维，导出面、单份实现、逐字节搬迁、取库惰性、纯函数模块、注入面自洽均未退化"
     ],
-    "why_not_silent": "抬天花板不是抹平：①新值 13180 仍远低于拆前 13546，ratchet 方向未变，且闸仍是「等于实测才算过、涨一行即红」；②92 行装配 + 1 行换版 + 1 行空行的来源已逐条点数（grep 18 块 / numstat 94-1）；③搬运等价性与注入面自洽两条独立判据在本版仍全绿，证明增量没有夹带别的改动；④行上界 13392 未抬，逃逸余量仍 212 < slack 400，两本账读数互相对得上。"
+    "why_not_silent": "抬天花板不是抹平：①新值 13226 仍远低于拆前 13546，ratchet 方向未变，闸仍是「=== 实测才算过、涨一行即红」；②45 行来源逐条点数（275d94b 的 44 + 本期 1 行注释），不存在来历不明的回流；③本期**先减后定基**：把两批 UI 接线搬出入口（-23），搬迁后 R1/R3~R8 七道关全绿，证明位移没夹带行为改动；④搬不走的 44 行有判据原文点名（v3476:215-216），不是「懒得搬」；⑤回降路径已写进 discipline，下一轮按那条路径走可以把天花板再压回去。"
   }
 }

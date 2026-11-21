@@ -632,3 +632,4 @@ v3475_l26_delivery.test.mjs		v3.475.0 · L26 交付自证：登记可装载、�
 v3476_memory_badge.test.mjs		v3.476.0 · 玩家端可见性：楼层记忆徽章（旁路渲染、宿主主链路零改动）
 v3476_v4_six_mechanisms.test.mjs		v3.476.0 · V4 六条机制（维护排期/窗口撤回/句子改写/存档编码/选文复用/规则编译）+ 四处真实接线
 v3478_ui_panels.test.mjs		v3.478.0 · 呈现层四件：ui-kit 原语 / 摘要树 / 楼层面板 / ui-kit 样式，含装载登记、调用点证据与占比不回落
+v3479_data_panels.test.mjs		v3.479.0 · 四个数据面板（NPC关系/在场/状态变量/物品）+ absent与empty分离 + 调用点负控制

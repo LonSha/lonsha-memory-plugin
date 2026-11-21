@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-21T08:07:14.118Z",
-  "extra_js_count": 448,
+  "generated_at": "2026-11-21T09:04:55.777Z",
+  "extra_js_count": 450,
   "host_injected_count": 252,
-  "total_modules": 449,
+  "total_modules": 451,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 449,
+  "active_count": 451,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -4530,8 +4530,8 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 57,
-      "business_call_sites": 57,
+      "prod_call_sites": 69,
+      "business_call_sites": 69,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -10459,21 +10459,45 @@
       ],
       "load_surface_callers": []
     },
-    "ui-floor-panel.js": {
-      "module": "ui-floor-panel.js",
+    "ui-data-panels.js": {
+      "module": "ui-data-panels.js",
       "surface": [
-        "LonShaFloorPanel"
+        "LonShaDataPanels"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 6,
+      "business_call_sites": 6,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
-          "file": "index.js",
+          "file": "ui-panel-seam.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "v4-panel-ui.js",
           "count": 1,
           "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-floor-panel.js": {
+      "module": "ui-floor-panel.js",
+      "surface": [
+        "LonShaFloorPanel"
+      ],
+      "prod_call_sites": 6,
+      "business_call_sites": 6,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-panel-seam.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
         },
         {
           "file": "v4-panel-ui.js",
@@ -10488,12 +10512,17 @@
       "surface": [
         "LonShaUiKit"
       ],
-      "prod_call_sites": 6,
-      "business_call_sites": 6,
+      "prod_call_sites": 9,
+      "business_call_sites": 9,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
+        {
+          "file": "ui-data-panels.js",
+          "count": 3,
+          "type": "file_binding+exclusive_global"
+        },
         {
           "file": "ui-floor-panel.js",
           "count": 3,
@@ -10507,21 +10536,40 @@
       ],
       "load_surface_callers": []
     },
-    "ui-summary-tree.js": {
-      "module": "ui-summary-tree.js",
+    "ui-panel-seam.js": {
+      "module": "ui-panel-seam.js",
       "surface": [
-        "LonShaSummaryTree"
+        "LonShaUiSeam"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
-          "file": "index.js",
+          "file": "v4-panel-ui.js",
           "count": 1,
           "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-summary-tree.js": {
+      "module": "ui-summary-tree.js",
+      "surface": [
+        "LonShaSummaryTree"
+      ],
+      "prod_call_sites": 6,
+      "business_call_sites": 6,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "ui-panel-seam.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
         },
         {
           "file": "v4-panel-ui.js",
@@ -10707,16 +10755,16 @@
       "surface": [
         "LonShaV4PanelUi"
       ],
-      "prod_call_sites": 1,
-      "business_call_sites": 1,
+      "prod_call_sites": 5,
+      "business_call_sites": 5,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
-          "file": "index.js",
-          "count": 1,
-          "type": "exclusive_global"
+          "file": "ui-panel-seam.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
