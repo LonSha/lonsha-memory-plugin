@@ -308,6 +308,28 @@
         legacy.setAttribute('role', 'tabpanel');
         while (body.firstChild) legacy.appendChild(body.firstChild);
         legacy.insertAdjacentHTML('afterbegin', '<div class="ls-dash-devnote" role="note"><span aria-hidden="true">' + I('cmd') + '</span><span>开发者模式：以下是引擎的全部原始页签与调参项。普通游玩不需要改动这里。</span></div>');
+        /* 外观闸读数：把决定「看起来像不像新 UI」的四道闸印在面板上。
+         *   每一道都曾默认关着、且没有任何界面提示 —— 用户只能觉得「做了没效果」。
+         *   现在一眼可见：v2 / v3 / dev 是否开、v2 的 CSS 探针是否就绪。 */
+        try {
+            const gateOn = (k) => (store.get(k, '1') === '1' ? '开' : '关');
+            const iconVer = (window.LonShaIcons && window.LonShaIcons.version) || '未加载';
+            /* 两个探针是两个变量：主 CSS 看 --ls-dash-css，v2 看 --ls-dash-v2-css。 */
+            const v2CssReady = () => {
+                try { return getComputedStyle(document.documentElement)
+                    .getPropertyValue('--ls-dash-v2-css').trim() === '1'; }
+                catch (_e) { return false; }
+            };
+            const gateLine = '外观闸：v2=' + gateOn('lonsha.ui.v2')
+                + ' · v3=' + gateOn('lonsha.ui.v3')
+                + ' · dev=' + (dev ? '开' : '关')
+                + ' · 主CSS=' + (cssReady() ? '就绪' : '未就绪')
+                + ' · v2CSS=' + (v2CssReady() ? '就绪' : '未就绪')
+                + ' · 图标=' + iconVer;
+            legacy.insertAdjacentHTML('afterbegin',
+                '<div class="ls-dash-devnote" role="note" data-ls-gates="1"><span>'
+                + esc(gateLine) + '</span></div>');
+        } catch (_e) { /* 读数失败不能影响面板 */ }
         legacy.insertAdjacentHTML('beforeend', settingsExtraHTML(dev));
 
         // 2. 外壳
