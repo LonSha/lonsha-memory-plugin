@@ -10,7 +10,7 @@
 //   · 只读引擎数据，任何写操作都代理到原面板已有的按钮（档位、主题、打开浏览器 / 检查点…）；
 //   · 保留 v1 的全部 ID：#ls-dash-overview / #ls-dash-memory / #ls-dash-health-meter / #ls-dash-health-text、
 //     data-dash-act / data-dash-go / data-dash-profile / data-dash-theme 的语义与处理器（v1 的事件委托照常接管）；
-//   · 灰度开关默认关：localStorage 'lonsha.ui.v2' = '1' 才生效；关 = 完全是 v1。
+//   · 默认开：localStorage 'lonsha.ui.v2' = '0' 才回落到 v1（做完了默认藏着等于没做）。
 //   · 依赖 shell v1.1 的 'lonsha:dashboard-enhanced' 事件；检测不到 dashboard-v2.css（--ls-dash-v2-css）时什么也不做。
 // 加载：manifest.json -> extra_js 中紧跟 "ui/dashboard-shell.js" 之后加入 "ui/dashboard-v2.js"。
 (function () {
@@ -47,13 +47,15 @@
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const warn = (tag, e) => { try { (window.LonShaMemory?.reportError || console.warn)(e, 'dashboard-v2.' + tag); } catch (_) { /* 忽略 */ } };
     const safe = (fn, d) => { try { const v = fn(); return v === undefined ? d : v; } catch (_) { return d; } };
-    const enabled = () => store.get(KEYS.v2, '0') === '1';
+    /* 默认开（'0' -> '1'）：v2 视觉层做完了却默认关着，等于没做。
+     * 显式存 '0' 仍尊重（回落 v1），只是「没存过」时算开。 */
+    const enabled = () => store.get(KEYS.v2, '1') === '1';
     const cssReady = () => safe(() => getComputedStyle(document.documentElement).getPropertyValue('--ls-dash-v2-css').trim() === '1', false);
     const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
     /* v2.1：图标统一走 LonShaIcons（原创 SVG）；未加载时退化为空，绝不回退到字符图标 */
     const I = (name, opts) => { try { const L = window.LonShaIcons; return L ? L.svg(name, opts) : ''; } catch (_) { return ''; } };
     const MOD = isMac ? I('cmd') : 'Ctrl';
-    const v3On = () => store.get(KEYS.v3, '0') === '1';
+    const v3On = () => store.get(KEYS.v3, '1') === '1';   // 同上：默认开
 
     // ------------------------------------------------------------------
     // 强调色（v2 token 调色板）

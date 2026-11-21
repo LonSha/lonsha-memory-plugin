@@ -8,7 +8,7 @@
 // 注入预算计量条与载荷差异视图。
 //
 // 契约（与 v1 / v2 / v3 相同）：
-//   · 开关默认关：localStorage 'lonsha.ui.v3' = '1' 才生效（与 dashboard v3 精修外观同一个开关）；
+//   · 默认开：localStorage 'lonsha.ui.v3' = '0' 才关（与 dashboard v3 精修外观同一个开关）；
 //     关掉开关或调用 LonShaDevConsole.enable(false) 时，按撤销日志把 DOM、内联样式、属性全部还原。
 //   · 不改任何元素 ID、不改任何 data-cfg / data-cfg-num / data-cfg-text 绑定、不替换任何节点 ——
 //     只「搬家」和「加包裹」，且包裹不改变兄弟顺序（上游滑杆读数靠 previousElementSibling 找 .ls-slider-val，
@@ -45,7 +45,9 @@
     const warn = (tag, e) => { try { (window.LonShaMemory?.reportError || console.warn)(e, 'dev-console.' + tag); } catch (_) { /* 忽略 */ } };
     const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const I = (name, tone) => '<i class="ls-ico" data-i="' + esc(name) + '"' + (tone ? ' data-tone="' + tone + '"' : '') + ' aria-hidden="true"></i>';
-    const isOn = () => store.get(KEY, '0') === '1';
+    /* 默认开：控制台做完了却默认关着，用户永远不知道有这一层。
+     * 显式存 '0' 仍尊重。 */
+    const isOn = () => store.get(KEY, '1') === '1';
     const cssVar = (n) => { try { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); } catch (_) { return ''; } };
     const cssReady = () => cssVar('--ls-dc-css') === '1' && cssVar('--ls-dash-css') === '1';
     const plugin = () => window.LonShaMemory || null;
