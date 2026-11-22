@@ -19,7 +19,8 @@
     const VERSION = '2.1.0';
     const KEYS = {
         v2: 'lonsha.ui.v2',            // '1' 开启
-        v3: 'lonsha.ui.v3',            // v2.1：'1' 开启 v3 精修外观（data-ui-rev="3"，需先开 v2；默认关）
+        v3: 'lonsha.ui.v3',            // v2.1：'1' 开启 v3 精修外观（data-ui-rev="3"）
+        v5: 'lonsha.ui.v5',            // v5：'1' 开启 v5 紧凑表格外观（data-ui-rev="5"）；默认开
         accent: 'lonsha.ui.accent',    // ice | iris | rose | jade | amber | graphite
         mode: 'lonsha.ui.memMode',     // list | cards | graph | timeline
         filter: 'lonsha.ui.memFilter',
@@ -56,6 +57,9 @@
     const I = (name, opts) => { try { const L = window.LonShaIcons; return L ? L.svg(name, opts) : ''; } catch (_) { return ''; } };
     const MOD = isMac ? I('cmd') : 'Ctrl';
     const v3On = () => store.get(KEYS.v3, '1') === '1';   // 同上：默认开
+    /* v5：紧凑表格语言层（css/lonsha-panel-v5.css）。默认开；与 v3 互斥，v5 优先。 */
+    const v5On = () => store.get(KEYS.v5, '1') === '1';
+    const uiRevOf = () => (v5On() ? '5' : (v3On() ? '3' : ''));
 
     // ------------------------------------------------------------------
     // 强调色（v2 token 调色板）
@@ -546,7 +550,8 @@
         const run = (i) => { const r = results[i]; if (!r) return; close(); try { r.run(); } catch (e) { warn('cmdk-run', e); } };
         const open = (q) => {
             lastFocus = document.activeElement;
-            if (dash.dataset.uiRev === '3') el.dataset.rev = '3'; else delete el.dataset.rev;
+            const rev = dash.dataset.uiRev;
+            if (rev) el.dataset.rev = rev; else delete el.dataset.rev;
             el.hidden = false; input.value = q || ''; sel = 0; render();
             requestAnimationFrame(() => input.focus());
         };
@@ -574,7 +579,8 @@
         const { dash, overlay, legacy, plugin, state, refreshHealth, isDev } = detail;
         if (!dash || dash.dataset.ui === 'v2') return;
         dash.dataset.ui = 'v2';
-        if (v3On()) dash.dataset.uiRev = '3'; else delete dash.dataset.uiRev;
+        const rev = uiRevOf();
+        if (rev) dash.dataset.uiRev = rev; else delete dash.dataset.uiRev;
         dash.dataset.uiVersion = VERSION;
         applyAccent();
 
@@ -719,7 +725,7 @@
                 <label class="ls-row ls-switch"><span class="ls-switch-text"><span class="ls-switch-title">精修外观（v3）</span><br><span class="ls-switch-sub">更克制的排版、活动环、玻璃质感的页头与命令面板，即时生效</span></span><input type="checkbox" data-v3-toggle${v3On() ? ' checked' : ''}></label>`;
             extra.insertBefore(grp, extra.children[1] || null);
             grp.addEventListener('click', (e) => { const b = e.target.closest('[data-v2-accent]'); if (b) setAccent(b.dataset.v2Accent); });
-            grp.querySelector('[data-v3-toggle]').addEventListener('change', (e) => { e.stopPropagation(); store.set(KEYS.v3, e.target.checked ? '1' : '0'); if (e.target.checked) dash.dataset.uiRev = '3'; else delete dash.dataset.uiRev; });
+            grp.querySelector('[data-v3-toggle]').addEventListener('change', (e) => { e.stopPropagation(); store.set(KEYS.v3, e.target.checked ? '1' : '0'); const rev = uiRevOf(); if (rev) dash.dataset.uiRev = rev; else delete dash.dataset.uiRev; });
             grp.querySelector('[data-v2-toggle]').addEventListener('change', (e) => { e.stopPropagation(); store.set(KEYS.v2, e.target.checked ? '1' : '0'); applyAccent(); });
         }
 
@@ -778,10 +784,17 @@
         /** v2.1：v3 精修外观（需 v2 已开）；即时作用于已打开的面板 */
         enableV3(on = true) {
             store.set(KEYS.v3, on ? '1' : '0');
-            document.querySelectorAll('.ls-dash[data-ui="v2"]').forEach((el) => { if (on) el.dataset.uiRev = '3'; else delete el.dataset.uiRev; });
+            document.querySelectorAll('.ls-dash[data-ui="v2"]').forEach((el) => { const rev = uiRevOf(); if (rev) el.dataset.uiRev = rev; else delete el.dataset.uiRev; });
             return v3On();
         },
         isV3: v3On,
+        /** v5：紧凑表格外观；即时作用于已打开的面板 */
+        enableV5(on = true) {
+            store.set(KEYS.v5, on ? '1' : '0');
+            document.querySelectorAll('.ls-dash[data-ui="v2"]').forEach((el) => { const rev = uiRevOf(); if (rev) el.dataset.uiRev = rev; else delete el.dataset.uiRev; });
+            return v5On();
+        },
+        isV5: v5On,
         setAccent(k) { store.set(KEYS.accent, k); return applyAccent(); },
         accents: ACCENTS.map(([k]) => k),
         _internals: { collect, fuzzy, layout, overviewHTML, ringsSVG, sparkSVG, graphHTML, timelineHTML, listHTML, cardsHTML, chipsHTML, upgrade },
