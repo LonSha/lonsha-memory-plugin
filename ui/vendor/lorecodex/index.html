@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LoreCodex — 典籍阅读与树检索工作台</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-logo" id="brandTitle">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h8"/><path d="M8 11h6"/></svg>
+        <span>LoreCodex</span>
+      </span>
+      <select id="corpusSelect" class="corpus-sel" title="切换语料书库"></select>
+      <button id="libraryBtn" class="btn-sm" title="管理全部书库：查看目录进度、导出或删除">书库管理</button>
+      <span id="statMeta" class="brand-meta">正在载入书库总目...</span>
+    </div>
+
+    <div class="toolbar">
+      <button id="importBtn" class="btn-sm btn-seal desktop-only" title="导入小说、世界书或 .lorepack.json">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+        导入
+      </button>
+      <button id="llmBuildQuickBtn" class="btn-sm desktop-only" style="display:none;" title="为当前书库执行或补全 LLM 智能目录">
+        LLM 建目录
+      </button>
+      <button id="settingsBtn" class="btn-sm desktop-only" title="旁路模型与 API 配置">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.78 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        模型
+      </button>
+      <button id="stSettingsBtn" class="btn-sm" style="display:none;" title="酒馆防剧透、视角与高级检索设置">酒馆设置</button>
+
+      <div class="prefs-wrap">
+        <button id="prefsToggleBtn" class="btn-sm" title="主题与阅读排版设置">Aa</button>
+        <div id="prefsPopover" class="prefs-popover">
+          <div class="pref-row mobile-only-pref">
+            <span>界面主题</span>
+            <div class="seg">
+              <button data-theme-btn="paper" class="active">素笺</button>
+              <button data-theme-btn="lamp">墨灯</button>
+              <button data-theme-btn="studio-light">净台</button>
+              <button data-theme-btn="studio-dark">曜夜</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span>正文字号</span>
+            <div class="seg">
+              <button data-size="15">小</button>
+              <button data-size="16.5" class="active">中</button>
+              <button data-size="18.5">大</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span>正文字体</span>
+            <div class="seg">
+              <button data-font-btn="serif" class="active">宋体书卷</button>
+              <button data-font-btn="sans">黑体清爽</button>
+            </div>
+          </div>
+          <div class="pref-row">
+            <span>版心宽度</span>
+            <div class="seg">
+              <button data-width-btn="780" class="active">标准</button>
+              <button data-width-btn="980">宽屏</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mobile-menu-wrap">
+        <button id="mobileMoreBtn" class="btn-sm" title="更多功能与调试选项">⋯</button>
+        <div id="mobileMenuPopover" class="mobile-menu-popover">
+          <button type="button" data-mobile-action="import" class="mobile-only-inline">导入典籍（小说/世界书/.lorepack）</button>
+          <button type="button" data-mobile-action="settings" class="mobile-only-inline">模型与 API 配置</button>
+          <button type="button" id="cmdPaletteBtn">快速搜索 (Ctrl+K)</button>
+          <button type="button" id="corpusCfgBtn">当前书库设置与别名</button>
+          <button type="button" id="toggleTocBtn">显示 / 隐藏目录栏</button>
+          <button type="button" id="toggleTraceBtn">检索调试台（开发者）</button>
+          <button type="button" id="reloadCorporaBtn">重新扫描书库目录</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- Left Pane: 3-Tier TOC & Grep Studio -->
+    <aside class="toc-pane" id="tocPane">
+      <div class="pane-head">
+        <div class="pane-kicker">
+          <span>目录</span>
+          <div class="seg" style="transform:scale(0.92);transform-origin:right center;">
+            <button data-search-mode="toc" class="active">目录树</button>
+            <button data-search-mode="grep">全文搜</button>
+          </div>
+        </div>
+        <input type="text" id="tocSearch" placeholder="搜章节、人物、别名或关键词..." />
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:5px;">
+          <div id="tocCount" class="pane-sub"></div>
+          <div id="seriesExpandBtns" style="display:none;gap:4px;">
+            <button id="expandAllSeriesBtn" class="btn-sm">全展</button>
+            <button id="collapseAllSeriesBtn" class="btn-sm">全收</button>
+          </div>
+        </div>
+        <div id="aliasNote" class="alias-note"></div>
+        <details class="toc-filter-details">
+          <summary>筛选与防剧透</summary>
+          <div class="toc-filter-body">
+            <div id="spoilerBar" class="spoiler-bar">
+              <span id="spoilerLabel">防剧透上限 (0=全开)</span>
+              <input type="number" id="tocMaxOrder" min="0" value="0" />
+            </div>
+            <div id="catBar" class="filter-strip"></div>
+            <div id="toneBar" class="filter-strip"></div>
+            <div id="tocTraceLegend" class="legend-inline" style="display:none;">
+              <span class="sw"><i style="background:var(--seal)"></i>入选</span>
+              <span class="sw"><i style="background:var(--read-ink)"></i>已阅</span>
+              <span class="sw"><i style="background:var(--ochre)"></i>翻幕</span>
+              <span class="sw"><i style="background:var(--slate)"></i>候补</span>
+              <button id="onlyPathBtn" class="btn-sm" style="margin-left:auto;">仅看命中路径</button>
+            </div>
+          </div>
+        </details>
+      </div>
+      <div class="toc-scroll" id="tocList"></div>
+    </aside>
+
+    <div class="resizer" id="resizerLeft" title="拖拽调整目录宽度（双击恢复）"></div>
+
+    <!-- Center Stage: Codex Reader & Dossier -->
+    <main class="stage-pane">
+      <div class="stage-bar">
+        <div class="stage-tabs">
+          <span class="stage-tab active" data-stage="book">典籍正页</span>
+          <span class="stage-tab" data-stage="dossier">检索选段卷宗</span>
+        </div>
+        <div class="stage-actions">
+          <span id="stageStatus">扉页</span>
+          <button id="homeBtn" class="btn-sm">返回扉页</button>
+        </div>
+      </div>
+      <div class="read-progress-track"><div id="readProgressBar" class="read-progress-bar"></div></div>
+
+      <div class="book-scroll" id="bookScroll">
+        <article class="book-sheet" id="bookSheet"></article>
+      </div>
+    </main>
+
+    <div class="resizer" id="resizerRight" title="拖拽调整检索台宽度（双击恢复）"></div>
+
+    <!-- Right Pane: Search Playground & Waterfall Trace -->
+    <aside class="trace-pane" id="tracePane">
+      <div class="pane-head">
+        <div class="pane-kicker" style="margin-bottom:2px;">
+          <span>检索试验台</span>
+          <label style="font-family:var(--sans);font-weight:400;font-size:11px;color:var(--ink-muted);display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" id="autoPollRuns" checked /> 同步外部请求
+          </label>
+        </div>
+      </div>
+      <div class="trace-scroll">
+        <div class="composer">
+          <div id="presetRow" class="preset-row"></div>
+          <div style="margin-bottom:7px;">
+            <textarea id="qText" rows="2" placeholder="输入问题或剧情关键词，观察 Agent 翻书过程..."></textarea>
+          </div>
+          <details class="trace-adv-details">
+            <summary>高级调试参数（角色 / 防剧透 / 上下文）</summary>
+            <div class="trace-adv-body">
+              <div class="grid-4">
+                <div>
+                  <label class="fld">角色卡 / 舞台</label>
+                  <input type="text" id="qChar" value="" />
+                </div>
+                <div>
+                  <label class="fld">用户身份</label>
+                  <input type="text" id="qUser" value="" placeholder="旅人 / User" />
+                </div>
+                <div>
+                  <label class="fld" title="0 = Agent 按预算自决（最多10幕）">幕数(0自决)</label>
+                  <input type="number" id="qMaxScenes" value="0" min="0" max="12" />
+                </div>
+                <div>
+                  <label class="fld" title="0 = 无防剧透限制">防剧透序</label>
+                  <input type="number" id="qMaxOrder" value="0" min="0" />
+                </div>
+              </div>
+              <div style="margin-bottom:7px;">
+                <label class="fld">显式点菜（可选，填则强制检索）</label>
+                <input type="text" id="qOnDemand" placeholder="例如：某角色在过往篇章里的台词或互动" />
+              </div>
+              <div style="margin-bottom:6px;">
+                <label class="fld">最近对话流（说话人: 内容）</label>
+                <textarea id="qRecent" rows="2" placeholder="角色名: 最近一轮对话内容..."></textarea>
+              </div>
+              <div style="margin-bottom:6px;">
+                <label class="fld">本局记忆召回（每行一条，如 AM0022 芙拉米尔交代委托规则）</label>
+                <textarea id="qRecall" rows="2" placeholder="本局已发生的事，只用于理解指代"></textarea>
+              </div>
+            </div>
+          </details>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">
+            <span id="runStatus" style="font-size:11px;color:var(--ink-muted);">就绪</span>
+            <div style="display:flex;gap:6px;">
+              <button id="clearMarksBtn" class="btn-sm" title="清除目录标记">清标记</button>
+              <button id="runBtn" class="btn-seal">执行检索</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="runsList" class="runs-list"></div>
+        <div id="traceBody">
+          <div style="color:var(--ink-muted);text-align:center;padding:24px 8px;font-size:12px;">
+            选择预设或输入问题即可观测 Agent 的翻书过程；接通 SillyTavern 后，每轮对话检索也会同步显示在这里。
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <nav id="mobileNav" class="mobile-nav" aria-label="移动端视图切换">
+    <button type="button" class="mobile-nav-btn" data-mobile-pane="toc">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>
+      <span>目录/搜</span>
+    </button>
+    <button type="button" class="mobile-nav-btn active" data-mobile-pane="stage">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+      <span>正文/卷宗</span>
+    </button>
+    <button type="button" class="mobile-nav-btn" data-mobile-pane="trace">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span>检索/轨迹</span>
+    </button>
+  </nav>
+</div>
+
+<!-- Modal Backdrop -->
+<div id="modalBackdrop" class="modal-backdrop">
+  <div id="modalDialog" class="modal-dialog"></div>
+</div>
+
+<div id="toastStack" class="toast-stack"></div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

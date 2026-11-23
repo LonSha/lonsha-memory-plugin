@@ -1,0 +1,69 @@
+{
+  "what": "LoreCodex 内嵌工作台 UI（壳层）",
+  "sourceRepo": "lena13144/lorecodex",
+  "sourcePath": "ui/",
+  "commit": "d1a921e",
+  "tag": "v2.4.0",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "fetchedAt": "2026-11-24",
+  "rule": "vendored 文件 = 只读副本。要改外观/文案，必须在 tools/verify_lorecodex_vendor.mjs 里显式登记为 fork 的补丁文件，并把改动写成 diff 链接；不许就地静默改（就地改会让下一轮同步丢掉改动且不自知）。上游升级 = 整份重取 + 更新本表 md5 + 跑 tools/verify_lorecodex_vendor.mjs。",
+  "notVendored": [
+    "extension/st-tree-lore/browser_engine.js（IndexedDB 建库/检索引擎，与本插件数据面无关）",
+    "src/tree_agent.js · src/grep_engine.js · src/prompt_builder.js（服务端检索循环）",
+    "builders/*.py（命令行建树，依赖 LLM 建目录，本插件不需要）",
+    "corpora/ · examples/（示例书库）"
+  ],
+  "files": {
+    "index.html": {
+      "bytes": 13085,
+      "md5": "8fbd6d4d63542ddd0cb8d3875903181c",
+      "lines": 248
+    },
+    "styles.css": {
+      "bytes": 42181,
+      "md5": "b19078440003dc8c2cc207e6859b2d03",
+      "lines": 961
+    },
+    "js/api.js": {
+      "bytes": 31579,
+      "md5": "971f15913bbeeda018c2681176e482fa",
+      "lines": 836
+    },
+    "js/main.js": {
+      "bytes": 17290,
+      "md5": "ecd8ebcf5fe9d621e6137d4b8594172a",
+      "lines": 513
+    },
+    "js/toc.js": {
+      "bytes": 11733,
+      "md5": "3291fecdf2973cf10a35aed2b8b815dd",
+      "lines": 324
+    },
+    "js/reader.js": {
+      "bytes": 29881,
+      "md5": "05c0b7c3b7f23089212e4d9175ccac48",
+      "lines": 642
+    },
+    "js/trace.js": {
+      "bytes": 12475,
+      "md5": "c5a313b855e13e84b36859696af5c00f",
+      "lines": 299
+    },
+    "js/modals.js": {
+      "bytes": 82352,
+      "md5": "476de734756ae14718128ef77974892b",
+      "lines": 1768
+    },
+    "js/state.js": {
+      "bytes": 6486,
+      "md5": "e44260cebf81ab0f5703d402ab3fa603",
+      "lines": 203
+    },
+    "LICENSE": {
+      "bytes": 1066,
+      "md5": "7bc32b1d8c9000b0e0297dc59a5f491f",
+      "lines": 21
+    }
+  }
+}
