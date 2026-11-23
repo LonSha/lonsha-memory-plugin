@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>LoreCodex — 典籍阅读与树检索工作台</title>
 <link rel="stylesheet" href="./styles.css" />
+<!-- [LonSha fork · v3.482.0 stage-2] 数据面接线：上游 js/api.js 是打 /corpora、/tree-index 这套 REST 的
+     服务端客户端；本仓没有那台服务端。importmap 把「./js/api.js」这个说明符整份重定向到
+     ui/mem-workbench-api.js（21 个同名同形的只读适配器），**上游 api.js 的字节保持原样不动**。
+     这条注入是本目录唯一的一处 fork，已登记在 UPSTREAM.json 的 forks[] 与 tools/verify_lorecodex_vendor.mjs。 -->
+<script type="importmap">
+{"imports":{"./js/api.js":"../../mem-workbench-api.js"}}
+</script>
 </head>
 <body>
 <div class="app">

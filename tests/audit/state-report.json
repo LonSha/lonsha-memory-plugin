@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.475.0",
+  "version": "3.482.0",
   "version_sources": {
-    "manifest": "3.475.0",
-    "package": "3.475.0",
-    "index_const": "3.475.0"
+    "manifest": "3.482.0",
+    "package": "3.482.0",
+    "index_const": "3.482.0"
   },
   "version_same": true,
-  "human_index_version": "3.475.0",
+  "human_index_version": "3.482.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 437,
+    "extra_js": 455,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -449,13 +449,31 @@
       "conflict-advice.js",
       "memory-health-board.js",
       "batch-op-ledger.js",
-      "recall-explainer.js"
+      "recall-explainer.js",
+      "maintenance-schedule.js",
+      "window-plan.js",
+      "sentence-edits.js",
+      "storage-codec.js",
+      "selection-reuse.js",
+      "rules-compile.js",
+      "v4-panel-bridge.js",
+      "v4-panel-ui.js",
+      "ui-kit-core.js",
+      "ui-summary-tree.js",
+      "ui-floor-panel.js",
+      "ui-data-panels.js",
+      "ui-panel-seam.js",
+      "ui-json-tree.js",
+      "ui-table.js",
+      "ui-form-controls.js",
+      "ui-settings-panel.js",
+      "ui-mem-workbench.js"
     ],
-    "root_js": 450,
+    "root_js": 468,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 625,
+    "test_files": 632,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -536,6 +554,7 @@
       "stress_bench.test.mjs",
       "supersede-integration.test.mjs",
       "supersede.test.mjs",
+      "ui-workbench-adapter.test.mjs",
       "v202611_audit_fix.test.mjs",
       "v20_optional_engine_assembly.test.mjs",
       "v20_optional_engine_registry.test.mjs",
@@ -973,8 +992,14 @@
       "v3472_r22_product_wiring.test.mjs",
       "v3475_l26_delivery.test.mjs",
       "v3476_memory_badge.test.mjs",
+      "v3476_v4_six_mechanisms.test.mjs",
+      "v3478_ui_panels.test.mjs",
+      "v3479_data_panels.test.mjs",
       "v347_hc_mechanics.test.mjs",
       "v3480_closeout_fourth_phase.test.mjs",
+      "v3480_ui_density.test.mjs",
+      "v3481_settings_controls.test.mjs",
+      "v3482_settings_panel_wiring.test.mjs",
       "v3490_condition_patch.test.mjs",
       "v3500_m5_batch.test.mjs",
       "v350_backfill.test.mjs",
@@ -1084,7 +1109,7 @@
       "v4163_weekly_correction_sources.test.mjs"
     ],
     "audit_dir_exists": true,
-    "audit_gated": 76,
+    "audit_gated": 79,
     "audit_probes": 17,
     "tiers": {
       "schema": "gate-tiers@1",
@@ -1118,12 +1143,12 @@
     }
   },
   "full_run": {
-    "status": "registered",
+    "status": "stale",
     "registered_at": "3.475.0",
     "tests_total": 624,
     "assertions": 6361,
     "audit": "73/73",
-    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
+    "reason": "登记版本 3.475.0 ≠ 当前 3.482.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
   },
   "host_run": {
     "status": "not-executed",
@@ -1142,17 +1167,19 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "7ef547bfe30d",
-      "package.json": "f6d2e01b84f8",
-      "index.js": "39a2aaad549f",
+      "manifest.json": "6d78b80b01dc",
+      "package.json": "1389b8f3ef0e",
+      "index.js": "ec4e0da1760a",
       "update-log.json": null,
-      "README.md": "43f6df80b41b",
-      "PLAN.md": "91076d5eff91",
-      "CHANGELOG.md": "496fefc4532a",
-      "TODO.md": "fd477922da0a",
+      "README.md": "60f074d1417f",
+      "PLAN.md": "1f8398b7f89d",
+      "CHANGELOG.md": "391c53723e5d",
+      "TODO.md": "58e152c90e18",
       "tests/audit/doc_readings.json": "c56fda0d81c3"
     }
   },
-  "unknown": [],
-  "unknown_count": 0
+  "unknown": [
+    "全量实跑读数陈旧：doc_readings 登记 3.475.0，当前 3.482.0"
+  ],
+  "unknown_count": 1
 }

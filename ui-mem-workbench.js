@@ -1,5 +1,5 @@
 /**
- * ui-mem-workbench.js — “书阁式工作台”外壳的挂载点（v3.482.0 引入，stage-1：只有壳）
+ * ui-mem-workbench.js — “书阁式工作台”外壳的挂载点（v3.482.0，stage-1 建壳 / stage-2 已接上数据面）
  *
  * 【为什么直接用别人的 UI】
  *   本插件长期把力气花在引擎上，玩家面只有抽屉面板；上游 LoreCodex（MIT）把“三栏工作台 +
@@ -7,12 +7,14 @@
  *   没有构建步骤、没有框架依赖 —— 整碗端过来比自己重画便宜一个数量级。
  *   副本住在 ui/vendor/lorecodex/**，只读；漂移由 tools/verify_lorecodex_vendor.mjs 卡住。
  *
- * 【stage-1 的范围，别把它当成品】
- *   本文件只做“把壳拉起来”：创建遮罩 + iframe + 关闭键 + ESC，别的一律不做。
- *   壳内的工作台读的是它自己的数据契约（corpora/tree/grep/trace），**尚未**接到本插件
- *   的记忆库；接线的落点是 ui/vendor/lorecodex/js/api.js（一份 20 个导出的适配器），
- *   计划与字段映射写在 docs/lorecodex-workbench-adoption.md。
- *   因此本模块**默认不自动挂载**：没人调用就没有任何 DOM 变化，也不影响引擎读写。
+ * 【本文件只做一件事：把壳拉起来】
+ *   创建遮罩 + iframe + 关闭键 + ESC。壳里那个工作台自己会跑：它通过 index.html 里的
+ *   importmap 把 `./js/api.js` 指向 ui/mem-workbench-api.js（21 个同名同形只读适配器），
+ *   数据直接读同源父窗口的 `window.LonShaMemory.engine.graph.nodes`。
+ *   所以**这里不需要传数据、不需要 postMessage 桥** —— 壳与宿主同源，壳自己就能读到。
+ *   映射与边界写在 docs/lorecodex-workbench-adoption.md。
+ *   本模块**默认不自动挂载**：没人调用就没有任何 DOM 变化，也不影响引擎读写
+ *   （stage-3 才谈「接进 manifest.extra_js 与侧边栏入口」）。
  *
  * 【纪律】
  *   · 全程 fail-open：壳拉不起来只影响“看不看得见”，不影响记忆读写；
@@ -22,7 +24,7 @@
 (function (root) {
     'use strict';
 
-    const VERSION = '0.1.0';
+    const VERSION = '0.2.0';
     const TAG = '[LonSha:workbench]';
     const ID = "lonsha-mem-workbench-overlay";
     let overlay = null;
@@ -67,7 +69,7 @@
             d.body.appendChild(overlay);
             const onKey = (ev) => { if (ev && ev.key === "Escape") { close(); d.removeEventListener("keydown", onKey); } };
             d.addEventListener("keydown", onKey);
-            lastNote = "已打开（stage-1：壳内数据面未接线）";
+            lastNote = "已打开（stage-2：壳内数据面已接线，只读）";
             console.log(TAG, lastNote, url);
             return { ok: true, url };
         } catch (e) {
@@ -79,6 +81,11 @@
     }
 
     const api = { VERSION, open, close, toggle: () => (overlay ? (close(), { ok: true, closed: true }) : open()), note: () => lastNote, entryUrl };
-    root.LonShaMemWorkbench = api;
-    console.log(TAG, "v" + VERSION + " 就绪（不自动挂载）");
+    /* 挂载点必须写成宿主名.属性名这种直挂形态（不是 IIFE 参数 root 的属性）：本仓的消费台账
+     *   （tests/_consumption_lib.mjs 的 HOST_MOUNT_RE）只认 window / global / globalThis 三种宿主名。
+     *   写参数名当宿主会让本模块在台账里变成「零消费孤儿」（实测：v3.482.0 首轮就是这个名字没过关），
+     *   而孤儿意味着「没有消费者」—— 可它明明在玩家主页有个入口。判错的对象是台账，不是代码。 */
+    if (typeof window !== 'undefined') window.LonShaMemWorkbench = api;
+    else if (typeof globalThis !== 'undefined') globalThis.LonShaMemWorkbench = api;
+    console.log(TAG, "v" + VERSION + " 就绪（不自动挂载；入口在玩家主页「记忆工作台」）");
 })(typeof window !== "undefined" ? window : globalThis);

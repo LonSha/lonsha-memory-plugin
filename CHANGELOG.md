@@ -1,3 +1,71 @@
+## v3.482.0
+**呈现层 stage-2：LoreCodex 工作台接上本仓数据面（只读视图 · 21 个同名适配器 · 14 条判据）**
+
+- **这一版解决的是 stage-1 留下的那个洞**：副本早就进来了（`ui/vendor/lorecodex/**`，10 文件 5,815 行，
+  md5 闸守着），但壳里读的是上游自己的 REST 契约（`/corpora`、`/tree-index`、`/tree-search`），
+  本仓没有那台服务端 ⇒ 打开就是空库。stage-2 把这 21 个导出整份换成读引擎的实现，**上游前端一行未改**。
+- **接线点是 importmap，不是改上游 api.js**：`ui/vendor/lorecodex/index.html` 里注入 8 行
+  （`"./js/api.js"` ⇒ `"../../mem-workbench-api.js"`）。为什么落在 HTML 而不在 js：
+  `js/api.js` 的字节因此保持上游原样，`tools/verify_lorecodex_vendor.mjs` 照旧逐文件校 md5；
+  唯一被改的文件 `index.html` 登记进 `UPSTREAM.json` 的 `forks[]`（带 fork 后 md5 + 上游原 md5 + 注入位置 + 升级时怎么重贴）。
+  这比「把 api.js 整个替换成自己的」干净：改上游文件等于fork 掉 836 行，上游一发新版就全丢。
+- **`ui/mem-workbench-api.js`（660 行 / 21 导出）**：数据面只有一个 —— `engine.graph.nodes`（记忆图谱节点）。
+  三级映射写死在头注释里：`corpus`=当前会话记忆库、`series/category`=记忆条目类型（人物/事件/关系/地点/物品/其它）、
+  `arc`=楼层段（每 100 楼一篇）、`scene`=一条节点、**`scene.order`=消息楼层号（`data.floor`）**。
+  最后这一条是白送的：lorecodex 的防剧透口径本来就是「序 <= `maxOrder` 才可见」，本仓的「防止角色超前认知」
+  正是按楼层来的 —— 两边是同一件事，一个输入框就真的锁住了剧透，不需要新造概念。
+- **本版自己抓到的真缺陷（跨 realm 的幽灵）**：首轮判据 6 红，`arcs=0`。根因不是映射写错，是
+  `bag instanceof Map` —— 工作台跑在与酒馆页面**同源的 iframe** 里，`window.parent` 的 Map 是**父 realm** 的对象，
+  在子 realm 里 `instanceof Map` 返回 **false**，于是 `Object.keys(map)` 得空数组 ⇒ 一个节点都读不到。
+  这个缺陷的产品表现是「工作台打开了、目录是空的、不报错」—— 与本仓登记过的「不崩溃、只错数据」同一族。
+  修法：按**形状**认（`typeof bag.values === 'function'` 就是 Map 形），不按构造器身份认。
+- **`tests/ui-workbench-adapter.test.mjs`（14 条，全绿）**：A 契约面（21 个导出与上游逐个对拍，上游加导出而本仓漏实现即红）/
+  B 映射面（三级映射、`order`==楼层、stats 当场数得出来且与列表对得上、短 id 稳定）/ C 楼层锁（
+  `maxOrder` 真拦；**拦与「没有这条」不同形**：一个抛 `spoiler gate`、一个抛 `scene not found`）/ D 检索面（
+  grep 是 AND 语义、`traversal.selected_nodes` 与 `scenes` 同序同员、`prompts.system` 必须写明「不调用 LLM」）/ 
+  E 只读面（导入/升级/删除/导出/写配置**必须抛**，不许静默成功）/ F 接线面（importmap 指向的文件真在场、漂移闸仍绿）。
+  **三条反向验证实测**：去掉 `maxOrder` 过滤 → C1/C2 红；`fetchGrep` 改名 → A1/D1 红；importmap 改指不存在的文件 → F1/F2 红；复原即绿。
+- **为什么测试用 `vm` 加载适配器**：这份文件必须是 **ESM**（它要当 `importmap` 里 `./js/api.js` 的替身），
+  而本仓 `package.json` 没有 `"type":"module"` ⇒ 仓内 `.js` 一律按 CJS 解析，`import` 它只会拿到空 default。
+  给产品文件加 CJS 双导出能骗过测试，但那是**测试倒过来改产品形态**（而且浏览器里仍是 ESM，两个形态必然漂移）。
+  所以测试把源码读进 vm、只摘掉 `export ` 前缀 —— 跑的就是盘上那一份。
+- **`runTreeSearch` 老实交代自己是什么**：本工作台没有 LLM 循环，检索是「关键词 AND + 覆盖加权」的直扫。
+  所以返回体里 `turns: 1`、`steps[0].calls[0].name: 'local_scan'`、`prompts.system` 写「本工作台不调用 LLM」、
+  `trace[]` 第三条写「这不是模型翻书的轨迹，是关键词打分的轨迹」、`guide` 也自报本地。
+  轨迹台因此不画「寻路瀑布流」的假象 —— 它画的是真实发生的那一发扫描。
+- **轨迹台的诚实边界**：`fetchRuns` 读的是工作台**自己**记在 `localStorage` 的检索记录（最多 30 条），
+  不是引擎在生成回合里的召回回执 —— 那一路（`onBeforeGeneration`）没有对外暴露「本次注入了哪几条」的读口，
+  把本地记录画成引擎回执就是造假。界面与 API 的 `note` 两处都写死了这句。
+- **不做的事（写清楚，免得下一轮当缺口重提）**：不端上游 `browser_engine.js` / `tree_agent.js` / `grep_engine.js` /
+  `builders/*.py` —— 那是「LLM 逐轮翻书」的另一套检索范式，端进来就是两套记忆同时在线；
+  **适配器本身**不进 `manifest.extra_js` —— 它是 iframe 内的 ESM 模块（由 importmap 加载），与 `extra_js` 的 IIFE 加载链不是一条链（挂载壳进，适配器不进，两者分工写在 `ui-mem-workbench.js` 头注释里）；
+  不做真机验证 —— 本版只跑了 `node --check` 与本套判据，**没有**在真酒馆里点开过工作台，不假装测过。
+- **读数如实**：呈现层 **15.6% → 16.7%**（29,120 / 174,343 行；UI-JS 20,688 行 39 文件 + CSS 8,432 行 14 文件），
+  距 20% 仍差 **7,186 行**。**目标未达成，不宣称。**
+- **进了装载面，也进了玩家主页（这一步不做，前两步等于零）**：`manifest.extra_js` 加 `ui-mem-workbench.js`（454 → **455**），
+  并在 `settings-ui.js` 的主页动作条加第四颗按钮「记忆工作台」→ `window.LonShaMemWorkbench.open()`。
+  为什么非要接这一根：本仓的消费台账按「有没有真实业务消费点」判 active —— 只登记进 extra_js 而不接线，
+  台账会把它记成 `load_surface_only`（装载面孤儿）；而模块不挂任何消费者就等于「用户点不到」，那是本仓治过多次的「功能级失效」。
+  实测这条链上一共踩了两个形状问题，都记在这里：
+  ① 挂载写成了 IIFE 参数 `root.X` ⇒ 台账的 `HOST_MOUNT_RE` 只认 `window` / `global` / `globalThis` 三种宿主名，
+     surface 抽成文件名、模块被判「零消费孤儿」；改成直挂宿主名后 `zero_consumption_count: 1 → 0`、`orphan: 1 → 0`。
+  ② 注释里为了解释这件事写了 `window.X = ` 这个字面量 ⇒ `loading_surface_proof` 的 S4 把 `X` 当成「声明了却没挂上的全局名」，
+     五段证据链当场 S4 红。改法是把注释里的示例改成不含等号的措辞（**注释也会被判据读**，这不是判据太严，是它的扫描面本来就含注释）。
+- **本版没有引入新的红，顺带把 19 条 HEAD 上就已红的判据修到绿**（方法：`git archive HEAD` 干净快照逐份复跑对照，不靠印象）：
+  `v3116_dead_code`（游离根 .js）/ `v3194`（同）/ `v21_o3_loading_surface_proof`（S4 段）/ `v3205`（T3 预算越界 + T6 参考基准缺登记）/
+  `v34271_plan_baseline`（PLAN 版本行与门禁行漂移）/ `v3445`（state-report 版本）/ `v3297`（同）/ `v3459_gates_green`（基准表缺两条测试文件）。
+  为修它们重生了：`module_consumption_ledger.json`（456/456 活跃、零消费 0）、`extra_js_seam_ledger.tsv`（455，孤儿 0）、
+  `loading_surface_proof.json`（五段全 ✓，S4 mounted=538）、`dead_code_budget.json`（ceiling 163366 → 165260，带理由）、
+  `state-report.json`、PLAN 三行基线、`catalog_reference_consumers.tsv`（补登本档 + 补登上版漏登的 `v3482_settings_panel_wiring`）。
+- **仍然红着的 16 条：HEAD 上就已红，本版不掩盖也不假装修完**（逐条在干净快照上复跑确认过，错因逐字相同，
+  与本版改动无关）：`l23_o6` / `l23_o9` / `v3159` / `v3160` / `v3163` / `v3173` / `v3203` / `v3226` / `v3227` /
+  `v3241` / `v3281` / `v3319` / `v3427` / `v3431` / `v3461` / `v374`。
+  全量读数：**616/632 文件通过 · 6418 断言通过 / 35 失败**（`--audit`）。
+  其中 `state_report` 的 `unknown: 1` 与 `doc_readings` 停在 v3.475.0 是同一件事：
+  要它合法就只能先跑出一轮**全绿**再把读数重绑上去 —— 而全绿的前提正是上面这 16 条。这是先有鸡还是先有蛋，
+  本版的选择是：**不把「陈旧」写成「已验」**，把 `unknown: 1` 留在报告里（判据接受 unknown，不接受假读数）。
+- **版本**：六处版本串 3.481.0 → 3.482.0；`tests/audit/loading_surface_proof.json` 同步。
+
 ## v3.481.0
 **呈现层第三批：设置类取值件样式层 + 五件表单控件工厂 + 表格面板接上「每页条数」（13 条判据）**
 

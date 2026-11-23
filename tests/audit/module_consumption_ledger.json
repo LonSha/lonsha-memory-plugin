@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-21T10:15:07.272Z",
-  "extra_js_count": 453,
+  "generated_at": "2026-11-23T19:55:04.121Z",
+  "extra_js_count": 455,
   "host_injected_count": 252,
-  "total_modules": 454,
+  "total_modules": 456,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 454,
+  "active_count": 456,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -1834,8 +1834,8 @@
       "surface": [
         "LonShaDashboardShell"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 8,
+      "business_call_sites": 8,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -1847,8 +1847,8 @@
         },
         {
           "file": "settings-ui.js",
-          "count": 1,
-          "type": "exclusive_global"
+          "count": 6,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -1858,15 +1858,15 @@
       "surface": [
         "LonShaDashboardV2"
       ],
-      "prod_call_sites": 2,
-      "business_call_sites": 2,
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "dashboard-shell.js",
-          "count": 1,
+          "count": 2,
           "type": "exclusive_global"
         },
         {
@@ -4530,8 +4530,8 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 69,
-      "business_call_sites": 69,
+      "prod_call_sites": 73,
+      "business_call_sites": 73,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -5301,21 +5301,26 @@
       "surface": [
         "LonShaIcons"
       ],
-      "prod_call_sites": 3,
-      "business_call_sites": 3,
+      "prod_call_sites": 7,
+      "business_call_sites": 7,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "dashboard-shell.js",
-          "count": 2,
+          "count": 4,
           "type": "exclusive_global"
         },
         {
           "file": "dashboard-v2.js",
           "count": 1,
           "type": "exclusive_global"
+        },
+        {
+          "file": "settings-ui.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -10512,14 +10517,19 @@
       "surface": [
         "LonShaFormControls"
       ],
-      "prod_call_sites": 5,
-      "business_call_sites": 5,
+      "prod_call_sites": 10,
+      "business_call_sites": 10,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "ui-data-panels.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
+        },
+        {
+          "file": "ui-settings-panel.js",
           "count": 5,
           "type": "file_binding+exclusive_global"
         }
@@ -10550,8 +10560,8 @@
       "surface": [
         "LonShaUiKit"
       ],
-      "prod_call_sites": 18,
-      "business_call_sites": 18,
+      "prod_call_sites": 23,
+      "business_call_sites": 23,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
@@ -10577,6 +10587,11 @@
           "type": "file_binding+exclusive_global"
         },
         {
+          "file": "ui-settings-panel.js",
+          "count": 5,
+          "type": "file_binding+exclusive_global"
+        },
+        {
           "file": "ui-summary-tree.js",
           "count": 3,
           "type": "file_binding+exclusive_global"
@@ -10585,6 +10600,25 @@
           "file": "ui-table.js",
           "count": 3,
           "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-mem-workbench.js": {
+      "module": "ui-mem-workbench.js",
+      "surface": [
+        "LonShaMemWorkbench"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "settings-ui.js",
+          "count": 1,
+          "type": "exclusive_global"
         }
       ],
       "load_surface_callers": []
@@ -10602,6 +10636,25 @@
       "callers": [
         {
           "file": "v4-panel-ui.js",
+          "count": 1,
+          "type": "exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "ui-settings-panel.js": {
+      "module": "ui-settings-panel.js",
+      "surface": [
+        "LonShaSettingsPanel"
+      ],
+      "prod_call_sites": 1,
+      "business_call_sites": 1,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "dashboard-shell.js",
           "count": 1,
           "type": "exclusive_global"
         }

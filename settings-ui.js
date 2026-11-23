@@ -5016,6 +5016,7 @@
                     <button class="ls-btn" data-home-act="overview"><i class="ls-ico" data-i="book" aria-hidden="true"></i>记忆总览</button>
                     <button class="ls-btn" data-home-act="timeline"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>故事时间线</button>
                     <button class="ls-btn ls-btn-primary" data-home-act="settings"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>设置</button>
+                    <button class="ls-btn" data-home-act="workbench"><i class="ls-ico" data-i="book" aria-hidden="true"></i>记忆工作台</button>
                 </div>
                 <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="flag" aria-hidden="true"></i>时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="refresh" aria-hidden="true"></i>检查更新</span></div>
             `;
@@ -5041,6 +5042,19 @@
                 if (act === 'overview') plugin.showStatsPanel();
                 else if (act === 'timeline') plugin.showBrowser('timeline');
                 else if (act === 'settings') plugin.showSettingsPanel();
+                else if (act === 'workbench') {
+                    /* [v3.482.0] 工作台入口（LoreCodex 三栏工作台，只读视图）。
+                     *   这里只负责「叫起来」，数据面在 ui/mem-workbench-api.js —— 分工写在
+                     *   ui-mem-workbench.js 的头注释里。模块不在装载面就**如实报**，
+                     *   不静默无反应（「点了没反应」是本仓治过多次的形态）。 */
+                    const wb = (typeof window !== 'undefined') ? window.LonShaMemWorkbench : null;
+                    if (wb && typeof wb.open === 'function') {
+                        const r = wb.open();
+                        if (!r || r.ok !== true) toast('工作台没起来：' + String((r && r.reason) || '未知'), 'error');
+                    } else {
+                        toast('记忆工作台未加载（ui-mem-workbench.js 不在装载面）', 'error');
+                    }
+                }
             }));
             ov.querySelector('.lsm-item[data-act="update"]')?.addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.checkUpdate(); });
             ov.querySelector('.lsm-item[data-act="ckpt"]')?.addEventListener('click', () => { closeOverlay('lonsha-home-overlay'); plugin.showCheckpoints(); });

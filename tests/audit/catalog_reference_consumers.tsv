@@ -635,3 +635,5 @@ v3478_ui_panels.test.mjs		v3.478.0 · 呈现层四件：ui-kit 原语 / 摘要�
 v3479_data_panels.test.mjs		v3.479.0 · 四个数据面板（NPC关系/在场/状态变量/物品）+ absent与empty分离 + 调用点负控制
 v3480_ui_density.test.mjs		v3.480.0 · 表格与结构树两件（排序/分页/拍平/判环）+ 面板接线（表格视图/原始结构）+ el 签名静态守卫
 v3481_settings_controls.test.mjs		v3.481.0 · 设置类部件（开关/滑杆/分段/步进/输入）+ 表格每页条数接线 + 值域优先于环境
+v3482_settings_panel_wiring.test.mjs		v3.481.0 补登·存量盲区：该档在役但从未登记进本台账（v3205 T6 跨仓守卫 P3 长红蛰伏）。只补「存在」这一事实，不改其档案内容。
+ui-workbench-adapter.test.mjs		v3.482.0 呈现层 stage-2 · LoreCodex 工作台数据面适配器：21 个导出与上游逐个对拍 / 三级映射 / 楼层锁与「没有这条」不同形 / grep AND 语义 / traversal 与 scenes 对齐 / 只读面必须抛 / importmap 接线在场 + 漂移闸绿（14 条，三条反向验证实测）

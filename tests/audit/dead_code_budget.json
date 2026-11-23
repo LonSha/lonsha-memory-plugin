@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 163366,
+  "ceiling": 165260,
   "maxSlack": 400,
-  "note": "v3.481.0 设置类呈现件：新增 ui-form-controls.js（981 行，开关/滑杆/分段/步进/输入的纯函数与渲染），ui-data-panels.js +52 行接每页条数分段。真实消费（ui-data-panels.js 引用，消费台账 0 零消费）。",
+  "note": "v3.482.0 呈现层 stage-2：新增 ui/mem-workbench-api.js（660 行 / LoreCodex 工作台数据面适配器）+ ui-mem-workbench.js 登记进装载面（1 行改动）+ settings-ui.js 主页加「记忆工作台」入口（+15 行 / 真实消费点，消费台账 0 零消费、装载面孤儿 0）。",
   "history": [
     {
       "ceiling": 21000,
@@ -509,7 +509,11 @@
     {
       "ceiling": 163366,
       "reason": "v3.481.0 设置类呈现件：新增 ui-form-controls.js（981 行，开关/滑杆/分段/步进/输入的纯函数与渲染），ui-data-panels.js +52 行接每页条数分段。真实消费（ui-data-panels.js 引用，消费台账 0 零消费）。"
+    },
+    {
+      "ceiling": 165260,
+      "reason": "v3.482.0 呈现层 stage-2：新增 ui/mem-workbench-api.js（660 行 / LoreCodex 工作台数据面适配器）+ ui-mem-workbench.js 登记进装载面（1 行改动）+ settings-ui.js 主页加「记忆工作台」入口（+15 行 / 真实消费点，消费台账 0 零消费、装载面孤儿 0）。"
     }
   ],
-  "_history_last": "ceiling 162313 → 163366（实测 162966 + slack 400）：v3.481.0 设置类呈现件：新增 ui-form-controls.js（981 行，开关/滑杆/分段/步进/输入的纯函数与渲染），ui-data-panels.js +52 行接每页条数分段。真实消费（ui-data-panels.js 引用，消费台账 0 零消费）。"
+  "_history_last": "ceiling 163366 → 165260（实测 164860 + slack 400）：v3.482.0 呈现层 stage-2：新增 ui/mem-workbench-api.js（660 行 / LoreCodex 工作台数据面适配器）+ ui-mem-workbench.js 登记进装载面（1 行改动）+ settings-ui.js 主页加「记忆工作台」入口（+15 行 / 真实消费点，消费台账 0 零消费、装载面孤儿 0）。"
 }

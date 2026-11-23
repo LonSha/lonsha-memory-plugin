@@ -16,9 +16,10 @@
   ],
   "files": {
     "index.html": {
-      "bytes": 13085,
-      "md5": "8fbd6d4d63542ddd0cb8d3875903181c",
-      "lines": 248
+      "bytes": 13676,
+      "md5": "7c609bf54b1e5d44aa52081f6dcd9bd3",
+      "lines": 256,
+      "note": "本行 md5 是 fork 后的值（不是上游原值）。上游原值见 forks[\"index.html\"].upstreamMd5。"
     },
     "styles.css": {
       "bytes": 42181,
@@ -65,5 +66,44 @@
       "md5": "7bc32b1d8c9000b0e0297dc59a5f491f",
       "lines": 21
     }
+  },
+  "forks": {
+    "index.html": {
+      "md5": "7c609bf54b1e5d44aa52081f6dcd9bd3",
+      "upstreamMd5": "8fbd6d4d63542ddd0cb8d3875903181c",
+      "why": "stage-2 数据面接线：注入 8 行 importmap，把 ./js/api.js 说明符重定向到 ui/mem-workbench-api.js（本仓的 21 个同名同形只读适配器）。不改上游任何 JS 字节。",
+      "surfaces": [
+        "head 里 <link stylesheet> 之后插入 importmap + 一段解释注释"
+      ],
+      "upgrade": "上游升级时重取 index.html 后，把这段注入重新贴回到同一位置（就是 stylesheet link 之后），再跑 tools/verify_lorecodex_vendor.mjs --write-md5 更新本表。"
+    }
+  },
+  "stage2": {
+    "adapter": "ui/mem-workbench-api.js",
+    "exports": 21,
+    "mapping": {
+      "corpus": "当前会话的记忆库（chatId）",
+      "series/category": "记忆条目类型（人物/事件/关系/地点/物品/其它）",
+      "arc": "楼层段（每 100 楼一篇）",
+      "scene": "一条记忆图谱节点",
+      "scene.order": "消息楼层号（data.floor），maxOrder 因此天然就是防剧透楼层锁",
+      "trace": "本地关键词打分轨迹（明确标注：不是 LLM 逐轮翻书）"
+    },
+    "readOnly": [
+      "saveCorpusConfig",
+      "saveConfig",
+      "previewLocalImportFile",
+      "importCorpus",
+      "upgradeCorpus",
+      "exportCorpusLorepack",
+      "deleteCorpus"
+    ],
+    "notReused": [
+      "browser_engine.js",
+      "tree_agent.js",
+      "grep_engine.js",
+      "prompt_builder.js",
+      "builders/*.py"
+    ]
   }
 }
