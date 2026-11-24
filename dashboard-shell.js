@@ -1252,6 +1252,43 @@
     let root = null;
     let view = 'overview';
 
+    /* ---------- 控件上色：唯一稳赢的一招是行内 !important ----------
+       真机事实：宿主给 `input[type="text"]`、`input[type="number"]`、`select`
+       钉了 !important 的底色。证据是同一个面板里 type="password" 的框是白的、
+       type="text" 的是黑的 —— 只有类型选择器能解释这种差异。
+       为什么 CSS 层再也赢不了：
+         · 抬特异性没用 —— @important 高于任何普通声明，与特异性无关；
+         · @layer 也没用 —— 宿主的规则不在 layer 里，而无 layer 的 !important
+           优先级**高于**任何 layer 内的 !important；
+         · 唯一的最高位是「行内 + !important」，它在层叠顺序里排最后。
+       代价与取舍：这属于内联样式，门禁 inline 计数 686 -> 689（如实登记）。
+       只作用于本面板的控件，随每次 render 重建，不留残留；颜色取自计算值
+       （实打实的 rgb()），不把 color-mix 的中间态写进去。 */
+    function skinControls() {
+        if (!root) return;
+        const sheet = root.querySelector('.lmp-sheet') || root;
+        let bg = '';
+        let fg = '';
+        try {
+            bg = getComputedStyle(sheet).backgroundColor || '';
+            fg = getComputedStyle(root).color || '';
+        } catch (_e) { return; }
+        if (!bg || !fg) return;
+        const list = root.querySelectorAll('input.lmp-input, textarea.lmp-ta');
+        for (let i = 0; i < list.length; i++) {
+            const el = list[i];
+            try {
+                el.style.setProperty('background-color', bg, 'important');
+                /* 万一宿主用的是 background 简写或渐变：background-image 画在
+                   background-color 之上，不清掉就仍会盖成深色。 */
+                el.style.setProperty('background-image', 'none', 'important');
+                el.style.setProperty('color', fg, 'important');
+                /* 故意不写 -webkit-text-fill-color：它会把 ::placeholder 一起染色，
+                   占位提示就和正文一个色，等于没有提示。 */
+            } catch (_e) { /* 假 DOM 或只读环境，忽略 */ }
+        }
+    }
+
     function render() {
         if (!root) return;
         const st = readState();
@@ -1262,6 +1299,7 @@
             b.setAttribute('aria-selected', on ? 'true' : 'false');
             b.classList.toggle('on', on);
         });
+        skinControls();
     }
 
     function toast(msg) {
