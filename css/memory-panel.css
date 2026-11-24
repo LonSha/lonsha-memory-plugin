@@ -445,6 +445,56 @@ html[data-lonsha-theme="dark"] .lmp {
    下面这批参照 world-axis `.wa-input / .wa-ta / .wa-set-row`：
    纸底、墨字、1px 线、44px 触摸高、零阴影零发光（纸不需要内陷感）。
    一律取 token，不写字面量颜色。 */
+/* 选项组（记忆档位）：不用原生 select —— 宿主对 select 钉了 !important，
+   纸底上会变成黑框、展开的候选列表也是黑的。这里是纯按钮，天然不受影响，
+   而且每一项能把「有多贵」写在第二行，比下拉选项清楚。 */
+.lmp-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+.lmp-choice {
+    display: block;
+    width: 100%;
+    min-height: 56px;
+    padding: 11px 14px;
+    border: 1px solid var(--p-line-2);
+    border-radius: 10px;
+    background: var(--p-paper);
+    color: var(--p-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.lmp-choice b {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.lmp-choice em {
+    display: block;
+    margin-top: 2px;
+    color: var(--p-ink-3);
+    font-size: 13px;
+    font-style: normal;
+    line-height: 1.5;
+}
+.lmp-choice.on {
+    border-color: var(--p-accent);
+    background: var(--p-wash);
+    box-shadow: inset 0 0 0 1px var(--p-accent);
+}
+.lmp-choice.on b {
+    color: var(--p-accent);
+}
+.lmp-choice:active {
+    background: var(--p-wash-2);
+}
+
 /* 输入框为什么要写成 `.lmp .lmp-input`（0,2,0）而不是 `.lmp-input`（0,1,0）：
    宿主的样式表里有 `input[type="text"]` 这一类选择器，特异性 (0,1,1) 高于单类名，
    于是抢走了背景色 —— 真机上表现为「纸底面板里嵌着一排纯黑输入框」，字还看不清。

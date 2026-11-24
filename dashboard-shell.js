@@ -1068,8 +1068,23 @@
         `<input class="lmp-input" type="text" data-cfg-text="${key}" placeholder="${esc(ph)}" value="${esc(val == null ? '' : val)}" autocomplete="off" spellcheck="false">`;
     const pwdIn = (key, ph, val) =>
         `<input class="lmp-input" type="password" data-cfg-text="${key}" placeholder="${esc(ph)}" value="${esc(val == null ? '' : val)}" autocomplete="off">`;
+    /* 数值框**不用** type="number"。真机实测：宿主的 `input[type="number"]` 规则带
+       !important，把底色抢成纯黑（截图里「微调」整页那一片黑块就是它），而
+       同样的 (0,2,0) 规则对 type="text" 是有效的 —— 说明问题不是特异性不够，
+       是类型选择器上被钉了 !important。继续抬特异性只会走到「我们也加 !important」，
+       那是设计债门禁明令只降不升的东西。
+       改法：text + inputmode="decimal"，手机键盘照样弹数字，取值照旧 parseFloat；
+       step / min / max 挪到 data-*，因为 text 类型读不到 .step 属性。 */
     const numIn = (key, val, min, max, step) =>
-        `<input class="lmp-input" type="number" data-cfg-num="${key}" value="${esc(val == null ? '' : val)}" min="${min}" max="${max}" step="${step || 1}" inputmode="numeric">`;
+        `<input class="lmp-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-cfg-num="${key}" data-min="${min}" data-max="${max}" data-step="${step || 1}" value="${esc(val == null ? '' : val)}">`;
+    /* 选项组也不用原生 <select>，理由同上（宿主对 select 同样钉了 !important）。
+       改成按钮组：数据照旧写在 data-choice-key / data-choice-val，点击就地换态。 */
+    function choiceIn(key, opts, cur) {
+        const on = (v) => (String(cur) === v ? ' on' : '');
+        return `<div class="lmp-choices" role="radiogroup">
+            ${opts.map(([v, l, h]) => `<button type="button" class="lmp-choice${on(v)}" role="radio" aria-checked="${String(cur) === v}" data-choice-key="${key}" data-choice-val="${esc(v)}"><b>${esc(l)}</b>${h ? `<em>${esc(h)}</em>` : ''}</button>`).join('')}
+        </div>`;
+    }
     function selIn(key, opts, cur) {
         return `<select class="lmp-input" data-cfg-text="${key}">${opts.map(([v, l]) =>
             `<option value="${esc(v)}"${String(cur === v) === 'true' || (cur == null && v === '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
@@ -1116,12 +1131,16 @@
         const prof = c.extractionProfile || 'balanced';
         const profLabel = (PROFILE_OPTS.find((p) => p[0] === prof) || PROFILE_OPTS[1])[1];
         return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-card">
+                <span class="lmp-card-t">记忆档位</span>
+                <span class="lmp-card-s">只影响平淡楼的攒批频率。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽。</span>
+                ${choiceIn('extractionProfile', PROFILE_OPTS, prof)}
+            </div>
             <div class="lmp-group">
-                ${frow('记忆档位', '只影响平淡楼的攒批频率', selIn('extractionProfile', PROFILE_OPTS.map((p) => [p[0], p[1] + '·' + p[2]]), prof))}
                 ${frow('单条摘要长度', '超长会截断', numIn('maxSummaryLength', c.maxSummaryLength, 50, 2000, 10))}
                 ${frow('召回条数', '每次回忆带几条进上下文', numIn('vectorTopK', c.vectorTopK, 1, 30, 1))}
             </div>
-            <p class="lmp-note">当前档位：${esc(profLabel)}。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽，不会被攒批推到后面。</p>`;
+            <p class="lmp-note">当前档位：${esc(profLabel)}。</p>`;
     }
 
     /* ---------- 微调：旧面板 60 个数值键 + 14 个文本键，全部表驱动 ---------- */
@@ -1298,6 +1317,28 @@
             if (thm) { setTheme(thm.dataset.dashTheme); render(); return; }
             /* .lmp-seg 的点击分支已移除（v6.4）：档位改用 select，页内已无分段控件。
                CSS 里的 .lmp-seg 规则保留 —— 它是通用件，别处可能需要。 */
+            /* 选项组（记忆档位这类）：就地换选中态，不重画 —— 重画会把滚动位置
+               弄丢，用户刚点的那一项会跳出视野。 */
+            const ch = e.target.closest('[data-choice-key]');
+            if (ch) {
+                const key = ch.dataset.choiceKey;
+                const val = ch.dataset.choiceVal;
+                const c = cfg();
+                if (c[key] === val) return;
+                c[key] = val;
+                saveCfg();
+                const grp = ch.parentElement;
+                if (grp) {
+                    grp.querySelectorAll('[data-choice-key]').forEach((b) => {
+                        const isOn = b === ch;
+                        b.classList.toggle('on', isOn);
+                        b.setAttribute('aria-checked', isOn ? 'true' : 'false');
+                    });
+                }
+                const name = ch.querySelector('b');
+                toast('已改：' + (name ? name.textContent : val));
+                return;
+            }
             const act = e.target.closest('[data-act]');
             if (act) { doAct(act.dataset.act); }
         });
@@ -1362,8 +1403,15 @@
                    后续所有数值判据静默失效（NaN 与任何数比较都是 false）。
                    保留原值并跳过，不静默归零。 */
                 if (!Number.isFinite(raw)) return;
-                const step = parseFloat(t.step) || 1;
-                next = Number.isInteger(step) ? Math.round(raw) : raw;
+                /* 数值框改成 type="text" 之后 .step 读不到了，步长与区间都从 data-* 取。
+                   顺带做区间夹取：超范围的键引擎会当成没写，用户以为改了其实没生效。 */
+                const step = parseFloat(t.dataset.step) || 1;
+                let next = Number.isInteger(step) ? Math.round(raw) : raw;
+                const mn = parseFloat(t.dataset.min);
+                const mx = parseFloat(t.dataset.max);
+                if (Number.isFinite(mn) && next < mn) next = mn;
+                if (Number.isFinite(mx) && next > mx) next = mx;
+                if (String(next) !== t.value) t.value = String(next);
                 if (c[t.dataset.cfgNum] === next) return;
                 c[t.dataset.cfgNum] = next;
             } else {

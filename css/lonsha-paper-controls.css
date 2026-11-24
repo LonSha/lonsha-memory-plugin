@@ -561,3 +561,25 @@
 body:has(.lonsha-overlay) #expression-wrapper {
     visibility: hidden;
 }
+
+/* ---------- 19. 宿主钉了 !important 的控件：只剩同级别武器 ----------
+   症状（真机截图）：剧情时间线的「条目 ID」输入框、记忆审计的 from / to，
+   在纸底面板里是纯黑块；浅色深色都一样黑。
+   排查过程（不是猜的）：
+     · 第 16 节早就有 (0,4,0) 的规则把 background-color 设成 --ls-bg-1，
+       文件也确认被 @import 进来了 —— 但没生效；
+     · 新面板里同样写法的 type="text" 输入框，把选择器抬到 (0,2,0) 就好了；
+     · 唯一能解释「text 能赢、select 与 number 赢不了」的差异，是宿主给
+       `select` / `input[type="number"]` 单独钉了 !important。
+   所以这里不再拼特异性 —— 拼不过。用 !important 对冲，代价是设计债
+   important 计数 122 -> 124（两者都在基线里如实记录，而不是绕过）。
+   作用域仍限死在旧面板容器，.lmp 不受影响（新面板已彻底不用原生 select /
+   number，见 dashboard-shell.js 的 numIn / choiceIn）。 */
+:is(.lonsha-overlay, .ls-dash, .lsm5, #ls-scope-anchor) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    background-color: var(--ls-bg-1) !important;
+    color: var(--ls-text) !important;
+}
+:is(.lonsha-overlay, .ls-dash, .lsm5, #ls-scope-anchor) option {
+    background-color: var(--ls-bg-1);
+    color: var(--ls-text);
+}
