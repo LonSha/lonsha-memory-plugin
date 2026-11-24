@@ -17,6 +17,7 @@
 @import url("./dev-console-v3.css");   /* v3.1：A 段诊断页 / toast 基础样式（不随开关）；B 段开发者控制台（[data-ls-dc="3"]，开关 lonsha.ui.v3） */
 @import url("lonsha-ui-kit-ext.css");
 @import url("lonsha-settings.css");
+@import url("memory-panel.css?v=6");
 @import url("lonsha-panel-v5.css");   /* v5：紧凑表格语言层，只在 [data-ui-rev="5"] / .lsm5 下生效，默认关 */
 
 :root { --ls-chevron-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 4.75 16.25 12 9 19.25' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }   /* 折叠箭头（SVG 遮罩，颜色跟随 --ls-accent） */

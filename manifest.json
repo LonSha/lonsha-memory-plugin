@@ -466,7 +466,8 @@
     "ui-table.js",
     "ui-form-controls.js",
     "ui-settings-panel.js",
-    "ui-mem-workbench.js"
+    "ui-mem-workbench.js",
+    "memory-panel.js"
   ],
   "extra_css": [
     "css/lonsha-design.css",

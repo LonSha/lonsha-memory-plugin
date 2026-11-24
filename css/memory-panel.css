@@ -1,0 +1,492 @@
+/* ============================================================
+   LonSha 记忆引擎 · 新面板（v6）样式
+   作用域只有一个根：.lmp。所有类名带 lmp- 前缀，不与旧五层（dashboard*.css /
+   lonsha-ui-kit* / settings-ui 注入样式）发生任何交集 —— 这就是「改了看不出
+   变化」的终局解法：不再和它们抢同一个节点。
+   刻度取自 world-axis 真机：题首 20、小节 19、正文 17、说明 13.5、行盒 56。
+   ============================================================ */
+html.lmp-lock {
+    overflow: hidden;
+}
+
+.lmp,
+.lmp * {
+    box-sizing: border-box;
+}
+
+.lmp {
+    /* 纸与墨：由系统色现场混，不看宿主主题脸色 */
+    --p-paper: color-mix(in srgb, var(--lt-sys-white) 96%, var(--lt-sys-orange) 4%);
+    --p-ink: color-mix(in srgb, var(--lt-sys-black) 84%, var(--lt-sys-brown));
+    --p-ink-2: color-mix(in srgb, var(--p-ink) 76%, var(--p-paper));
+    --p-ink-3: color-mix(in srgb, var(--p-ink) 54%, var(--p-paper));
+    --p-line: color-mix(in srgb, var(--p-ink) 12%, var(--p-paper));
+    --p-line-2: color-mix(in srgb, var(--p-ink) 20%, var(--p-paper));
+    --p-wash: color-mix(in srgb, var(--p-ink) 5%, var(--p-paper));
+    --p-wash-2: color-mix(in srgb, var(--p-ink) 9%, var(--p-paper));
+    --p-accent: color-mix(in srgb, var(--lt-sys-teal) 42%, var(--p-ink));
+    --p-ok: color-mix(in srgb, var(--lt-sys-green) 52%, var(--p-ink));
+    --p-warn: color-mix(in srgb, var(--lt-sys-orange) 62%, var(--p-ink));
+    --p-pad: clamp(18px, 5.2vw, 24px);
+    --p-r: 14px;
+
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: color-mix(in srgb, var(--p-ink) 26%, transparent);
+    font: 16px / 1.6 var(--lt-font, system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif);
+    color: var(--p-ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+.lmp-sheet {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 560px;
+    max-height: 92%;
+    overflow: hidden;
+    border: 1px solid var(--p-line-2);
+    border-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    background: var(--p-paper);
+}
+
+@media (min-width: 720px) {
+    .lmp {
+        align-items: center;
+    }
+    .lmp-sheet {
+        max-height: 84vh;
+        border-bottom: 1px solid var(--p-line-2);
+        border-radius: 20px;
+        box-shadow: 0 24px 56px -26px color-mix(in srgb, var(--p-ink) 30%, transparent);
+    }
+}
+
+/* ---------- 题首 ---------- */
+.lmp-head {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px var(--p-pad) 10px;
+}
+
+.lmp-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+}
+
+.lmp-x {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: var(--p-wash);
+    color: var(--p-ink-2);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.lmp-x:active {
+    background: var(--p-wash-2);
+}
+
+/* ---------- 内容区 ---------- */
+.lmp-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px var(--p-pad) 24px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 状态：一个圆点 + 两行字 */
+.lmp-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 6px 0 2px;
+}
+
+.lmp-dot {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    margin-top: 9px;
+    border-radius: 50%;
+    background: var(--p-ok);
+}
+
+.lmp-status[data-tone="warn"] .lmp-dot {
+    background: var(--p-warn);
+}
+
+.lmp-status[data-tone="off"] .lmp-dot {
+    background: var(--p-ink-3);
+}
+
+.lmp-status-txt b {
+    display: block;
+    font-size: 25px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.lmp-status-txt span {
+    display: block;
+    margin-top: 6px;
+    color: var(--p-ink-3);
+    font-size: 15px;
+}
+
+/* 三格指标：竖线分隔，数字最大 */
+.lmp-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 20px 0 4px;
+}
+
+.lmp-metric {
+    padding: 0 16px;
+    border-left: 1px solid var(--p-line);
+}
+
+.lmp-metric:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.lmp-metric b {
+    display: block;
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lmp-metric span {
+    display: block;
+    margin-top: 6px;
+    color: var(--p-ink-3);
+    font-size: 13px;
+}
+
+/* 小节：3×15 青瓷竖条 + 标题，没有框 */
+.lmp-sec {
+    margin: 26px 0 0;
+}
+
+.lmp-sec h3 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 6px;
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.lmp-sec h3::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 3px;
+    height: 15px;
+    border-radius: 2px;
+    background: var(--p-accent);
+}
+
+/* 列表行：行 + 细线，首行无 */
+.lmp-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lmp-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin: 0;
+    padding: 14px 0;
+    border: 0;
+    border-top: 1px solid var(--p-line);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+
+.lmp-list .lmp-row:first-child,
+.lmp-stack .lmp-row:first-child {
+    border-top: 0;
+}
+
+.lmp-row-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 17px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.lmp-row-main em {
+    display: block;
+    margin-top: 2px;
+    color: var(--p-ink-3);
+    font-size: 13.5px;
+    font-style: normal;
+    line-height: 1.55;
+}
+
+.lmp-row-meta {
+    flex: 0 0 auto;
+    color: var(--p-ink-3);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.lmp-row-ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    color: var(--p-accent);
+}
+
+.lmp-row-ico svg {
+    width: 22px;
+    height: 22px;
+}
+
+.lmp-chev {
+    flex: 0 0 auto;
+    color: var(--p-ink-3);
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* 可点的行做成 56px 行盒（world-axis 的「配置 API 通道」形态） */
+.lmp-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 0;
+}
+
+.lmp-row-btn {
+    padding: 15px 16px;
+    border: 1px solid var(--p-line);
+    border-radius: var(--p-r);
+    background: transparent;
+    cursor: pointer;
+}
+
+.lmp-row-btn:active {
+    background: var(--p-wash);
+}
+
+/* 开关行：文字在左，轨道在右 */
+.lmp-switch {
+    position: relative;
+    padding: 15px 0;
+    cursor: pointer;
+}
+
+.lmp-switch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.lmp-track {
+    flex: 0 0 auto;
+    position: relative;
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--p-wash-2);
+    box-shadow: inset 0 0 0 1px var(--p-line);
+    transition: background 160ms;
+}
+
+.lmp-track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--p-paper);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--p-ink) 22%, transparent);
+    transition: transform 160ms;
+}
+
+.lmp-switch input:checked ~ .lmp-track {
+    background: var(--p-accent);
+    box-shadow: inset 0 0 0 1px var(--p-accent);
+}
+
+.lmp-switch input:checked ~ .lmp-track::after {
+    transform: translateX(18px);
+}
+
+.lmp-switch input:focus-visible ~ .lmp-track {
+    outline: 2px solid var(--p-accent);
+    outline-offset: 2px;
+}
+
+/* 档位分段：等分、同一高度、只有一圈底 */
+.lmp-group {
+    margin: 8px 0 0;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--p-line);
+}
+
+.lmp-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 6px 0;
+}
+
+.lmp-field-k {
+    flex: 0 0 auto;
+    font-size: 17px;
+}
+
+.lmp-seg {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 2px;
+    max-width: 260px;
+    padding: 4px;
+    border-radius: 12px;
+    background: var(--p-wash);
+}
+
+.lmp-seg button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--p-ink-2);
+    font: 500 15px / 1 inherit;
+    cursor: pointer;
+}
+
+.lmp-seg button[aria-checked="true"] {
+    background: var(--p-paper);
+    color: var(--p-ink);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--p-line);
+}
+
+/* 提示 */
+.lmp-note {
+    margin: 22px 0 0;
+    padding-left: 12px;
+    border-left: 3px dashed var(--p-line-2);
+    color: var(--p-ink-3);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+/* ---------- 底部页签 ---------- */
+.lmp-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0;
+    padding: 4px var(--p-pad) 6px;
+    border-top: 1px solid var(--p-line);
+    background: var(--p-paper);
+}
+
+.lmp-tabs button {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-height: 56px;
+    padding: 10px 0 6px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--p-ink-3);
+    font: 500 13px / 1.2 inherit;
+    cursor: pointer;
+    position: relative;
+}
+
+.lmp-tabs button svg {
+    width: 22px;
+    height: 22px;
+}
+
+.lmp-tabs button.on {
+    color: var(--p-ink);
+    font-weight: 600;
+}
+
+.lmp-tabs button.on::before {
+    content: "";
+    position: absolute;
+    top: -4px;
+    left: 22%;
+    right: 22%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--p-accent);
+}
+
+/* ---------- 即时反馈 ---------- */
+.lmp-toast {
+    position: absolute;
+    left: 50%;
+    bottom: 86px;
+    transform: translate(-50%, 8px);
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: var(--p-ink);
+    color: var(--p-paper);
+    font-size: 14px;
+    line-height: 1.3;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms, transform 160ms;
+}
+
+.lmp-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lmp-toast,
+    .lmp-track,
+    .lmp-track::after {
+        transition: none;
+    }
+}
