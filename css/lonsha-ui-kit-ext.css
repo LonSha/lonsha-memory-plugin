@@ -163,10 +163,6 @@
     margin-bottom: var(--ls-sp-2);
 }
 
-.ls-table-bar .ls-grow {
-    flex: 1 1 160px;
-    min-width: 120px;
-}
 
 .ls-table-count {
     font-size: var(--ls-fs-caption2);

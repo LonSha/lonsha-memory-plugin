@@ -346,7 +346,6 @@
     border-radius: 9px;
     background: var(--ls-bg-2, #111827);
 }
-.lsu-bulkbar.is-on { display: flex; }
 
 /* ----------------------------------------------------------------
  * 7. 段头与分隔（section header / divider）
@@ -812,22 +811,9 @@
  * ---------------------------------------------------------------- */
 .lsu-orb:hover,
 .lsu-orb:focus-visible,
-.lsu-orb.is-dragging {
-    opacity: 1;
-    outline: none;
-}
-.lsu-orb.is-dragging { cursor: grabbing; transform: scale(1.04); }
 /* 吸附到运行时贴边：只露 10px 的窄条，滑出后回到 34px */
-.lsu-orb.is-docked-l { transform: translateX(-24px); }
-.lsu-orb.is-docked-r { transform: translateX(24px); }
 .lsu-orb.is-docked-l:hover,
-.lsu-orb.is-docked-r:hover { transform: translateX(0); }
 /* 有事待看的红点：挂在右上角外侧 */
-.lsu-orb .lsu-dot {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-}
 
 /* ----------------------------------------------------------------
  * 17. 窄屏与浅色

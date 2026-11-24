@@ -69,7 +69,6 @@
     .ls-dash[data-ui-rev="3"] .ls-dash-tab[aria-selected="true"] { color: var(--ls3-text); background: var(--ls3-surface); box-shadow: var(--ls3-ctl-shadow), 0 0 0 0.5px var(--ls3-line-strong); }
     .ls-dash[data-ui-rev="3"] .ls-dash-tab-ico { display: inline-flex; font-size: 15px; }
     .ls-dash[data-ui-rev="3"] .ls-dash-tab .lt-icon-on, .ls-dash[data-ui-rev="3"] .ls-dash-tab[aria-selected="true"] .lt-icon:not(.lt-icon-on) { display: none; }
-    .ls-dash[data-ui-rev="3"] .ls-dash-tab[aria-selected="true"] .lt-icon-on { display: inline-block; color: var(--a); }
     .ls-dash[data-ui-rev="3"] .ls-dash-pane { padding: 8px 16px 32px; }
 
     /* ---------- 2. 卡片 / 标题层级 ---------- */
