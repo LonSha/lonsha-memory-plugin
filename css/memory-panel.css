@@ -396,18 +396,7 @@ html[data-lonsha-theme="dark"] .lmp {
     border-top: 1px solid var(--p-line);
 }
 
-.lmp-field {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 6px 0;
-}
 
-.lmp-field-k {
-    flex: 0 0 auto;
-    font-size: 17px;
-}
 
 .lmp-seg {
     display: flex;

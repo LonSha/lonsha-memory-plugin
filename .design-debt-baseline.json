@@ -1,11 +1,11 @@
 {
-  "updatedAt": "2026-11-24T16:57:34.627Z",
+  "updatedAt": "2026-11-24T18:30:14.203Z",
   "total": {
-    "colors": 549,
+    "colors": 501,
     "important": 124,
     "inline": 689,
     "tinyFont": 36,
-    "blur": 31,
+    "blur": 30,
     "files": 36
   }
 }

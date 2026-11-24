@@ -346,19 +346,7 @@
     border-radius: 9px;
     background: var(--ls-bg-2, #111827);
 }
-.lsu-bulkbar {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 10px;
-    border-radius: 9px;
-    border: 1px solid var(--ls-accent-line, rgba(56, 189, 248, 0.28));
-    background: var(--ls-accent-soft, rgba(56, 189, 248, 0.10));
-    font-size: 11.5px;
-}
 .lsu-bulkbar.is-on { display: flex; }
-.lsu-bulkbar .lsu-bulk-count { font-weight: 600; color: var(--ls-accent, #38bdf8); }
-.lsu-bulkbar .lsu-spacer { flex: 1 1 auto; }
 
 /* ----------------------------------------------------------------
  * 7. 段头与分隔（section header / divider）
@@ -822,28 +810,6 @@
  *      圆形 fab 是「新建」的通用符号，会被误读。书签是「夹在某一页」。
  *    【为什么贴边半隐】正文是玩家主视野，常驻按钮会永久占一块。
  * ---------------------------------------------------------------- */
-.lsu-orb {
-    position: fixed;
-    z-index: calc(var(--lsu-z, 2147482000) + 5);
-    width: 34px;
-    height: 44px; /* 34/44 ≈ 0.77，取 0.78 视觉比例 */
-    padding: 0;
-    border: 1px solid var(--ls-accent-line, rgba(56, 189, 248, 0.28));
-    /* 燕尾缺口：底部中间剪掉一个 V，形成书签的下沿 */
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
-    background: linear-gradient(160deg,
-        var(--ls-bg-3, #1b2436),
-        var(--ls-bg-2, #111827));
-    color: var(--ls-accent, #38bdf8);
-    font-size: 15px;
-    line-height: 1;
-    cursor: grab;
-    touch-action: none;
-    /* 贴边半隐：靠边时透明度降到 0.55，hover/聚焦才回来 */
-    opacity: 0.55;
-    transition: opacity 0.16s ease, transform 0.16s ease;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-}
 .lsu-orb:hover,
 .lsu-orb:focus-visible,
 .lsu-orb.is-dragging {
@@ -884,7 +850,6 @@
     .lsu-sheet { box-shadow: -12px 0 32px rgba(15, 23, 42, 0.14); }
     .lsu-panel,
     .lsu-modal { background: rgba(15, 23, 42, 0.35); }
-    .lsu-orb { box-shadow: 0 3px 10px rgba(15, 23, 42, 0.18); }
 }
 
 /* ----------------------------------------------------------------

@@ -727,55 +727,8 @@
 @layer ls.utilities {
     :is(.lonsha-overlay, .ls-toast) [hidden] { display: none; }
 
-    .u-c-1 { color: var(--ls-text); }
-    .u-c-2 { color: var(--ls-text-2); }
-    .u-c-3 { color: var(--ls-text-3); }
-    .u-c-4 { color: var(--ls-text-4); }
-    .u-c-accent { color: var(--ls-accent); }
-    .u-c-warn { color: var(--ls-warn); }
-    .u-c-success { color: var(--ls-success); }
-    .u-c-danger { color: var(--ls-danger); }
-    .u-bl-accent { border-left: 3px solid var(--ls-accent); padding-left: var(--ls-sp-2); }
-    .u-bl-warn { border-left-color: var(--ls-warn); }
-    .u-bl-success { border-left-color: var(--ls-success); }
-    .u-bl-danger { border-left-color: var(--ls-danger); }
-    .u-bt-dashed { border-top: 1px dashed var(--ls-line-strong); }
 
-    .u-fs-caption { font-size: var(--ls-fs-caption); }
-    .u-fs-footnote { font-size: var(--ls-fs-footnote); }
-    .u-fs-subhead { font-size: var(--ls-fs-subhead); }
-    .u-fs-body { font-size: var(--ls-fs-body); }
-    .u-fs-title3 { font-size: var(--ls-fs-title3); }
-    .u-fs-title1 { font-size: var(--ls-fs-title1); }
-    .u-fw-400 { font-weight: 400; }
-    .u-fw-500 { font-weight: 500; }
-    .u-fw-600 { font-weight: 600; }
-    .u-fw-700 { font-weight: 700; }
-    .u-mono { font-family: var(--ls-mono); font-variant-numeric: tabular-nums; }
-    .u-lh-normal { line-height: var(--lt-lh-normal); }
-    .u-nowrap { white-space: nowrap; }
-    .u-break { overflow-wrap: anywhere; word-break: break-word; }
-    .u-text-center { text-align: center; }
-    .u-text-right { text-align: right; }
-    .u-text-left { text-align: left; }
-    .u-dim { opacity: 0.75; }
-    .u-pointer { cursor: pointer; }
-    .u-w-full { width: 100%; }
 
-    .u-block { display: block; }
-    .u-flex { display: flex; }
-    .u-inline-flex { display: inline-flex; }
-    .u-grid { display: grid; }
-    .u-col { flex-direction: column; }
-    .u-wrap { flex-wrap: wrap; }
-    .u-flex-1 { flex: 1 1 0%; min-width: 0; }
-    .u-shrink-0 { flex-shrink: 0; }
-    .u-items-center { align-items: center; }
-    .u-items-start { align-items: flex-start; }
-    .u-items-end { align-items: flex-end; }
-    .u-justify-between { justify-content: space-between; }
-    .u-justify-center { justify-content: center; }
-    .u-justify-end { justify-content: flex-end; }
     .u-gap-1 { gap: 4px; } .u-gap-2 { gap: 8px; } .u-gap-3 { gap: 12px; } .u-gap-4 { gap: 16px; }
 
     /* 4px 栅格间距：u-{m|p}{t|b|l|r|x|y}-{0..8} */

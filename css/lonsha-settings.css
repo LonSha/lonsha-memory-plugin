@@ -544,16 +544,6 @@
 }
 
 /* 段内小徽标（比如「推荐」「新」）：不抢主色，用极轻的边框 */
-.ls-seg-badge {
-    margin-left: 4px;
-    font-size: var(--ls-fs-caption2, 11px);
-    padding: 0 4px;
-    height: 14px;
-    line-height: 14px;
-    border-radius: var(--ls-r-xs, 4px);
-    background: var(--ls-gold-soft, rgba(212, 175, 92, 0.14));
-    color: var(--ls-gold, #d4af5c);
-}
 
 /* ============================================================
  * 6. 步进器（− 数字 +）
@@ -751,23 +741,7 @@
 /* ============================================================
  * 8. 选择器 / 多选 / 颜色
  * ============================================================ */
-.ls-select {
-    height: 38px;
-    padding: 0 var(--ls-sp-2, 8px);
-    border-radius: var(--ls-r-md, 10px);
-    border: 1px solid var(--ls-line, rgba(255, 255, 255, 0.09));
-    background: var(--ls-bg-2, #171c27);
-    color: var(--ls-text, #e6edf7);
-    font-size: 15px;
-    font-family: inherit;
-    outline: none;
-    min-width: 120px;
-    cursor: pointer;
-}
 
-.ls-select:focus {
-    border-color: var(--ls-accent, #7c8cff);
-}
 
 /* 多选：用「可点的胶囊」而不是原生 multiple ——
  * 原生 multiple 在触屏上要按住 ctrl，手机上根本没法用。 */
@@ -813,42 +787,10 @@
 }
 
 /* 颜色：色块 + hex 文本，两者都能读 */
-.ls-color {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--ls-sp-2, 8px);
-}
 
-.ls-color-swatch {
-    width: 30px;
-    height: 30px;
-    border-radius: var(--ls-r-sm, 6px);
-    border: 1px solid var(--ls-line-strong, rgba(255, 255, 255, 0.16));
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-    flex: 0 0 auto;
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-}
 
 /* 棋盘格底：透明色的色块必须能看出「这是透明」而不是「这是白色」 */
-.ls-color-swatch[data-alpha="1"] {
-    background-image:
-        linear-gradient(45deg, #2a3140 25%, transparent 25%),
-        linear-gradient(-45deg, #2a3140 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #2a3140 75%),
-        linear-gradient(-45deg, transparent 75%, #2a3140 75%);
-    background-size: 8px 8px;
-    background-position: 0 0, 0 4px, 4px -4px, -4px 0;
-}
 
-.ls-color-hex {
-    font-family: var(--ls-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-    font-size: var(--ls-fs-caption, 12px);
-    color: var(--ls-text-2, #c3cddd);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-}
 
 /* ============================================================
  * 9. 危险区
@@ -1028,116 +970,22 @@
  * 拖拽区在手机上没用（没有拖拽），所以同一块区域在窄屏下
  * 自动变成「点我选文件」的大按钮 —— 复用同一份 DOM。
  * ============================================================ */
-.ls-drop {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--ls-sp-2, 8px);
-    min-height: 96px;
-    padding: var(--ls-sp-4, 16px);
-    border: 1px dashed var(--ls-line-strong, rgba(255, 255, 255, 0.16));
-    border-radius: var(--ls-r-lg, 14px);
-    background: var(--ls-bg-2, #171c27);
-    color: var(--ls-text-3, #93a1b5);
-    text-align: center;
-    transition: all var(--ls-t-fast, 140ms) var(--ls-ease, ease);
-    cursor: pointer;
-}
 
-.ls-drop[data-over="1"] {
-    border-color: var(--ls-accent, #7c8cff);
-    border-style: solid;
-    background: var(--ls-accent-softer, rgba(124, 140, 255, 0.10));
-    color: var(--ls-text, #e6edf7);
-}
 
-.ls-drop-icon {
-    font-size: 24px;
-    line-height: 1;
-    opacity: 0.7;
-}
 
-.ls-drop-text {
-    font-size: var(--ls-fs-footnote, 13px);
-}
 
-.ls-drop-sub {
-    font-size: var(--ls-fs-caption2, 11px);
-    color: var(--ls-text-4, #6b7a90);
-}
 
 /* 文件行：名称 + 大小 + 进度 + 结果。
  * 结果不能只有颜色 —— 失败要有「失败」两个字和一个 ✕。 */
-.ls-file-row {
-    display: flex;
-    align-items: center;
-    gap: var(--ls-sp-2, 8px);
-    padding: var(--ls-sp-2, 8px) var(--ls-sp-3, 12px);
-    border-radius: var(--ls-r-md, 10px);
-    background: var(--ls-bg-2, #171c27);
-    border: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
-    font-size: var(--ls-fs-footnote, 13px);
-}
 
-.ls-file-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--ls-text, #e6edf7);
-}
 
-.ls-file-size {
-    flex: 0 0 auto;
-    font-size: var(--ls-fs-caption2, 11px);
-    color: var(--ls-text-4, #6b7a90);
-    font-variant-numeric: tabular-nums;
-}
 
-.ls-file-row[data-state="ok"] {
-    border-color: rgba(52, 211, 153, 0.28);
-}
 
-.ls-file-row[data-state="ok"]::after {
-    content: "✓ 完成";
-    color: var(--ls-success, #34d399);
-    font-size: var(--ls-fs-caption2, 11px);
-    flex: 0 0 auto;
-}
 
-.ls-file-row[data-state="fail"] {
-    border-color: rgba(248, 113, 113, 0.28);
-    background: var(--ls-danger-soft, rgba(248, 113, 113, 0.08));
-}
 
-.ls-file-row[data-state="fail"]::after {
-    content: "✕ 失败";
-    color: var(--ls-danger, #f87171);
-    font-size: var(--ls-fs-caption2, 11px);
-    font-weight: 600;
-    flex: 0 0 auto;
-}
 
 /* 进度条：宽度由 --p 控制，同滑杆口径 */
-.ls-file-progress {
-    width: 56px;
-    height: 4px;
-    border-radius: var(--ls-r-pill, 999px);
-    background: var(--ls-bg-3, #1d2330);
-    overflow: hidden;
-    flex: 0 0 auto;
-}
 
-.ls-file-progress > i {
-    display: block;
-    height: 100%;
-    width: var(--p, 0%);
-    background: var(--ls-accent, #7c8cff);
-    border-radius: inherit;
-    transition: width var(--ls-t-med, 220ms) var(--ls-ease, ease);
-}
 
 /* ============================================================
  * 13. 高级折叠
@@ -1212,51 +1060,12 @@
  * 设置页给的永远是「整理过的视图」，排查时必须能看到原始键值，
  * 否则分不清「值没存」和「界面没读」。
  * ============================================================ */
-.ls-kv-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--ls-fs-footnote, 13px);
-    font-family: var(--ls-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-}
 
-.ls-kv-table th,
-.ls-kv-table td {
-    text-align: left;
-    padding: 6px var(--ls-sp-3, 12px);
-    border-bottom: 1px solid var(--ls-line-subtle, rgba(255, 255, 255, 0.06));
-    vertical-align: top;
-    word-break: break-all;
-}
 
-.ls-kv-table th {
-    color: var(--ls-text-3, #93a1b5);
-    font-weight: 500;
-    font-size: var(--ls-fs-caption2, 11px);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: var(--ls-bg-2, #171c27);
-    position: sticky;
-    top: 0;
-}
 
-.ls-kv-table td[data-kind="key"] {
-    color: var(--ls-info, #60a5fa);
-    white-space: nowrap;
-}
 
-.ls-kv-table td[data-kind="num"] {
-    color: var(--ls-gold, #d4af5c);
-    text-align: right;
-}
 
-.ls-kv-table td[data-kind="bool"] {
-    color: var(--ls-accent, #7c8cff);
-}
 
-.ls-kv-table td[data-kind="null"] {
-    color: var(--ls-text-4, #6b7a90);
-    font-style: italic;
-}
 
 /* ============================================================
  * 15. 权限与风险提示条
