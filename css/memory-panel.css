@@ -395,13 +395,196 @@ html.lmp-lock {
     font: 500 15px / 1 inherit;
     cursor: pointer;
 }
-
 .lmp-seg button[aria-checked="true"] {
     background: var(--p-paper);
     color: var(--p-ink);
     font-weight: 600;
     box-shadow: inset 0 0 0 1px var(--p-line);
 }
+
+/* ---------- 输入控件（v6.4 新增） ----------
+   v6 面板此前**完全没有输入框样式**，所以「高级设置」只能跳去旧面板 ——
+   旧面板是唯一有 input 的地方。这也正是「点高级设置就返回概览」的深层原因：
+   新面板没有承载输入能力的零件。
+   下面这批参照 world-axis `.wa-input / .wa-ta / .wa-set-row`：
+   纸底、墨字、1px 线、44px 触摸高、零阴影零发光（纸不需要内陷感）。
+   一律取 token，不写字面量颜色。 */
+.lmp-input,
+.lmp-ta {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--p-line-2);
+    border-radius: 10px;
+    background: var(--p-paper);
+    color: var(--p-ink);
+    font: 15px / 1.5 inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: none;
+}
+.lmp-ta {
+    min-height: 92px;
+    resize: vertical;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+.lmp-input:focus,
+.lmp-ta:focus {
+    outline: none;
+    border-color: var(--p-accent);
+    box-shadow: inset 0 0 0 1px var(--p-accent);
+}
+.lmp-input::placeholder,
+.lmp-ta::placeholder {
+    color: var(--p-ink-3);
+}
+/* 下拉箭头自绘：原生箭头跟系统深色主题走，纸底上会留一块深色小三角 */
+select.lmp-input {
+    padding-right: 34px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9.5 12 15.5 18 9.5' fill='none' stroke='%238a806c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px 16px;
+}
+/* 面板内 [hidden] 兜底：.lmp-card 等自带 display，
+   UA 的 [hidden]{display:none} 特异性不够、会被类规则盖掉，
+   导致「关掉开关该消失的提示」消失不掉。这里按 0,2,0 补一条。 */
+.lmp-card[hidden],
+.lmp-note[hidden],
+.lmp-lane-hint[hidden],
+.lmp-inline[hidden],
+.lmp-frow[hidden] {
+    display: none;
+}
+
+.lmp-card {
+    display: block;
+    margin: 14px 0 0;
+    padding: 14px;
+    border: 1px solid var(--p-line);
+    border-radius: var(--p-r);
+    background: var(--p-wash);
+}
+.lmp-card > .lmp-card-t {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 17px;
+}
+.lmp-card > .lmp-card-s {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--p-ink-3);
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+.lmp-card > .lmp-input + .lmp-input,
+.lmp-card > .lmp-input + .lmp-ta,
+.lmp-card > .lmp-ta + .lmp-input {
+    margin-top: 8px;
+}
+.lmp-card > .lmp-inline {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+.lmp-card > .lmp-inline > .lmp-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.lmp-mini {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--p-line-2);
+    border-radius: 10px;
+    background: var(--p-paper);
+    color: var(--p-ink);
+    font: 600 15px / 1 inherit;
+    cursor: pointer;
+}
+.lmp-mini:active {
+    background: var(--p-wash-2);
+}
+/* 放在 .lmp-frow 里的开关：那一行已有 52px 行高，开关自己不用再撑高，
+   也不该带行的下边框（它嵌在卡片里，不是独立一条）。 */
+.lmp-switch-inrow {
+    flex: 0 0 auto;
+    min-height: 44px;
+    border-bottom: 0;
+}
+/* 分组导航：world-axis 的 lane 条 —— 同一页内切换分组，不跳页 */
+.lmp-lanes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 4px;
+    padding: 0 0 12px;
+    border-bottom: 1px solid var(--p-line);
+}
+.lmp-lane {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid var(--p-line-2);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--p-ink-2);
+    font: 500 14px / 1 inherit;
+    cursor: pointer;
+}
+.lmp-lane[aria-selected="true"] {
+    border-color: var(--p-accent);
+    background: var(--p-accent);
+    color: var(--p-paper);
+    font-weight: 600;
+}
+/* 每个分组自带一句「这一页回答什么问题」 */
+.lmp-lane-hint {
+    margin: 12px 0 0;
+    color: var(--p-ink-3);
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+/* 字段行：左标签右控件，标签不换行、控件可收缩 */
+.lmp-frow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 52px;
+    border-bottom: 1px solid var(--p-line);
+}
+.lmp-frow:last-child {
+    border-bottom: 0;
+}
+.lmp-frow > .lmp-frow-k {
+    flex: 0 0 auto;
+    max-width: 52%;
+    font-size: 16px;
+}
+.lmp-frow > .lmp-frow-k > em {
+    display: block;
+    margin-top: 2px;
+    color: var(--p-ink-3);
+    font-size: 12.5px;
+    font-style: normal;
+    line-height: 1.45;
+}
+.lmp-frow > select.lmp-input,
+.lmp-frow > input.lmp-input {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 120px;
+    max-width: 56%;
+}
+/* 只读摘要行（当前档位/状态），不是可点的行 */
+.lmp-frow > .lmp-frow-v {
+    flex: 0 0 auto;
+    color: var(--p-ink-2);
+    font-size: 15px;
+}
+
 
 /* 提示 */
 .lmp-note {

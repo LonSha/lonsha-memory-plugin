@@ -795,7 +795,9 @@
         const suspense = safe(() => (typeof s.suspense.openItems === 'function' ? (s.suspense.openItems() || []) : null), null);
         const chars = safe(() => (s.status.characters ? Object.keys(s.status.characters) : null), null);
         const timeline = safe(() => (s.timeline && Array.isArray(s.timeline.entries) ? s.timeline.entries : null), null);
-        const profileMap = { lite: '轻量', balanced: '均衡', deep: '深读' };
+        /* 值域取引擎真值：quality / balanced / low-cost。
+           曾经这里写成 lite/balanced/deep —— 与引擎不符，读出来永远是「均衡」。 */
+        const profileMap = { quality: '细致记录', balanced: '平衡', 'low-cost': '轻量省流' };
         return {
             enabled: c.enabled !== false,
             auto: c.extractionEnabled !== false,
@@ -881,27 +883,132 @@
             <span class="lmp-track" aria-hidden="true"></span>
         </label>`;
     }
-    function segRow(key, title, opts, cur) {
-        return `<div class="lmp-field"><span class="lmp-field-k">${title}</span>
-            <div class="lmp-seg" role="radiogroup" aria-label="${title}" data-seg="${key}">
-                ${opts.map(([v, l]) => `<button type="button" role="radio" data-val="${v}" aria-checked="${cur === v}">${l}</button>`).join('')}
-            </div></div>`;
+    /* segRow 已移除（v6.4）：档位改由 laneHowHTML 里的 <select> 承担。
+       留着它会成为死代码 —— 本仓对「声明了但没人调」的零件有门禁。 */
+    /* ==================================================================
+       设置页（v6.4 重构）
+       ------------------------------------------------------------------
+       治的病（用户原话）：「点高级设置就返回概览，不然没地方输入那个 api」。
+
+       根因不是按钮绑错，而是**v6 面板此前没有承载输入能力的零件**：
+       doAct('advanced') 先 close2() 关掉本面板、再打去旧面板 —— 于是用户
+       一进高级设置就被踢回概览。旧面板是当时唯一有 input 的地方。
+
+       改法照抄 world-axis 的 lane（动线）模式：
+         · 设置仍是**同一页**，用一条分组条切换分组，**不跳页、不关面板**；
+         · 分组按「玩家会问的问题」分，不按子系统分；
+         · 每页顶部一句 hint 说明「这一页回答什么」；
+         · 输入控件就画在页内，改完即存（无保存按钮），与全仓一致。
+       旧面板那条路仍然保留（作为「完整设置」的逃生口），但它不再是
+       填 API 的唯一入口 —— 也不再把用户从面板里踢出去。
+
+       顺手修掉的真实缺陷：本面板原先把档位写成 lite/balanced/deep，
+       而引擎真实值域是 quality/balanced/low-cost（memory-config.js:370、
+       gameplay-preset.js，engine-diagnostic-lines-part-a.js:1498）。
+       写 lite/deep 进去 = 引擎读不到、静默回落到默认 —— 用户以为改了。
+       ================================================================== */
+    const LANES = [
+        { id: 'conn', label: '接口', hint: '自动整理要用一个 AI 接口。不填也行，默认借用当前对话的接口（零配置）。' },
+        { id: 'how', label: '怎么记', hint: '记多细、每次记多少。改这里就够了，不用动下面的。' },
+        { id: 'more', label: '更多', hint: '向量检索、精排、完整设置。没配也能用，配了更准。' },
+    ];
+    let lane = 'conn';
+    const PROFILE_OPTS = [
+        ['quality', '细致记录', '每楼都抽，最贵'],
+        ['balanced', '平衡', '每 3 楼攒批一次（推荐）'],
+        ['low-cost', '轻量省流', '每 5 楼攒批，只抽核心类型'],
+    ];
+
+    function lanesHTML() {
+        return `<div class="lmp-lanes" role="tablist" aria-label="设置分组">
+            ${LANES.map((l) => `<button type="button" role="tab" class="lmp-lane" data-lane="${l.id}" aria-selected="${lane === l.id}">${l.label}</button>`).join('')}
+        </div>`;
     }
+    const laneHintHTML = () => {
+        const cur = LANES.find((l) => l.id === lane) || LANES[0];
+        return `<p class="lmp-lane-hint">${cur.hint}</p>`;
+    };
+
+    /* 一行字段：左标签右控件。
+       注意这里用 <div> 而不是 <label>：右侧控件有时本身就是一个 <label>
+       （开关），label 嵌 label 是无效 HTML，点击行为在各浏览器上不一致。 */
+    function frow(k, sub, ctrl) {
+        return `<div class="lmp-frow"><span class="lmp-frow-k">${k}${sub ? `<em>${sub}</em>` : ''}</span>${ctrl}</div>`;
+    }
+    const textIn = (key, ph, val) =>
+        `<input class="lmp-input" type="text" data-cfg-text="${key}" placeholder="${esc(ph)}" value="${esc(val == null ? '' : val)}" autocomplete="off" spellcheck="false">`;
+    const pwdIn = (key, ph, val) =>
+        `<input class="lmp-input" type="password" data-cfg-text="${key}" placeholder="${esc(ph)}" value="${esc(val == null ? '' : val)}" autocomplete="off">`;
+    const numIn = (key, val, min, max, step) =>
+        `<input class="lmp-input" type="number" data-cfg-num="${key}" value="${esc(val == null ? '' : val)}" min="${min}" max="${max}" step="${step || 1}" inputmode="numeric">`;
+    function selIn(key, opts, cur) {
+        return `<select class="lmp-input" data-cfg-text="${key}">${opts.map(([v, l]) =>
+            `<option value="${esc(v)}"${String(cur === v) === 'true' || (cur == null && v === '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+    }
+
+    /* ---------- 接口 ---------- */
+    function laneConnHTML(c) {
+        const custom = !!c.apiProviderCustom;
+        return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-card">
+                <span class="lmp-card-t">用哪个接口</span>
+                <span class="lmp-card-s">默认跟着你当前对话走，不用配。想用别的（比如更便宜的模型）再打开下面这个开关。</span>
+                ${frow('使用自己的接口', custom ? '已开启，填下面的地址与密钥' : '关着 = 借用当前对话的接口', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-cfg="apiProviderCustom"${custom ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
+            </div>
+            <div class="lmp-card" data-conn-fields>
+                <span class="lmp-card-t">地址与密钥</span>
+                <span class="lmp-card-s">兼容 OpenAI 格式。地址填到 base 就行，会自动补 /chat/completions。<span data-conn-warn${custom ? ' hidden' : ''}>现在开关是关着的，填了也先不用；想用就打开上面那个开关。</span></span>
+                ${textIn('apiUrl', 'https://api.xxx.com/v1', c.apiUrl)}
+                ${pwdIn('apiKey', 'sk-…（只存在你自己的配置里）', c.apiKey)}
+                <div class="lmp-inline">
+                    ${textIn('apiModel', '模型名，如 gpt-4o-mini', c.apiModel)}
+                    <button type="button" class="lmp-mini" data-act="fetch-models">抓取</button>
+                </div>
+                <p class="lmp-lane-hint" data-model-status></p>
+            </div>`;
+    }
+
+    /* ---------- 怎么记 ---------- */
+    function laneHowHTML(c) {
+        const prof = c.extractionProfile || 'balanced';
+        const profLabel = (PROFILE_OPTS.find((p) => p[0] === prof) || PROFILE_OPTS[1])[1];
+        return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-group">
+                ${frow('记忆档位', '只影响平淡楼的攒批频率', selIn('extractionProfile', PROFILE_OPTS.map((p) => [p[0], p[1] + '·' + p[2]]), prof))}
+                ${frow('单条摘要长度', '超长会截断', numIn('maxSummaryLength', c.maxSummaryLength, 50, 2000, 10))}
+                ${frow('召回条数', '每次回忆带几条进上下文', numIn('vectorTopK', c.vectorTopK, 1, 30, 1))}
+            </div>
+            <p class="lmp-note">当前档位：${esc(profLabel)}。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽，不会被攒批推到后面。</p>`;
+    }
+
+    /* ---------- 更多 ---------- */
+    function laneMoreHTML(c) {
+        return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-stack">
+                <button type="button" class="lmp-row lmp-row-btn" data-act="embedding">
+                    <span class="lmp-row-main">语义检索接口<em>不配也能用，配了按含义找回忆更准</em></span>
+                    <span class="lmp-chev" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="lmp-row lmp-row-btn" data-act="rerank">
+                    <span class="lmp-row-main">精排接口<em>召回后再排一次，适合记忆很多的时候</em></span>
+                    <span class="lmp-chev" aria-hidden="true">›</span>
+                </button>
+                <button type="button" class="lmp-row lmp-row-btn" data-act="advanced">
+                    <span class="lmp-row-main">完整设置<em>剩下的都在这里；会离开本面板，可随时按返回回来</em></span>
+                    <span class="lmp-chev" aria-hidden="true">›</span>
+                </button>
+            </div>`;
+    }
+
     function settingsHTML(st) {
+        const c = cfg();
+        const inner = lane === 'how' ? laneHowHTML(c) : (lane === 'more' ? laneMoreHTML(c) : laneConnHTML(c));
         return `<div class="lmp-view" data-view="settings">
             <div class="lmp-stack">
                 ${switchRow('enabled', '启用记忆', '关掉就什么都不记了', st.enabled)}
                 ${switchRow('extractionEnabled', '自动记住新剧情', '每轮聊完自己整理，不用你点', st.auto)}
             </div>
-            <div class="lmp-group">
-                ${segRow('extractionProfile', '记忆档位', [['lite', '轻量'], ['balanced', '均衡'], ['deep', '深读']], st.profile)}
-            </div>
-            <div class="lmp-stack">
-                <button type="button" class="lmp-row lmp-row-btn" data-act="advanced">
-                    <span class="lmp-row-main">高级设置<em>接口、实验室、体检详情都在这里</em></span>
-                    <span class="lmp-chev" aria-hidden="true">›</span>
-                </button>
-            </div>
+            ${inner}
             <p class="lmp-note">改动即时生效，没有保存按钮。</p>
         </div>`;
     }
@@ -937,6 +1044,10 @@
         if (root) { if (startView) { view = startView; render(); } return true; }
         if (!window.LonShaMemory) return false;
         view = startView || 'overview';
+        /* 每次**新开**面板都把分组条复位到第一组：lane 是模块级状态，
+           不复位的话上次停在「更多」，这次进来还停在「更多」——
+           用户点的是「设置」，看到的却不是接口页。 */
+        lane = 'conn';
         root = document.createElement('div');
         root.className = CLS;
         root.setAttribute('role', 'dialog');
@@ -963,27 +1074,69 @@
             const tab = e.target.closest('.lmp-tabs button');
             if (tab) { view = tab.dataset.view; render(); return; }
             if (e.target.closest('.lmp-x')) return close();
-            const seg = e.target.closest('.lmp-seg button');
-            if (seg) {
-                const key = seg.parentElement.dataset.seg;
-                const c = cfg();
-                c[key] = seg.dataset.val;
-                saveCfg();
-                render();
-                toast('已改：' + seg.textContent.trim());
-                return;
-            }
+            /* 分组条：只切 lane，不跳页、不关面板 */
+            const ln = e.target.closest('.lmp-lane');
+            if (ln) { lane = ln.dataset.lane; render(); return; }
+            /* .lmp-seg 的点击分支已移除（v6.4）：档位改用 select，页内已无分段控件。
+               CSS 里的 .lmp-seg 规则保留 —— 它是通用件，别处可能需要。 */
             const act = e.target.closest('[data-act]');
             if (act) { doAct(act.dataset.act); }
         });
         root.addEventListener('change', (e) => {
+            /* 下拉框（data-cfg-text 的 select）：即时存，不重建 body ——
+               重建会把刚聚焦的控件摘掉，真机上表现为「选完弹回去」。 */
+            const sel = e.target.closest('select[data-cfg-text]');
+            if (sel) {
+                const c = cfg();
+                c[sel.dataset.cfgText] = sel.value;
+                saveCfg();
+                toast('已改：' + (sel.options[sel.selectedIndex] || {}).text);
+                return;
+            }
             const box = e.target.closest('input[data-cfg]');
             if (!box) return;
             const c = cfg();
             c[box.dataset.cfg] = !!box.checked;
             saveCfg();
-            render();
+            /* 打开 / 关掉「使用自己的接口」：地址栏**一直可见**（用户要能随时输入），
+               只切换那句「现在没启用」的提示。用 DOM 显隐而不是重渲染：
+               重渲染会让键盘收起、焦点丢失。 */
+            if (box.dataset.cfg === 'apiProviderCustom') {
+                const warn = root.querySelector('[data-conn-warn]');
+                if (warn) warn.hidden = box.checked;
+                const sub = box.closest('.lmp-frow')?.querySelector('.lmp-frow-k > em');
+                if (sub) sub.textContent = box.checked ? '已开启，填下面的地址与密钥' : '关着 = 借用当前对话的接口';
+            } else {
+                render();
+            }
             toast(box.checked ? '已打开' : '已关闭');
+        });
+        /* 文本 / 数字：失焦即存。不用 input 事件逐字存盘 —— 那会让每个按键
+           都触发一次 saveConfig（真机上卡）。也不重建 body，原因同上。
+           只在值**真的变了**才写盘并提示：点一下输入框又点走、或者点旁边的
+           「抓取」按钮（会先触发失焦）都不该弹「已保存」。 */
+        root.addEventListener('focusout', (e) => {
+            const t = e.target.closest('[data-cfg-text], [data-cfg-num]');
+            if (!t || t.tagName === 'SELECT') return;
+            const c = cfg();
+            let next;
+            if (t.dataset.cfgNum) {
+                const raw = parseFloat(t.value);
+                /* NaN 不是合法配置：留空时 parseFloat 会给出 NaN，写进 config 会让
+                   后续所有数值判据静默失效（NaN 与任何数比较都是 false）。
+                   保留原值并跳过，不静默归零。 */
+                if (!Number.isFinite(raw)) return;
+                const step = parseFloat(t.step) || 1;
+                next = Number.isInteger(step) ? Math.round(raw) : raw;
+                if (c[t.dataset.cfgNum] === next) return;
+                c[t.dataset.cfgNum] = next;
+            } else {
+                next = String(t.value || '').trim();
+                if (String(c[t.dataset.cfgText] == null ? '' : c[t.dataset.cfgText]) === next) return;
+                c[t.dataset.cfgText] = next;
+            }
+            saveCfg();
+            toast('已保存');
         });
         const onKey = (e) => { if (e.key === 'Escape') close(); };
         document.addEventListener('keydown', onKey);
@@ -1006,7 +1159,24 @@
                 return fn && p[fn]();
             }
             if (id === 'correct') { close2(); return p.showCorrectionPanel && p.showCorrectionPanel(); }
+            /* v6.4：抓取模型。此前这个按钮在旧面板里，新面板没入口。
+               复用旧面板那套逻辑不划算（它要 overlay 里的一堆 id），
+               这里就地按 OpenAI /models 取一次，只做一件事：读回列表填进输入框的候选。 */
+            if (id === 'fetch-models') { return fetchModels(); }
+            /* 语义检索 / 精排：旧面板里是 <details> 折叠段，没有独立出口可以调，
+               所以这里给出可操作的就地结果 —— 而不是让用户点了个没反应的按钮。 */
+            if (id === 'embedding' || id === 'rerank') {
+                const st = root && root.querySelector('[data-model-status]');
+                const which = id === 'embedding' ? '语义检索' : '精排';
+                if (st) st.textContent = `${which}接口目前只在「完整设置」里可编辑（本页暂未搬过来）。点下面的「完整设置」即可。`;
+                return toast(`${which}接口请在完整设置里改`);
+            }
             if (id === 'advanced') {
+                /* 「完整设置」= 明确的逃生出口：旧面板还在，剩下的几百项都在那儿。
+                   它确实会离开本面板（旧面板是另一个 overlay，两层叠着没法看），
+                   但这是用户**主动点的**，不是被系统踢走的。
+                   真正修掉的是：填 API、改档位这些日常事已经在本页做完了，
+                   没人**必须**走这条路。 */
                 close2();
                 return p.__lmpLegacySettings ? p.__lmpLegacySettings() : (p.showSettingsPanel && p.showSettingsPanel());
             }
@@ -1014,6 +1184,34 @@
             try { (window.LonShaMemory.reportError || console.warn)(e, 'memory-panel.act.' + id); } catch (_e) { /* 忽略 */ }
         }
         return null;
+    }
+
+    /* ---------- 抓取模型列表（v6.4） ---------- */
+    function fetchModels() {
+        const c = cfg();
+        const url = String(c.apiUrl || '').trim();
+        const key = String(c.apiKey || '').trim();
+        const st = root && root.querySelector('[data-model-status]');
+        const say = (t) => { if (st) st.textContent = t; };
+        if (!url || !key) { say('先把地址和密钥填上，再点抓取。'); return; }
+        say('正在抓取…');
+        const base = url.replace(/\/+$/, '');
+        const endpoint = /\/v\d+$/.test(base) ? base + '/models' : base + '/v1/models';
+        fetch(endpoint, { headers: { Authorization: 'Bearer ' + key } })
+            .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then((j) => {
+                const list = (j && Array.isArray(j.data) ? j.data : []).map((m) => m && m.id).filter(Boolean);
+                if (!list.length) { say('接口回了空列表，手填模型名也行。'); return; }
+                const inp = root && root.querySelector('input[data-cfg-text="apiModel"]');
+                if (inp) {
+                    inp.value = list[0];
+                    const cc = cfg();
+                    cc.apiModel = list[0];
+                    saveCfg();
+                }
+                say('抓到 ' + list.length + ' 个，已填第一个：' + list[0] + '（想要别的直接改文本框）');
+            })
+            .catch((e) => say('抓取失败（' + (e && e.message ? e.message : e) + '）。手填模型名一样能用。'));
     }
 
     function close() {
