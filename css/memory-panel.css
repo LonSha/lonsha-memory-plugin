@@ -490,3 +490,16 @@ html.lmp-lock {
         transition: none;
     }
 }
+/* 版本记号：用来一眼分辨「看到的是新面板还是旧外壳」 */
+.lmp-ver {
+    margin-left: 8px;
+    padding: 1px 7px;
+    border: 1px solid var(--p-line-2);
+    border-radius: 999px;
+    color: var(--p-ink-3);
+    font-size: 11.5px;
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}

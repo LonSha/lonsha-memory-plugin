@@ -195,7 +195,7 @@
         root.innerHTML = `
             <div class="lmp-sheet">
                 <header class="lmp-head">
-                    <span class="lmp-title">记忆引擎</span>
+                    <span class="lmp-title">记忆引擎<i class="lmp-ver">v6</i></span>
                     <button type="button" class="lmp-x" aria-label="关闭">✕</button>
                 </header>
                 <div class="lmp-body" tabindex="0"></div>
@@ -274,25 +274,36 @@
         document.documentElement.classList.remove('lmp-lock');
     }
 
-    /* ---------- 接线：只接管 FAB 与显式入口 ---------- */
+    /* ---------- 接线：把所有入口都指向新面板 ---------- */
     function wire() {
         const p = window.LonShaMemory;
-        if (!p || p.__lmpWired) return;
-        p.__lmpWired = true;
-        /* 旧面板的入口原样保存，供「高级设置」深链接使用 */
-        p.__lmpLegacySettings = p.showSettingsPanel;
+        if (!p) return;
+        if (!p.__lmpWired) {
+            p.__lmpWired = true;
+            /* 旧面板留一份真身，只给「设置 → 高级设置」和开发者面(diag)用 */
+            p.__lmpLegacySettings = typeof p.showSettingsPanel === 'function' ? p.showSettingsPanel.bind(p) : null;
+            try { console.log('[LonSha] 面板 v6 已加载'); } catch (_e) { /* 忽略 */ }
+        }
+        /* 入口必须「反复压」：dashboard-shell 会在插件就绪后再包一次 showSettingsPanel，
+           只覆盖一次就会被它包回去 —— 用户看到的仍然是旧面板（这就是上一版失效的原因）。 */
+        const legacy = p.__lmpLegacySettings;
         p.showPanel = () => { openPanel('overview'); };
         p.showFabMenu = () => { openPanel('overview'); };
+        p.showSettingsPanel = function (diag) {
+            if (diag === true && legacy) return legacy(true);
+            openPanel('overview');
+            return true;
+        };
         p.__lmpOpen = openPanel;
         p.__lmpClose = close;
-        try { console.log('[LonSha] 新面板 v6 已就位（FAB 点击打开；无手势不弹窗）'); } catch (_e) { /* 忽略 */ }
     }
 
+    /* 前 16 秒内每 400ms 重压一次；之后停手（不再占 CPU） */
     let tries = 0;
     const boot = setInterval(() => {
-        if (window.LonShaMemory) { wire(); if (window.LonShaMemory.__lmpWired) clearInterval(boot); }
-        if (++tries > 100) clearInterval(boot);
-    }, 200);
+        wire();
+        if (++tries > 40) clearInterval(boot);
+    }, 400);
 
     window.LonShaPanel = { open: openPanel, close, version: '6.0.0' };
 })();
