@@ -89,9 +89,18 @@ function main() {
         if (!same) {
             const curKeys = (cur.rows || []).map(verdictKey);
             const newKeys = built.rows.map(verdictKey);
+            /* [修 · L23-O9b 的漂移分支从来没跑通过] 上一版写的是
+             *   .filter((r, i) => ...).map((r) => ... ((cur.rows || [])[i] || {}))
+             * —— `i` 在 filter 的作用域里，进不了后面那个 map，于是走到这条分支就
+             * `ReferenceError: i is not defined`（实测 `node tools/gen_freshness_report.mjs --check`
+             * 在 tools/gen_freshness_report.mjs:94 抛错）。也就是说：**这段代码存在的意义
+             * （把差异说清楚）恰恰只在它崩掉的那条路径上**，平时永远看不到 —— 判据红了，
+             * 但红的原因被崩溃吃掉了，人只看到一句 ReferenceError。
+             * 修法：把下标与行绑定成对象，两段都自带 i，不跨作用域借变量。 */
             const drift = built.rows
-                .filter((r, i) => curKeys[i] !== newKeys[i])
-                .map((r) => r.rel + '（现场 ' + r.state + '，台账 ' + ((cur.rows || [])[i] || {}).state + '）');
+                .map((r, i) => ({ r, i }))
+                .filter(({ i }) => curKeys[i] !== newKeys[i])
+                .map(({ r, i }) => r.rel + '（现场 ' + r.state + '，台账 ' + ((cur.rows || [])[i] || {}).state + '）');
             console.error('[freshness] 台账与现场不一致（判读变了：读数刷新 / 被改态 / 手改过）'
                 + (drift.length ? ' —— 差异：' + drift.join('、') : '') + ' —— 重跑 node tools/gen_freshness_report.mjs');
             process.exit(1);
