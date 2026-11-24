@@ -495,6 +495,14 @@ html[data-lonsha-theme="dark"] .lmp {
     background: var(--p-wash-2);
 }
 
+/* 开发者页的导出框 / 原始读数是 textarea，默认 hidden。
+   UA 的 [hidden]{display:none} 只有 (0,1,0)，本文件里其它规则一旦给 textarea
+   设了 display 就会盖掉它 —— 这里显式兜一条，别等真机上出现「一个空白大框」。 */
+.lmp .lmp-input[hidden],
+.lmp .lmp-ta[hidden] {
+    display: none;
+}
+
 /* 输入框为什么要写成 `.lmp .lmp-input`（0,2,0）而不是 `.lmp-input`（0,1,0）：
    宿主的样式表里有 `input[type="text"]` 这一类选择器，特异性 (0,1,1) 高于单类名，
    于是抢走了背景色 —— 真机上表现为「纸底面板里嵌着一排纯黑输入框」，字还看不清。
@@ -1063,3 +1071,122 @@ html[data-lonsha-theme="dark"] .lonsha-overlay.lonsha-overlay {
     cursor: pointer;
 }
 .lmp-btn:active { background: var(--p-wash); }
+
+/* ============================================================
+   组件表骨架（v6.11 组件化）
+   柏宝书式面板的四条形态纪律，落到样式上就是这四段：
+   ① 形状即品牌 —— 卡头永远是「标记 + 标题 + 状态徽」，不许某一页缺一块；
+   ② 贴边半隐 —— 卡与卡之间只隔一道细线，不再是一摞浮起来的圆角盒子；
+   ③ 展开不脱流 —— 用 grid 行高 0fr→1fr，不用 display:none，下方卡片跟着
+      让位而不跳动（这是「点了按钮整页往下蹦」的根因）；
+   ④ 三态必须不同形 —— ready / empty / absent 的点形、边框、徽标全不一样。
+      这一条是纪律不是装饰：把「判不了」画成「安全」，等于骗人。
+   ============================================================ */
+.lmp-comp {
+    display: block;
+    padding: 16px 0 18px;
+    border-bottom: 1px solid var(--p-line);
+}
+.lmp-comp:last-of-type {
+    border-bottom: 0;
+}
+.lmp-comp-hd {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 3px;
+}
+/* 标记：ready 是实心圆、empty 是虚线圆环、absent 是一条短横 —— 三者不同形 */
+.lmp-comp-mark {
+    flex: 0 0 auto;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--p-ok);
+}
+.lmp-comp-t {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--p-ink);
+}
+.lmp-comp-badge {
+    flex: 0 0 auto;
+    padding: 2px 9px 3px;
+    border-radius: 999px;
+    border: 1px solid var(--p-line-2);
+    background: var(--p-wash);
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--p-ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.lmp-comp-s {
+    margin: 0 0 9px 20px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--p-ink-3);
+}
+/* 展开容器：0fr 收起、加 .is-open 后 1fr。内容在 .lmp-fold-in 里 overflow:hidden。
+   min-height:0 是必须的 —— 少了它，grid 子项的最小内容高度会把 0fr 顶开。 */
+.lmp-fold {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.lmp-fold.is-open {
+    grid-template-rows: 1fr;
+}
+.lmp-fold-in {
+    overflow: hidden;
+    min-height: 0;
+}
+.lmp-fold .lmp-ta {
+    margin-top: 10px;
+}
+/* 卡里的按钮：动作只有一个时不该独占一整行，跟组件表一起「收窄」 */
+.lmp-comp .lmp-btn {
+    margin-top: 11px;
+}
+.lmp-comp .lmp-btn + .lmp-btn {
+    margin-top: 8px;
+}
+/* ---------- ④ 三态差异化：只看 data-state，不靠额外的类名 ---------- */
+.lmp-comp[data-state="ready"] .lmp-comp-badge {
+    border-color: color-mix(in srgb, var(--p-ok) 42%, var(--p-line));
+    background: color-mix(in srgb, var(--p-ok) 12%, transparent);
+    color: color-mix(in srgb, var(--p-ok) 72%, var(--p-ink));
+}
+.lmp-comp[data-state="empty"] .lmp-comp-mark {
+    background: transparent;
+    border: 1.5px dashed color-mix(in srgb, var(--p-warn) 62%, var(--p-ink-3));
+}
+.lmp-comp[data-state="empty"] .lmp-comp-badge {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--p-warn) 46%, var(--p-line));
+    background: color-mix(in srgb, var(--p-warn) 10%, transparent);
+    color: color-mix(in srgb, var(--p-warn) 68%, var(--p-ink));
+}
+/* absent：判不了就长得「不像一张卡」—— 点变成一条横线，整块压低对比度，
+   让人一眼看出「这里没有结论」，而不是把灰色小字读成「没事」。 */
+.lmp-comp[data-state="absent"] .lmp-comp-mark {
+    width: 15px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--p-ink-3);
+}
+.lmp-comp[data-state="absent"] .lmp-comp-t {
+    color: var(--p-ink-2);
+}
+.lmp-comp[data-state="absent"] .lmp-comp-badge {
+    border-style: dashed;
+    border-color: var(--p-line);
+    background: transparent;
+    color: var(--p-ink-3);
+}
+.lmp-comp[data-state="absent"] .lmp-comp-s {
+    color: color-mix(in srgb, var(--p-ink-3) 78%, var(--p-paper));
+}

@@ -949,6 +949,7 @@
         { id: 'how', label: '怎么记', hint: '记多细、每次记多少。改这里就够了，不用动下面的。' },
         { id: 'lab', label: '微调', hint: '引擎内部参数，默认值都是调好的。真要动，一次改一项，改完看几楼效果。' },
         { id: 'diag', label: '体检', hint: '就地跑一次自检：召回通不通、存档缺不缺、最近有没有报错。' },
+        { id: 'dev', label: '开发者', hint: '导出档案、找回漏记、看结构化原始读数。反馈问题时用得上。' },
         { id: 'ui', label: '界面', hint: '主题、配色、开发者模式。' },
     ];
     let lane = 'conn';
@@ -1210,6 +1211,177 @@
             <div data-diag-out>${diagBodyHTML()}</div>`;
     }
 
+    /* ---------- 开发者：柏宝书式组件 ----------
+       这一页按柏宝书那套面板的四条形态纪律来做（CHANGELOG 里有记载）：
+       ① 形状即品牌      —— 一个组件一卡，卡头永远是「标记 + 标题 + 状态徽」，
+                            不读正文也知道这卡现在是哪种状态。
+       ② 贴边半隐        —— 卡与卡之间不留空档，只隔一道细线，整页像一叠便签。
+       ③ 展开不脱流      —— 导出框 / 原始读数不 display:none，用 grid 行高 0fr→1fr
+                            撑开，下面的卡片跟着让位，不跳一下。
+       ④ 三态必须不同形  —— absent（判不了）/ empty（真没有）/ ready（有数据）
+                            三种状态的点形、边框、徽标、句子全不一样。
+                            不许把「判不了」说成「安全」，也不许把两者压成一句「暂无」：
+                            用户要靠这个区分「引擎坏了」和「本来就没有」。
+       加一个组件 = 往 DEV_COMPS 里加一项，渲染函数不动。
+
+       内容取舍（与旧机器面对照过）：旧面板「高级诊断」里的「备份与调校」「实验室」
+       两页，其中 plugin.showSnapshotRestore() / plugin.showExtractRoles() 全仓
+       都没有定义，点下去只抛 TypeError —— 坏按钮不搬，搬过来等于把缺陷换个门牌。
+       真正可用的（时间线 / 人物 / 悬念 / 检查点 / 关系图 / 纠正）留在「记忆」页，
+       这一页只放「记忆」页没有、但引擎确实提供的东西。 */
+    let missingFloors = [];
+    let scanPhase = 'idle';      /* idle 未扫 | scanned 扫过 | backfilled 刚补完 */
+    let lastBackfill = null;
+    let exportEmpty = null;      /* 上一次导出拿到空字符串时的标签（用于 empty 三态） */
+    const engOf = () => safe(() => window.LonShaMemory.engine, null);
+
+    /* 组件表。每一项都要能明确回答一件事：probe() 返回三态里的哪一种。 */
+    const DEV_COMPS = [
+        {
+            id: 'export',
+            title: '导出档案',
+            sub: '导出结果会填进下面的框里，长按全选就能复制走。不上传、不落盘。',
+            probe() {
+                const e = engOf();
+                if (!e) return { state: 'absent', why: '引擎还没挂上（window.LonShaMemory.engine 是空的），现在没有东西可导。' };
+                const md = typeof e.exportMemoryReport === 'function';
+                const json = typeof e.collectExport === 'function';
+                if (!md && !json) return { state: 'absent', why: '这个版本的引擎两个导出接口都没有（exportMemoryReport / collectExport 都不在）。' };
+                if (exportEmpty) {
+                    return { state: 'empty', badge: '0 字符', why: '刚才点了「' + exportEmpty + '」，引擎回了空字符串 —— 这不等于出错，可能这档还没有内容可导。' };
+                }
+                return { state: 'ready', badge: md && json ? 'MD + JSON' : (md ? 'MD' : 'JSON') };
+            },
+            acts: () => [['export-report', '导出可读档案（Markdown）'], ['export-json', '导出全量数据（JSON）']],
+            body: () => `<div class="lmp-fold" data-fold="export"><div class="lmp-fold-in">
+                    <textarea class="lmp-ta" data-export-out rows="10" spellcheck="false" placeholder="点上面的按钮，内容会出现在这里"></textarea>
+                </div></div>`,
+        },
+        {
+            id: 'missing',
+            title: '找回漏记',
+            sub: '先扫一遍有没有楼层没记上；确认后再逐楼补抽。补抽要调接口，费 token。',
+            probe() {
+                const e = engOf();
+                if (!e || typeof e.scanMissingFloors !== 'function') {
+                    return { state: 'absent', why: '这个版本的引擎没有 scanMissingFloors，扫不出漏记，补提取也就无从下手。' };
+                }
+                const canBack = typeof e.backfillFloors === 'function';
+                if (scanPhase === 'backfilled' && lastBackfill) {
+                    const b = lastBackfill;
+                    return {
+                        state: 'empty',
+                        badge: '刚补完',
+                        why: '补提取跑完了：成功 ' + b.ok + ' / 失败 ' + b.fail + ' / 跳过 ' + b.skipped + '。想再核对一遍，点「扫描」。',
+                    };
+                }
+                if (scanPhase !== 'scanned') {
+                    return { state: 'empty', badge: '待扫描', why: '还没扫过 —— 点一次「扫描」才知道有没有漏。' };
+                }
+                if (!missingFloors.length) {
+                    return { state: 'empty', badge: '0 楼', why: '扫过了，每一楼都记上了，没有漏记。' };
+                }
+                return {
+                    state: 'ready',
+                    badge: missingFloors.length + ' 楼待补',
+                    why: canBack ? '' : '这个版本没有 backfillFloors，只能看、不能补。',
+                };
+            },
+            acts: (st) => (st === 'ready' ? [['scan-missing', '重新扫描'], ['backfill', '开始补提取']] : [['scan-missing', '扫描']]),
+            body() {
+                const head = missingFloors.slice(0, 12).join('、');
+                const list = head + (missingFloors.length > 12 ? ' …' : '');
+                return `<div class="lmp-frow"><span class="lmp-frow-k">漏记楼层</span><span class="lmp-frow-v lmp-ro">${esc(list)}</span></div>
+                    <div class="lmp-frow"><span class="lmp-frow-k">进度</span><span class="lmp-frow-v" data-missing-live>未开始</span></div>`;
+            },
+        },
+        {
+            id: 'save',
+            title: '存盘来源',
+            sub: '哪一次存盘成功了、哪一次被拒了。排查「聊了没记住」先看这里。',
+            probe() {
+                const e = engOf();
+                if (!e || typeof e.getSaveSourceReport !== 'function') {
+                    return { state: 'absent', why: '这个版本没有存盘记录接口（getSaveSourceReport）。' };
+                }
+                const r = safe(() => e.getSaveSourceReport(), null);
+                if (!r) return { state: 'absent', why: '接口在，但这次没读出来（返回空）。' };
+                const rows = Array.isArray(r.rows) ? r.rows : [];
+                if (!rows.length && !r.lastAt) {
+                    return { state: 'empty', badge: '0 条', why: '一次存盘都还没发生过 —— 这是「还没有」，不是「失败了」。' };
+                }
+                return { state: 'ready', badge: rows.length + ' 条', data: { r: r, rows: rows } };
+            },
+            acts: () => [],
+            body(x) {
+                const r = x.data.r;
+                const rows = x.data.rows;
+                const row = (k, v) => `<div class="lmp-frow"><span class="lmp-frow-k">${esc(k)}</span><span class="lmp-frow-v lmp-ro">${esc(v)}</span></div>`;
+                const list = rows.slice(-6).reverse().map((o) => row(
+                    o.source || '?',
+                    (o.ok ? '成功' : '失败')
+                    + (o.floor != null ? ' · 第 ' + o.floor + ' 楼' : '')
+                    + (o.reason ? ' · ' + o.reason : '')
+                )).join('');
+                return row('最近成功', r.lastAt || '—')
+                    + row('最近楼层', r.lastFloor == null ? '—' : r.lastFloor)
+                    + (r.lastDenied ? row('被拒原因', r.lastDenied) : '')
+                    + list;
+            },
+        },
+        {
+            id: 'raw',
+            title: '原始读数',
+            sub: '体检结果的结构化原文。反馈问题时把这段贴过来最有用。',
+            probe() {
+                const e = engOf();
+                if (!e || typeof e.selfCheck !== 'function') {
+                    return { state: 'absent', why: '引擎没挂上，或者没有 selfCheck —— 体检跑不了，也就没有原始读数。' };
+                }
+                if (!lastDiag) {
+                    return { state: 'empty', badge: '还没跑', why: '引擎在，但这次打开面板还没跑过体检 —— 去「体检」页点一次，回来就有。' };
+                }
+                return { state: 'ready', badge: '已就绪' };
+            },
+            acts: () => [['raw-diag', '展开原始 JSON']],
+            body: () => `<div class="lmp-fold" data-fold="raw"><div class="lmp-fold-in">
+                    <textarea class="lmp-ta" data-raw-out rows="12" spellcheck="false" placeholder="点上面的按钮，体检原文会出现在这里"></textarea>
+                </div></div>`,
+        },
+    ];
+
+    /* 组件工厂：骨架只有这一份。三态在这里分支，组件自己只管「答状态 / 给内容」。 */
+    function devCompHTML(c) {
+        let r;
+        try {
+            const x = c.probe();
+            r = (x && x.state) ? x : { state: 'absent', why: '组件没有回答状态（probe 返回空）' };
+        } catch (e) {
+            r = { state: 'absent', why: '读状态时抛错：' + ((e && e.message) || e) };
+        }
+        const state = ['ready', 'empty', 'absent'].indexOf(r.state) >= 0 ? r.state : 'absent';
+        const badge = r.badge || (state === 'ready' ? '有数据' : (state === 'empty' ? '空' : '判不了'));
+        /* 判不了的时候不给按钮：给了也点不出东西，只会变成第二个「点了没反应」的按钮。 */
+        const acts = state === 'absent' ? [] : (safe(() => c.acts(state), []) || []);
+        const body = state === 'ready' ? safe(() => c.body(r), '') : '';
+        return `<section class="lmp-comp" data-comp="${esc(c.id)}" data-state="${state}">
+            <div class="lmp-comp-hd">
+                <span class="lmp-comp-mark" aria-hidden="true"></span>
+                <span class="lmp-comp-t">${esc(c.title)}</span>
+                <span class="lmp-comp-badge">${esc(badge)}</span>
+            </div>
+            <p class="lmp-comp-s">${esc(c.sub)}</p>
+            ${r.why ? `<p class="lmp-note">${esc(r.why)}</p>` : ''}
+            ${body}
+            ${acts.map((a) => `<button type="button" class="lmp-btn" data-act="${esc(a[0])}">${esc(a[1])}</button>`).join('')}
+        </section>`;
+    }
+    function laneDevHTML() {
+        return `${lanesHTML()}${laneHintHTML()}
+            ${DEV_COMPS.map(devCompHTML).join('')}
+            <p class="lmp-note">这一页只有「补提取」会写档，其余都只读。补提取要调接口、费 token，所以点之前会再问一次。</p>`;
+    }
+
     /* ---------- 界面：主题 / 配色 / 开发者模式 ---------- */
     function laneUiHTML(dev) {
         const pref = store.get(LS_KEYS.theme, 'auto');
@@ -1236,8 +1408,9 @@
         const inner = lane === 'how' ? laneHowHTML(c)
             : lane === 'lab' ? laneLabHTML(c)
                 : lane === 'diag' ? laneDiagHTML()
-                    : lane === 'ui' ? laneUiHTML(dev)
-                        : laneConnHTML(c);
+                    : lane === 'dev' ? laneDevHTML()
+                        : lane === 'ui' ? laneUiHTML(dev)
+                            : laneConnHTML(c);
         return `<div class="lmp-view" data-view="settings">
             <div class="lmp-stack">
                 ${switchRow('enabled', '启用记忆', '关掉就什么都不记了', st.enabled)}
@@ -1489,10 +1662,97 @@
                以前点「高级设置」会关掉本面板去开旧面板的诊断页；现在旧面板拆了，
                自检结果就渲染在本页的 [data-diag-out] 里。 */
             if (id === 'selfcheck') { return runSelfCheck(); }
+            /* 开发者页（v6.10） */
+            if (id === 'export-report') { return exportText(() => p.engine && p.engine.exportMemoryReport(), '可读档案'); }
+            if (id === 'export-json') {
+                return exportText(() => {
+                    const d = p.engine && p.engine.collectExport();
+                    return d ? JSON.stringify(d, null, 2) : '';
+                }, '全量数据');
+            }
+            if (id === 'scan-missing') { return scanMissing(); }
+            if (id === 'backfill') { return backfill(); }
+            if (id === 'raw-diag') { return showRawDiag(); }
         } catch (e) {
             try { (window.LonShaMemory.reportError || console.warn)(e, 'memory-panel.act.' + id); } catch (_e) { /* 忽略 */ }
         }
         return null;
+    }
+
+    /* ---------- 开发者页的四个动作（v6.11 组件化） ---------- */
+    /* 导出一律走「填进文本框让你自己复制」：真机上 WebView 的 a[download]
+       行为各不相同，有的直接没反应；写进 textarea 是最不依赖环境的一条路。
+       展开用 grid 行高撑开（openFold），不用 display:none —— 见 CSS 里「展开不脱流」。 */
+    function openFold(key) {
+        const f = root && root.querySelector('[data-fold="' + key + '"]');
+        if (f) f.classList.add('is-open');
+        return f;
+    }
+    function exportText(get, label) {
+        /* 顺序很关键：先算内容、先记状态，最后才碰 DOM。
+           这样「引擎回了空」这个状态在没挂载时也能成立（探针与预渲染都靠这条）。 */
+        let text = '';
+        try { text = String(get() || ''); } catch (e) { text = '导出失败：' + (e && e.message ? e.message : e); }
+        if (!text) {
+            /* 空结果是一种状态，不是一次静默失败：刷成 empty 态，
+               句子里写清「引擎回了空」，跟 absent（判不了）分开。 */
+            exportEmpty = label;
+            render();
+            return;
+        }
+        exportEmpty = null;
+        const out = root && root.querySelector('[data-export-out]');
+        if (!out) return;
+        out.value = text;
+        openFold('export');
+        skinControls();
+        toast(label + ' ' + text.length + ' 字符，长按全选复制');
+    }
+    function scanMissing() {
+        const e = engOf();
+        if (!e || typeof e.scanMissingFloors !== 'function') { toast('这个版本没有扫描接口'); return; }
+        const list = safe(() => e.scanMissingFloors(), []) || [];
+        missingFloors = Array.isArray(list) ? list.slice() : [];
+        scanPhase = 'scanned';
+        lastBackfill = null;
+        render();   /* 徽标与三态形状跟着变：待扫描 → N 楼待补 / 0 楼 */
+        toast(missingFloors.length ? '发现 ' + missingFloors.length + ' 楼漏记' : '没有漏记');
+    }
+    function backfill() {
+        const e = engOf();
+        if (!e || typeof e.backfillFloors !== 'function') { toast('这个版本没有补提取接口'); return; }
+        if (!missingFloors.length) { toast('先点「扫描」，看看有没有漏记'); return; }
+        const n = Math.min(missingFloors.length, 30);
+        if (typeof confirm === 'function' && !confirm(`补提取 ${n} 楼会调用接口（费 token），继续？`)) return;
+        const live = root && root.querySelector('[data-missing-live]');
+        const say = (t) => { if (live) live.textContent = t; };
+        say('正在补 0/' + n);
+        toast('补提取中…共 ' + n + ' 楼');
+        Promise.resolve(e.backfillFloors(missingFloors.slice(0, n), (i, d) => {
+            const done = (d && d.ok ? d.ok : 0) + (d && d.fail ? d.fail : 0);
+            if (done) say('正在补 ' + done + '/' + n);
+        })).then((d) => {
+            const r = d || {};
+            lastBackfill = { ok: r.ok || 0, fail: r.fail || 0, skipped: r.skipped || 0 };
+            missingFloors = [];
+            scanPhase = 'backfilled';
+            render();   /* 这张卡自己变成「刚补完」的空态，三个数写在句子里 */
+            toast('补提取完成');
+        }).catch((err) => {
+            say('补提取失败：' + (err && err.message ? err.message : err));
+            toast('补提取失败');
+        });
+    }
+    function showRawDiag() {
+        /* 先讲为什么给不了，再去摸节点：否则在 empty 态上点一下会静默返回，
+           又变成「点了没反应」的老毛病。 */
+        if (!lastDiag) { toast('先到「体检」页跑一次，再来展开'); return; }
+        const out = root && root.querySelector('[data-raw-out]');
+        if (!out) return;
+        out.value = JSON.stringify(lastDiag, null, 2);
+        openFold('raw');
+        skinControls();
+        toast('已展开（长按可复制）');
     }
 
     /* ---------- 抓取模型列表（v6.4） ---------- */
