@@ -159,8 +159,8 @@ test('L13-O5 E: 真源码破坏 -> 同一条判据必须翻红（三组负控制
      *   于是求值后两者必然同形 —— 这正是「三态写成一句」的形态。
      * 先把两段按行定位切出来，再拼，最后做一次语法自证（破坏本身不许语法错）。 */
     const lineStartOf = (src, anchor) => src.lastIndexOf('\n', src.indexOf(anchor)) + 1;
-    const noneStartL = lineStartOf(UI, "none: '<b style=\"color:var(--ls-warn,#e3b341);\">这段对话还没有世界线跳转记录");
-    const gapStartL = lineStartOf(UI, "gap: '<b style=\"color:var(--ls-warn,#e3b341);\">开头有 '");
+    const noneStartL = lineStartOf(UI, "none: '<b style=\"color:var(--ls-warn);\">这段对话还没有世界线跳转记录");
+    const gapStartL = lineStartOf(UI, "gap: '<b style=\"color:var(--ls-warn);\">开头有 '");
     assert.ok(noneStartL > 0 && gapStartL > 0, 'N2 须能定位两段起始行');
     /* 两段的结束行：各自的下一条注释行（`/* ok：` / `/* gap：`）之前 */
     const noneEndL = lineStartOf(UI, '/* gap：');

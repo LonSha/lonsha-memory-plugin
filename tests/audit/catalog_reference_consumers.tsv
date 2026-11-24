@@ -637,3 +637,4 @@ v3480_ui_density.test.mjs		v3.480.0 · 表格与结构树两件（排序/分页/
 v3481_settings_controls.test.mjs		v3.481.0 · 设置类部件（开关/滑杆/分段/步进/输入）+ 表格每页条数接线 + 值域优先于环境
 v3482_settings_panel_wiring.test.mjs		v3.481.0 补登·存量盲区：该档在役但从未登记进本台账（v3205 T6 跨仓守卫 P3 长红蛰伏）。只补「存在」这一事实，不改其档案内容。
 ui-workbench-adapter.test.mjs		v3.482.0 呈现层 stage-2 · LoreCodex 工作台数据面适配器：21 个导出与上游逐个对拍 / 三级映射 / 楼层锁与「没有这条」不同形 / grep AND 语义 / traversal 与 scenes 对齐 / 只读面必须抛 / importmap 接线在场 + 漂移闸绿（14 条，三条反向验证实测）
+panel-v5-wiring.test.mjs		v3.483.0 新增：v5 视觉层的「落点 / 特异性 / 层序 / 纪律」判据（治「写了零生效且全绿」）。

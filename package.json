@@ -10,6 +10,7 @@
     "drill:unload": "node tools/drill_unload.mjs",
     "drill:unload:json": "node tools/drill_unload.mjs --json",
     "drill:unload:selftest": "node tools/drill_unload.mjs --selftest",
-    "index:defects": "python3 tools/gen_defect_index.py"
+    "index:defects": "python3 tools/gen_defect_index.py",
+    "check:design": "node tools/design-debt-check.mjs --ci"
   }
 }

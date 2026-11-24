@@ -73,8 +73,8 @@ test('=== 2. 预览视图验证 ===', () => {
     assert.ok(suSrc.includes("title = '注入内容预览'"), '视图标题');
     assert.ok(suSrc.includes('已经预算裁剪，即 AI 真实所见'), '“真实所见”语义标注');
     assert.ok(suSrc.includes("inj.html.split"), '分块渲染');
-    // 区块标题高亮（绿色 meta 行）——[v3.94] 实现已主题变量化为 var(--ls-success,#3fb950)
-    assert.ok(suSrc.includes('color:var(--ls-success,#3fb950)'), '区块头高亮');
+    // 区块标题高亮（绿色 meta 行）——[v3.94] 已主题变量化；v3.483.0 起使用点不再带兜底字面量
+    assert.ok(suSrc.includes('color:var(--ls-success)'), '区块头高亮');
     // XSS  转义
     assert.ok(suSrc.includes('esc(trimmed)'), '行级转义');
     // 空态提示
