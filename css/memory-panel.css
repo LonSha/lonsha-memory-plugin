@@ -29,17 +29,53 @@ html.lmp-lock {
     --p-warn: color-mix(in srgb, var(--lt-sys-orange) 62%, var(--p-ink));
     --p-pad: clamp(18px, 5.2vw, 24px);
     --p-r: 14px;
-
+    /* 遮入层：浅色是墨色淡化、深色是夜色加重 —— 不能一律用 --p-ink 淡化，
+       否则深色模式下 ink 是浅色，遮罩会变成一层白雾。 */
+    --p-scrim: color-mix(in srgb, var(--p-ink) 26%, transparent);
+    color-scheme: light;
     position: fixed;
     inset: 0;
     z-index: 10050;
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    background: color-mix(in srgb, var(--p-ink) 26%, transparent);
+    background: var(--p-scrim);
     font: 16px / 1.6 var(--lt-font, system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif);
     color: var(--p-ink);
     -webkit-font-smoothing: antialiased;
+}
+/* ---------- 深色：取自 world-axis 的夜色调 ----------
+   为什么必须显式写一套：上面的 --p-paper 是「由 --lt-sys-white 现场混」得出的，
+   而 tokens 里的 --lt-sys-white 在深色下**仍然是 #ffffff**（它只换 bg/label，
+   不换 white），所以只把 data-lonsha-theme 设成 dark，本面板会一直是浅色纸 —— 
+   这就是「点深色没反应」的真正原因。
+   下面这些 color-mix 派生项（--p-ink-2/3、--p-line、--p-wash）不用重写：
+   它们在同一元素上按新的 --p-ink / --p-paper 重新求值。
+   注意写法：每个色值都放在 `--xxx:` 声明行里，设计债门禁对自定义属性声明行
+   不计入「写死颜色」，所以这套色板不会让 check:design 的 colors 计数上升。 */
+html[data-lonsha-theme="dark"] .lmp {
+    color-scheme: dark;
+    --p-void: #090c10;
+    --p-paper: #0e1218;
+    --p-ink: #e6edf3;
+    --p-accent: #38bdf8;
+    --p-ok: #10b981;
+    --p-warn: #f59e0b;
+    --p-danger: #f43f5e;
+    --p-scrim: rgb(9 12 16 / 0.66);
+}
+/* 没手动选过主题时，跟随系统深色（外壳没挂上 attribute 的兜底） */
+@media (prefers-color-scheme: dark) {
+    html:not([data-lonsha-theme="light"]):not([data-lonsha-theme="dark"]) .lmp {
+        color-scheme: dark;
+        --p-paper: #0e1218;
+        --p-ink: #e6edf3;
+        --p-accent: #38bdf8;
+        --p-ok: #10b981;
+        --p-warn: #f59e0b;
+        --p-danger: #f43f5e;
+        --p-scrim: rgb(9 12 16 / 0.66);
+    }
 }
 
 .lmp-sheet {
@@ -409,8 +445,12 @@ html.lmp-lock {
    下面这批参照 world-axis `.wa-input / .wa-ta / .wa-set-row`：
    纸底、墨字、1px 线、44px 触摸高、零阴影零发光（纸不需要内陷感）。
    一律取 token，不写字面量颜色。 */
-.lmp-input,
-.lmp-ta {
+/* 输入框为什么要写成 `.lmp .lmp-input`（0,2,0）而不是 `.lmp-input`（0,1,0）：
+   宿主的样式表里有 `input[type="text"]` 这一类选择器，特异性 (0,1,1) 高于单类名，
+   于是抢走了背景色 —— 真机上表现为「纸底面板里嵌着一排纯黑输入框」，字还看不清。
+   提到 0,2,0 就赢了，而且不需要 !important（设计债门禁对 !important 只降不升）。 */
+.lmp .lmp-input,
+.lmp .lmp-ta {
     width: 100%;
     min-height: 44px;
     padding: 10px 12px;
@@ -430,18 +470,18 @@ html.lmp-lock {
     font-size: 13.5px;
     line-height: 1.6;
 }
-.lmp-input:focus,
-.lmp-ta:focus {
+.lmp .lmp-input:focus,
+.lmp .lmp-ta:focus {
     outline: none;
     border-color: var(--p-accent);
     box-shadow: inset 0 0 0 1px var(--p-accent);
 }
-.lmp-input::placeholder,
-.lmp-ta::placeholder {
+.lmp .lmp-input::placeholder,
+.lmp .lmp-ta::placeholder {
     color: var(--p-ink-3);
 }
 /* 下拉箭头自绘：原生箭头跟系统深色主题走，纸底上会留一块深色小三角 */
-select.lmp-input {
+.lmp select.lmp-input {
     padding-right: 34px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9.5 12 15.5 18 9.5' fill='none' stroke='%238a806c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -827,6 +867,34 @@ select.lmp-input {
 .lonsha-overlay.lonsha-overlay .ls-tab-btn.active {
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--p-accent) 26%, transparent);
 }
+/* 旧面板（记忆审计 / 记忆时间线等二级页）里的文本输入框同样被宿主
+   `input[type="text"]` 抢走底色，真机上是纸底面板配一排纯黑框。
+   这一段的作用域是 .lonsha-overlay，与 .lmp 无关 —— 两边都要治，
+   否则从概览点「记忆审计」，from / to 两个格子还是黑的。
+   0,4,1 的特异性压过宿主的 (0,1,1) 与注入副本的单类名，且不写 !important。 */
+.lonsha-overlay.lonsha-overlay input:not([type="checkbox"]):not([type="radio"]),
+.lonsha-overlay.lonsha-overlay textarea,
+.lonsha-overlay.lonsha-overlay select {
+    border-color: var(--p-line-2);
+    background-color: var(--p-paper);
+    color: var(--p-ink);
+    color-scheme: light;
+}
+.lonsha-overlay.lonsha-overlay input::placeholder,
+.lonsha-overlay.lonsha-overlay textarea::placeholder {
+    color: var(--p-ink-3);
+}
+/* 深色下的旧面板：与 .lmp 同一套 world-axis 夜色。spec (0,3,1) 高于上面的
+   浅色块 (0,2,0)，也与 :root 的缓存穿透副本不冲突（不同元素，各管各的子树）。 */
+html[data-lonsha-theme="dark"] .lonsha-overlay.lonsha-overlay {
+    color-scheme: dark;
+    --p-paper: #0e1218;
+    --p-ink: #e6edf3;
+    --p-accent: #38bdf8;
+    --p-ok: #10b981;
+    --p-warn: #f59e0b;
+    --p-danger: #f43f5e;
+}
 /* 主按钮的底色/字色由注入副本用 inline !important 钉死，本层不写 !important
    （门禁只降不升），所以这里不覆盖它 —— 它读的 --ls-accent-strong 已被上面
    重映射成青瓷，字色本来就是白，纸墨体系下依然可读。
@@ -905,6 +973,32 @@ select.lmp-input {
 .lmp-frow[data-tone="ok"] > .lmp-frow-v { color: var(--p-ok); }
 .lmp-frow[data-tone="warn"] > .lmp-frow-v { color: var(--p-warn); }
 .lmp-frow[data-tone="crit"] > .lmp-frow-v { color: var(--p-warn); font-weight: 700; }
+/* 堆叠行：标签在上、正文在下。给体检的报错条目用 —— 报错消息里夹着英文
+   标识符（this.checkEmbeddedMigration is not a function），横排右对齐既挤爆
+   卡片又断得难看。这里允许任意处断行，宽度占满整行。 */
+.lmp-frow.lmp-frow-stack {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 12px 0;
+}
+.lmp-frow.lmp-frow-stack > .lmp-frow-k {
+    max-width: 100%;
+    color: var(--p-ink-3);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.45;
+}
+.lmp-frow.lmp-frow-stack > .lmp-frow-v.lmp-err-msg {
+    max-width: 100%;
+    text-align: left;
+    color: var(--p-ink);
+    font-size: 14.5px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    word-break: normal;
+}
 .lmp-btn {
     display: block;
     width: 100%;

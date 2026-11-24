@@ -1162,9 +1162,16 @@
         const schema = sc ? (sc.ok
             ? line('ok', '存档结构', '完整（非空：' + ((sc.nonEmpty || []).join('、') || '暂无数据') + '）')
             : line('crit', '存档结构', '缺字段：' + (sc.missing || []).join('、'), sc.hint)) : '';
-        const errs = (r.errors || []).slice(-8).reverse().map((e) => kv(
+        /* 报错条目单独一种行：消息里有英文调用栈片段（this.checkEmbeddedMigration
+           is not a function — 【内部引用空指针】……），横排右对齐必然挤到卡外，
+           所以标签在上、消息在下、整行左对齐、允许任意处断行。 */
+        const errRow = (title, msg) => `<div class="lmp-frow lmp-frow-stack">
+            <span class="lmp-frow-k">${esc(title)}</span>
+            <span class="lmp-frow-v lmp-err-msg">${esc(msg)}</span>
+        </div>`;
+        const errs = (r.errors || []).slice(-8).reverse().map((e) => errRow(
             '[' + (e.tag || '?') + '] ' + new Date(e.t).toLocaleTimeString(),
-            String(e.msg || '').slice(0, 120) + (e.hint ? ' — ' + e.hint : '')
+            String(e.msg || '').slice(0, 300) + (e.hint ? ' — ' + e.hint : '')
         )).join('') || kv('最近错误', '无');
         return `<div class="lmp-card">
                 <span class="lmp-card-t">${esc(r.time || '')}</span>
