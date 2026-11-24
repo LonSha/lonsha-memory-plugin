@@ -17,7 +17,7 @@
 @import url("./dev-console-v3.css");   /* v3.1：A 段诊断页 / toast 基础样式（不随开关）；B 段开发者控制台（[data-ls-dc="3"]，开关 lonsha.ui.v3） */
 @import url("lonsha-ui-kit-ext.css");
 @import url("lonsha-settings.css");
-@import url("memory-panel.css?v=6.5");   /* v6.4：设置页按 lane 重构（接口/怎么记/更多），含输入控件 */
+@import url("memory-panel.css?v=6.6");   /* v6.4：设置页按 lane 重构（接口/怎么记/更多），含输入控件 */
 @import url("lonsha-paper-controls.css?v=6.3"); /* v6.3：+ 原生 select 自绘箭头、重置 .ls-input 深色内阴影 */
 
 @import url("lonsha-panel-v5.css");   /* v5：紧凑表格语言层，只在 [data-ui-rev="5"] / .lsm5 下生效，默认关 */

@@ -893,3 +893,29 @@ select.lmp-input {
     --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.6) 0%, transparent 72%);
 }
 
+
+/* ---------- 微调 / 体检页（v6.6） ---------- */
+.lmp-frow > .lmp-frow-v.lmp-ro {
+    max-width: 58%;
+    text-align: right;
+    color: var(--p-ink-3);
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+.lmp-frow[data-tone="ok"] > .lmp-frow-v { color: var(--p-ok); }
+.lmp-frow[data-tone="warn"] > .lmp-frow-v { color: var(--p-warn); }
+.lmp-frow[data-tone="crit"] > .lmp-frow-v { color: var(--p-warn); font-weight: 700; }
+.lmp-btn {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    margin-top: 10px;
+    border: 1px solid var(--p-line-2);
+    border-radius: var(--p-r);
+    background: transparent;
+    color: var(--p-accent);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.lmp-btn:active { background: var(--p-wash); }

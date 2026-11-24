@@ -774,6 +774,38 @@
     const esc = (t) => String(t == null ? '' : t)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&#34;');
     const safe = (fn, d) => { try { const v = fn(); return v === undefined ? d : v; } catch (_e) { return d; } };
+    /* ---------- 外壳（第一个 IIFE）的取数口 ----------
+       本面板是独立的第二个 IIFE，作用域里没有外壳的 store / setTheme。
+       早先直接写 store.get(...) 是错的：设置页一渲染就 ReferenceError，整页空白。
+       外壳已把 _store / setTheme / applyTheme 挂在 window.LonShaDashboardShell 上
+       （注释原话：避免第二份同 md5 的 store 副本），这里就复用，不再自带一份。 */
+    const SHELL = () => safe(() => window.LonShaDashboardShell, null) || null;
+    const LS_KEYS = {
+        theme: 'lonsha.ui.theme',
+        themeSource: 'lonsha.ui.themeSource',
+        dev: 'lonsha.ui.devMode',
+    };
+    const store = {
+        get(k, d) {
+            return safe(() => {
+                const S = SHELL();
+                if (S && S._store) { const v = S._store.get(k, null); return v == null ? d : v; }
+                const v = window.localStorage.getItem(k);
+                return v == null ? d : v;
+            }, d);
+        },
+        set(k, v) {
+            safe(() => {
+                const S = SHELL();
+                if (S && S._store) return S._store.set(k, v);
+                window.localStorage.setItem(k, String(v));
+                return null;
+            }, null);
+        },
+    };
+    /* 主题走外壳那一套（含 <html data-lonsha-theme> 与酒馆配色同步），本面板不自建。 */
+    const setTheme = (v) => safe(() => { const S = SHELL(); if (S && S.setTheme) return S.setTheme(v); return null; }, null);
+    const applyTheme = () => safe(() => { const S = SHELL(); if (S && S.applyTheme) return S.applyTheme(); return null; }, null);
 
     /* ---------- 用户手势门：没有手势就不许开 ---------- */
     let lastGestureAt = 0;
@@ -907,16 +939,113 @@
        gameplay-preset.js，engine-diagnostic-lines-part-a.js:1498）。
        写 lite/deep 进去 = 引擎读不到、静默回落到默认 —— 用户以为改了。
        ================================================================== */
+/* v6.6：旧面板（settings-ui.js，5974 行）**整体拆掉**，不再留「完整设置」逃生口。
+       它的全部可编辑项已搬进本面板的 5 条 lane：
+         conn 接口（主接口 + 语义检索 + 精排）、how 怎么记、lab 微调（60 个数值键）、
+         diag 体检（就地跑自检）、ui 界面（主题 / 配色 / 开发者模式）。
+       world-axis 也是这么收的：旧设置页整页删，新页的分组就是唯一入口。 */
     const LANES = [
         { id: 'conn', label: '接口', hint: '自动整理要用一个 AI 接口。不填也行，默认借用当前对话的接口（零配置）。' },
         { id: 'how', label: '怎么记', hint: '记多细、每次记多少。改这里就够了，不用动下面的。' },
-        { id: 'more', label: '更多', hint: '向量检索、精排、完整设置。没配也能用，配了更准。' },
+        { id: 'lab', label: '微调', hint: '引擎内部参数，默认值都是调好的。真要动，一次改一项，改完看几楼效果。' },
+        { id: 'diag', label: '体检', hint: '就地跑一次自检：召回通不通、存档缺不缺、最近有没有报错。' },
+        { id: 'ui', label: '界面', hint: '主题、配色、开发者模式。' },
     ];
     let lane = 'conn';
     const PROFILE_OPTS = [
         ['quality', '细致记录', '每楼都抽，最贵'],
         ['balanced', '平衡', '每 3 楼攒批一次（推荐）'],
         ['low-cost', '轻量省流', '每 5 楼攒批，只抽核心类型'],
+    ];
+
+    /* ---------- 微调字段表：旧面板 60 个数值键的**唯一真源** ----------
+       为什么用表而不是手写 60 段 HTML：手写会有三处必错——
+       漏键、区间抄错、键名打错（打错的键引擎读不到，静默回默认）。
+       表的行格式：[键, 人话标签, 最小, 最大, 步长]。
+       校验见 checkLabCoverage()：与旧面板 collect 的键名集合逐一对账。 */
+    const LAB_GROUPS = [
+        { t: '召回与注入', rows: [
+            ['bm25TopK', '字面匹配池大小', 1, 20, 1],
+            ['hybridAlpha', '语义检索占比（0 全字面 / 1 全语义）', 0, 1, 0.05],
+            ['dppLambda', '结果去重强度', 0, 1, 0.05],
+            ['rerankCandidates', '送进精排的候选数', 6, 24, 2],
+            ['vectorMaxCount', '向量库最多存几条', 50, 2000, 50],
+            ['vectorChunkSize', '分块字数', 100, 2000, 100],
+            ['vectorChunkOverlap', '分块重叠字数', 0, 200, 10],
+            ['vectorChunkThreshold', '超长才分块的门槛（字）', 400, 4000, 100],
+            ['vectorTailRecoveryLimit', '尾部补捞上限', 1, 40, 1],
+            ['supersedeScanPool', '新旧替换扫描池', 5, 100, 5],
+            ['injectionBudget', '每轮注入预算（字）', 200, 6000, 200],
+            ['injectionDepth', '注入到第几条消息', 0, 2, 1],
+            ['memoryTokenBudget', '记忆总预算（字）', 500, 6000, 100],
+            ['keepRecentTokenReserve', '给近期楼层预留（字）', 0, 1000, 50],
+        ] },
+        { t: '摘要与抽取', rows: [
+            ['summaryMaxCount', '摘要条数上限', 10, 1500, 50],
+            ['summaryFoldThreshold', '摘要折叠阈值', 10, 80, 5],
+            ['summaryFoldBatchSize', '每次折叠几条', 5, 100, 5],
+            ['historicalFoldThreshold', '历史折成卷的阈值', 8, 60, 2],
+            ['historicalRetention', '历史保留几条', 4, 100, 1],
+            ['archivePreserveRecent', '归档时保近几条', 1, 30, 1],
+            ['volumeRetention', '卷最多保留几卷', 4, 200, 2],
+            ['lockedFactMaxChars', '锁定事实长度上限（字）', 500, 20000, 500],
+            ['entropyThreshold', '信息量门槛（低于就不记）', 3, 60, 1],
+            ['extractRolesLimit', '每轮最多抽几个角色', 5, 200, 5],
+            ['termLexiconMax', '术语表上限', 10, 120, 10],
+        ] },
+        { t: '剧情与世界线', rows: [
+            ['timelineWindowDays', '时间线窗口（天）', 1, 30, 1],
+            ['timeChangeMaxCandidates', '时间变更候选数', 1, 20, 1],
+            ['suspenseMaxOpen', '未回收伏笔上限', 5, 40, 5],
+            ['echoBaseLife', '回声基础寿命', 1, 5, 1],
+            ['echoMaxCount', '回声条数上限', 0, 40, 1],
+            ['todoExpiryMinutes', '待办过期时间（分钟）', 5, 720, 5],
+            ['maintenanceOverdueWarnDays', '维护逾期提醒（天）', 1, 120, 1],
+            ['worldProgressEveryFloors', '世界推进间隔（楼）', 1, 20, 1],
+            ['worldProgressMaxCandidates', '世界推进候选数', 1, 10, 1],
+            ['outlinePlanCooldownFloors', '大纲冷却（楼）', 1, 60, 1],
+            ['diaryEveryFloors', '日记间隔（楼）', 0, 10, 1],
+            ['povMaxPerTurn', '每回合视角切换上限', 1, 10, 1],
+            ['worldlineDivergence', '世界线发散度', 0.5, 3, 0.05],
+        ] },
+        { t: '节奏与维护', rows: [
+            ['aiRecallOpsMaxPerFloor', 'AI 召回次数上限/楼', 1, 40, 1],
+            ['aiSelectMaxCandidates', 'AI 挑选候选数', 4, 40, 4],
+            ['aiSelectMaxSelect', 'AI 挑选条数', 2, 12, 1],
+            ['nativeToolMaxRounds', '工具调用轮数', 1, 5, 1],
+            ['smartTriggerThreshold', '智能触发阈值', 1, 10, 1],
+            ['sleepEveryN', '睡眠间隔（楼）', 1, 100, 1],
+            ['reflectEveryFloors', '反思间隔（楼）', 3, 30, 1],
+            ['optimizeEveryFloors', '优化间隔（楼）', 10, 200, 10],
+            ['snapshotEveryFloors', '快照间隔（楼）', 10, 500, 10],
+            ['floorLedgerRetention', '楼层账本保留条数', 200, 2000, 50],
+            ['adaptiveBudgetDecayFloors', '预算衰减楼层', 10, 400, 10],
+            ['graphRollupMinChildren', '关系图收敛所需子节点', 2, 12, 1],
+            ['pageRankDamping', 'PageRank 阻尼', 0, 0.95, 0.05],
+            ['stmLtmThreshold', '短期转长期的阈值', 3, 10, 1],
+            ['stmLtmCloseMinKeep', '收束时最少保留', 1, 10, 1],
+            ['presenceMaxCandidates', '在场候选数', 1, 20, 1],
+            ['maxMoneyDelta', '单次金钱变动上限（0 不限）', 0, 100000, 1000],
+            ['rubyPhoneRecallTopN', '手机联动召回数', 1, 8, 1],
+        ] },
+    ];
+    /* 其余散项（文本）。世界线那几项是 JSON / 列表，写错引擎会忽略，
+       所以给一句提示，而不是假装能校验。 */
+    const LAB_TEXTS = [
+        ['worldlineId', '当前世界线'],
+        ['worldlineLayerAlias', '层别名'],
+        ['worldlineStartFloor', '起始楼层'],
+        ['worldlineBands', '世界线区间'],
+        ['worldlineConvergences', '收束点'],
+        ['worldlineJumps', '跳线点'],
+        ['worldlineReaders', '读取者'],
+        ['worldlineReaderPolicy', '读取规则'],
+        ['worldlineAdjacentPolicy', '相邻线策略'],
+        ['smartTriggerPatterns', '智能触发词'],
+        ['onDemandTriggerPhrase', '按需触发口令'],
+        ['budgetStrategy', '预算策略'],
+        ['gameplayPreset', '玩法预设'],
+        ['crosslinkStopwords', '交叉链接停用词'],
     ];
 
     function lanesHTML() {
@@ -965,6 +1094,20 @@
                     <button type="button" class="lmp-mini" data-act="fetch-models">抓取</button>
                 </div>
                 <p class="lmp-lane-hint" data-model-status></p>
+            </div>
+            <div class="lmp-card">
+                <span class="lmp-card-t">语义检索接口（可选）</span>
+                <span class="lmp-card-s">不配也能用，走字面匹配。配了按含义找回忆更准，要挑支持 embeddings 的接口。</span>
+                ${textIn('embeddingUrl', 'https://api.xxx.com/v1', c.embeddingUrl)}
+                ${pwdIn('embeddingKey', '密钥（和上面主接口可以不同）', c.embeddingKey)}
+                ${textIn('embeddingModel', '模型名，如 text-embedding-ada-002', c.embeddingModel)}
+            </div>
+            <div class="lmp-card">
+                <span class="lmp-card-t">精排接口（可选）</span>
+                <span class="lmp-card-s">召回之后再排一次序。记忆很多（几百条以上）时才值得配。</span>
+                ${textIn('rerankApiUrl', 'https://api.xxx.com/v1', c.rerankApiUrl)}
+                ${pwdIn('rerankApiKey', '密钥', c.rerankApiKey)}
+                ${textIn('rerankModel', '模型名', c.rerankModel)}
             </div>`;
     }
 
@@ -981,28 +1124,94 @@
             <p class="lmp-note">当前档位：${esc(profLabel)}。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽，不会被攒批推到后面。</p>`;
     }
 
-    /* ---------- 更多 ---------- */
-    function laneMoreHTML(c) {
+    /* ---------- 微调：旧面板 60 个数值键 + 14 个文本键，全部表驱动 ---------- */
+    function laneLabHTML(c) {
+        const rows = LAB_GROUPS.map((g) => `<div class="lmp-card">
+                <span class="lmp-card-t">${g.t}</span>
+                ${g.rows.map((r) => frow(r[1], r[0], numIn(r[0], c[r[0]], r[2], r[3], r[4]))).join('')}
+            </div>`).join('');
+        const texts = `<div class="lmp-card">
+                <span class="lmp-card-t">世界线与联动</span>
+                <span class="lmp-card-s">后面几条是列表 / JSON。写错引擎会当成没写（不报错也不生效），改完记得看一眼引擎是否认。</span>
+                ${LAB_TEXTS.map(([k, l]) => frow(l, k, textIn(k, '留空 = 用默认', c[k]))).join('')}
+            </div>`;
         return `${lanesHTML()}${laneHintHTML()}
-            <div class="lmp-stack">
-                <button type="button" class="lmp-row lmp-row-btn" data-act="embedding">
-                    <span class="lmp-row-main">语义检索接口<em>不配也能用，配了按含义找回忆更准</em></span>
-                    <span class="lmp-chev" aria-hidden="true">›</span>
-                </button>
-                <button type="button" class="lmp-row lmp-row-btn" data-act="rerank">
-                    <span class="lmp-row-main">精排接口<em>召回后再排一次，适合记忆很多的时候</em></span>
-                    <span class="lmp-chev" aria-hidden="true">›</span>
-                </button>
-                <button type="button" class="lmp-row lmp-row-btn" data-act="advanced">
-                    <span class="lmp-row-main">完整设置<em>剩下的都在这里；会离开本面板，可随时按返回回来</em></span>
-                    <span class="lmp-chev" aria-hidden="true">›</span>
-                </button>
+            <p class="lmp-note">改一项、聊几楼、看效果。一次改一堆出问题就不知道是哪一项。</p>
+            ${rows}${texts}`;
+    }
+
+    /* ---------- 体检：就地跑 engine.selfCheck()，不跳旧面板 ---------- */
+    let lastDiag = null;
+    let diagBusy = false;
+    function diagBodyHTML() {
+        if (diagBusy) return '<p class="lmp-note">正在跑…（真机上大约一秒）</p>';
+        const r = lastDiag;
+        if (!r) return '<p class="lmp-note">还没跑过。点上面的「跑一次体检」。</p>';
+        if (r.fatal) return `<p class="lmp-note">体检本身没跑起来：${esc(r.fatal)}</p>`;
+        const kv = (k, v) => `<div class="lmp-frow"><span class="lmp-frow-k">${esc(k)}</span><span class="lmp-frow-v lmp-ro">${esc(v)}</span></div>`;
+        const stats = (r.stats || []).map((s) => kv(s.k, s.v)).join('');
+        const line = (tone, title, text, hint) => `<div class="lmp-frow" data-tone="${tone}">
+            <span class="lmp-frow-k">${esc(title)}<em>${esc(text)}</em>${hint ? `<em>${esc(hint)}</em>` : ''}</span>
+            <span class="lmp-frow-v lmp-ro">${tone === 'ok' ? '正常' : (tone === 'crit' ? '严重' : '注意')}</span>
+        </div>`;
+        const p = r.pipeline;
+        const pipe = p ? (p.ok
+            ? line('ok', '召回管线', `${p.ms}ms · 查询 ${p.queryLen} 字 → 命中 [${(p.routes || []).join(' ')}] → 合并 ${p.merged} 条 → 注入 ${p.injLen} 字`)
+            : line('warn', '召回管线', p.note || '管线异常', p.hint)) : '';
+        const sc = r.schema;
+        const schema = sc ? (sc.ok
+            ? line('ok', '存档结构', '完整（非空：' + ((sc.nonEmpty || []).join('、') || '暂无数据') + '）')
+            : line('crit', '存档结构', '缺字段：' + (sc.missing || []).join('、'), sc.hint)) : '';
+        const errs = (r.errors || []).slice(-8).reverse().map((e) => kv(
+            '[' + (e.tag || '?') + '] ' + new Date(e.t).toLocaleTimeString(),
+            String(e.msg || '').slice(0, 120) + (e.hint ? ' — ' + e.hint : '')
+        )).join('') || kv('最近错误', '无');
+        return `<div class="lmp-card">
+                <span class="lmp-card-t">${esc(r.time || '')}</span>
+                <span class="lmp-card-s">引擎版本 ${esc(r.version || '—')}</span>
+                ${stats}
+            </div>
+            ${(pipe || schema) ? `<div class="lmp-card"><span class="lmp-card-t">链路</span>${pipe}${schema}</div>` : ''}
+            <div class="lmp-card"><span class="lmp-card-t">最近错误</span>${errs}</div>`;
+    }
+    function laneDiagHTML() {
+        return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-card">
+                <span class="lmp-card-t">跑一次体检</span>
+                <span class="lmp-card-s">只读：不会写入档，也不会改你的配置。</span>
+                <button type="button" class="lmp-btn" data-act="selfcheck">跑一次体检</button>
+            </div>
+            <div data-diag-out>${diagBodyHTML()}</div>`;
+    }
+
+    /* ---------- 界面：主题 / 配色 / 开发者模式 ---------- */
+    function laneUiHTML(dev) {
+        const pref = store.get(LS_KEYS.theme, 'auto');
+        const src = store.get(LS_KEYS.themeSource, 'brand');
+        const seg = `<div class="lmp-lanes" role="radiogroup" aria-label="主题">
+            ${[['auto', '跟随酒馆'], ['light', '浅色'], ['dark', '深色']].map(([v, l]) => `<button type="button" class="lmp-lane" role="radio" data-dash-theme="${v}" aria-selected="${pref === v}">${l}</button>`).join('')}
+        </div>`;
+        return `${lanesHTML()}${laneHintHTML()}
+            <div class="lmp-card">
+                <span class="lmp-card-t">主题</span>
+                ${seg}
+                ${frow('配色跟随酒馆', '面板底色与文字色取自当前 SillyTavern 主题', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-themesrc${src === 'st' ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
+            </div>
+            <div class="lmp-card">
+                <span class="lmp-card-t">开发者模式</span>
+                <span class="lmp-card-s">打开后「微调」「体检」两页常驻（现在这两页在这版里本来就都在，这个开关只影响旧入口是否显示开发者面）。</span>
+                ${frow('开发者模式', dev ? '已打开' : '关着', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-dev${dev ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
             </div>`;
     }
 
     function settingsHTML(st) {
         const c = cfg();
-        const inner = lane === 'how' ? laneHowHTML(c) : (lane === 'more' ? laneMoreHTML(c) : laneConnHTML(c));
+        const dev = store.get(LS_KEYS.dev, '0') === '1';
+        const inner = lane === 'how' ? laneHowHTML(c)
+            : lane === 'lab' ? laneLabHTML(c)
+                : lane === 'diag' ? laneDiagHTML()
+                    : lane === 'ui' ? laneUiHTML(dev)
+                        : laneConnHTML(c);
         return `<div class="lmp-view" data-view="settings">
             <div class="lmp-stack">
                 ${switchRow('enabled', '启用记忆', '关掉就什么都不记了', st.enabled)}
@@ -1076,13 +1285,33 @@
             if (e.target.closest('.lmp-x')) return close();
             /* 分组条：只切 lane，不跳页、不关面板 */
             const ln = e.target.closest('.lmp-lane');
-            if (ln) { lane = ln.dataset.lane; render(); return; }
+            if (ln && ln.dataset.lane) { lane = ln.dataset.lane; render(); return; }
+            /* 界面页的主题分段：写 store 后整体重画（本页无输入框，重画不会丢焦点） */
+            const thm = e.target.closest('[data-dash-theme]');
+            if (thm) { setTheme(thm.dataset.dashTheme); render(); return; }
             /* .lmp-seg 的点击分支已移除（v6.4）：档位改用 select，页内已无分段控件。
                CSS 里的 .lmp-seg 规则保留 —— 它是通用件，别处可能需要。 */
             const act = e.target.closest('[data-act]');
             if (act) { doAct(act.dataset.act); }
         });
         root.addEventListener('change', (e) => {
+            /* 界面页的两个开关：themeSource / devMode 存在 localStorage，不是引擎配置，
+               所以走 store 而不是 cfg()，别混。 */
+            const ts = e.target.closest('input[data-dash-themesrc]');
+            if (ts) {
+                store.set(LS_KEYS.themeSource, ts.checked ? 'st' : 'brand');
+                applyTheme();
+                toast(ts.checked ? '配色跟随酒馆' : '配色用本面板自己的');
+                return;
+            }
+            const dv = e.target.closest('input[data-dash-dev]');
+            if (dv) {
+                store.set(LS_KEYS.dev, dv.checked ? '1' : '0');
+                const sub = dv.closest('.lmp-frow')?.querySelector('.lmp-frow-k > em');
+                if (sub) sub.textContent = dv.checked ? '已打开' : '关着';
+                toast(dv.checked ? '开发者模式已打开' : '开发者模式已关');
+                return;
+            }
             /* 下拉框（data-cfg-text 的 select）：即时存，不重建 body ——
                重建会把刚聚焦的控件摘掉，真机上表现为「选完弹回去」。 */
             const sel = e.target.closest('select[data-cfg-text]');
@@ -1163,23 +1392,10 @@
                复用旧面板那套逻辑不划算（它要 overlay 里的一堆 id），
                这里就地按 OpenAI /models 取一次，只做一件事：读回列表填进输入框的候选。 */
             if (id === 'fetch-models') { return fetchModels(); }
-            /* 语义检索 / 精排：旧面板里是 <details> 折叠段，没有独立出口可以调，
-               所以这里给出可操作的就地结果 —— 而不是让用户点了个没反应的按钮。 */
-            if (id === 'embedding' || id === 'rerank') {
-                const st = root && root.querySelector('[data-model-status]');
-                const which = id === 'embedding' ? '语义检索' : '精排';
-                if (st) st.textContent = `${which}接口目前只在「完整设置」里可编辑（本页暂未搬过来）。点下面的「完整设置」即可。`;
-                return toast(`${which}接口请在完整设置里改`);
-            }
-            if (id === 'advanced') {
-                /* 「完整设置」= 明确的逃生出口：旧面板还在，剩下的几百项都在那儿。
-                   它确实会离开本面板（旧面板是另一个 overlay，两层叠着没法看），
-                   但这是用户**主动点的**，不是被系统踢走的。
-                   真正修掉的是：填 API、改档位这些日常事已经在本页做完了，
-                   没人**必须**走这条路。 */
-                close2();
-                return p.__lmpLegacySettings ? p.__lmpLegacySettings() : (p.showSettingsPanel && p.showSettingsPanel());
-            }
+            /* 体检：就地跑 engine.selfCheck()。
+               以前点「高级设置」会关掉本面板去开旧面板的诊断页；现在旧面板拆了，
+               自检结果就渲染在本页的 [data-diag-out] 里。 */
+            if (id === 'selfcheck') { return runSelfCheck(); }
         } catch (e) {
             try { (window.LonShaMemory.reportError || console.warn)(e, 'memory-panel.act.' + id); } catch (_e) { /* 忽略 */ }
         }
@@ -1214,6 +1430,20 @@
             .catch((e) => say('抓取失败（' + (e && e.message ? e.message : e) + '）。手填模型名一样能用。'));
     }
 
+    /* ---------- 就地体检（v6.6） ---------- */
+    function runSelfCheck() {
+        const eng = safe(() => window.LonShaMemory.engine, null);
+        if (!eng || typeof eng.selfCheck !== 'function') { toast('这个版本没有自检接口'); return; }
+        diagBusy = true;
+        const paint = () => { const o = root && root.querySelector('[data-diag-out]'); if (o) o.innerHTML = diagBodyHTML(); };
+        paint();
+        Promise.resolve()
+            .then(() => eng.selfCheck())
+            .then((r) => { lastDiag = r || { fatal: '空结果' }; })
+            .catch((e) => { lastDiag = { fatal: (e && e.message) || String(e) }; })
+            .then(() => { diagBusy = false; paint(); });
+    }
+
     function close() {
         if (!root) return;
         try { document.removeEventListener('keydown', root._onKey); } catch (_e) { /* 忽略 */ }
@@ -1228,17 +1458,25 @@
         if (!p) return;
         if (!p.__lmpWired) {
             p.__lmpWired = true;
-            /* 旧面板留一份真身，只给「设置 → 高级设置」和开发者面(diag)用 */
-            p.__lmpLegacySettings = typeof p.showSettingsPanel === 'function' ? p.showSettingsPanel.bind(p) : null;
-            try { console.log('[LonSha] 面板 v6 已加载'); } catch (_e) { /* 忽略 */ }
+            /* v6.6：不再保存旧面板「真身」。设置项全部搬进本面板的五条 lane，
+               旧面板（settings-ui.js，5974 行）不再有任何可达入口 —— 照 world-axis 的做法整页退役。 */
+            try { console.log('[LonSha] 面板 v6.6 已加载'); } catch (_e) { /* 忽略 */ }
         }
         /* 入口必须「反复压」：dashboard-shell 会在插件就绪后再包一次 showSettingsPanel，
            只覆盖一次就会被它包回去 —— 用户看到的仍然是旧面板（这就是上一版失效的原因）。 */
-        const legacy = p.__lmpLegacySettings;
         p.showPanel = () => { openPanel('overview'); };
         p.showFabMenu = () => { openPanel('overview'); };
         p.showSettingsPanel = function (diag) {
-            if (diag === true && legacy) return legacy(true);
+            /* 旧的开发者面（diag=true）改成落本面板的「体检」页：
+               同样是读数、自检、报错清单，但不再打开那张 5974 行的旧设置页。 */
+            if (diag === true) {
+                /* 顺序要紧：openPanel 内部会把 lane 复位成 'conn'（用户点「设置」要看到接口页），
+                   所以先开面板、再设 lane、最后重画，否则会被复位回接口页。 */
+                if (!openPanel('settings')) return false;
+                lane = 'diag';
+                render();
+                return true;
+            }
             openPanel('overview');
             return true;
         };
