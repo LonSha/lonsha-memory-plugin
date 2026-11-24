@@ -1,359 +1,1639 @@
 /* ============================================================
-   LonSha 记忆引擎 · CSS v5（紧凑表格语言）
-   由 css/style.css 在 lonsha-settings.css 之后 @import（顺序即层序）。
-   生效范围：面板根带 [data-ui-rev="5"]（开关 lonsha.ui.v5），或单独挂 .lsm5 的容器。
-   不挂就一行也不生效 —— 旧外观完整保留，回退只需去掉属性。
-   ------------------------------------------------------------
-   纪律（与本仓现有判据一致）：
-     · 零 !important；零颜色字面量 —— 全部由 --lt-* 与宿主 --SmartTheme* 派生，换主题跟着变；
-     · 只写尺寸 / 排版 / 层级，不写整屏背景（避免盖掉官方次模式）；
-     · 新类名一律带 lsm5- 前缀；旧类名不改一个。
+   LonSha 记忆引擎 · CSS v5（接管控件视觉 + 重排信息密度）
+   由 css/style.css 在最后 @import（顺序即层序）。
+
+   与上一版的区别（上一版是「别名接线补丁」，这版是「接管」）：
+     旧版只给零星属性打补丁，下层 dashboard.css / dashboard-v2.css /
+     dashboard-v3.css / lonsha-ui-kit-ext.css 的残留属性会漏上来，
+     于是出现「v5 的圆角 + v3 的白底页签」这种拼贴感。
+     本版对每个可见控件把决定观感的属性写全（font/color/background/
+     border/padding/margin/radius/shadow/line-height），让下层无洞可漏。
+
+   设计刻度（抄自 baibai-git/ST-BaiBai-Book，MIT，见其 theme.css / base.css）：
+     · 容器只解决「框」，内容不套框；设置项是「行 + 细分隔线」，不是一张张卡片
+     · 圆角三级 16 / 10 / 8，间距 16，页面内边距 clamp(14px, 4vw, 22px)
+     · 字号阶梯 16 / 15 / 13 / 12 / 11，行高 1.5，说明文字 1.6
+     · 层级只靠 surface / surface-2 / ink / ink-soft / ink-muted 五色分级，
+       不靠阴影堆叠；阴影只留给窗口本身
+     · 窄屏导航降级为「等分纯图标 + 只换选中色」，不再横排带字胶囊
+
+   纪律：零 !important；零颜色字面量（全部由令牌派生）；零 <11px 字号；
+        零 backdrop-filter。根作用域仍锚 [data-ui-rev="5"] / .lsm5。
    ============================================================ */
 
-/* ---------- 1. 令牌：一切只从真源派生 ---------- */
+/* ---------- 1. 令牌 ---------- */
+/* 令牌同时落在 overlay 与 dash 上：.lonsha-sheet / header / body / dirtybar 都在
+   .ls-dash 之外（DOM 是 overlay > sheet > body > .ls-dash），而自定义属性只向下继承，
+   挂在 dash 上的令牌祖先拿不到。两者同值，谁近谁生效。 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]),
 :is(.ls-dash[data-ui-rev="5"], .lsm5) {
-    --v5-fg: var(--lt-text-1, var(--SmartThemeBodyColor));
-    --v5-fg2: var(--lt-text-2, color-mix(in srgb, var(--SmartThemeBodyColor) 64%, transparent));
-    --v5-fg3: var(--lt-text-3, color-mix(in srgb, var(--SmartThemeBodyColor) 42%, transparent));
-    --v5-line: var(--lt-hairline, color-mix(in srgb, var(--SmartThemeBodyColor) 10%, transparent));
-    --v5-line-strong: var(--lt-line, color-mix(in srgb, var(--SmartThemeBodyColor) 18%, transparent));
-    --v5-hover: var(--lt-hover, color-mix(in srgb, var(--SmartThemeBodyColor) 6%, transparent));
-    --v5-pressed: var(--lt-pressed, color-mix(in srgb, var(--SmartThemeBodyColor) 10%, transparent));
-    --v5-field: var(--lt-bg-sunken, color-mix(in srgb, var(--SmartThemeBodyColor) 6%, transparent));
-    --v5-ok: var(--lt-success, var(--lt-sys-green));
-    --v5-info: var(--lt-info, var(--lt-sys-blue));
-    --v5-warn: var(--lt-warn, var(--lt-sys-orange));
-    --v5-danger: var(--lt-danger, var(--lt-sys-red));
-    --v5-r: var(--lt-r-sm, 6px);
-    --v5-r-lg: var(--lt-r-md, 10px);
-    --v5-r-pill: var(--lt-r-pill, 999px);
-    --v5-ctl: 32px;
-    --v5-hit: 32px;
-    --v5-gap: 8px;
-    font: 12px/1.45 var(--lt-font, system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif);
-    color: var(--v5-fg);
+    /* 文字四级 */
+    /* 纸墨浅色：**不**继承宿主 --lt-text-* / --lt-surface-*
+       （宿主深色主题里 --lt-text-1 是 #f1f5f9，面板落到纸上就成了白字白纸；
+          --lt-surface-* 则是透明，于是窗口背景全靠底下那层深色兜着 —— 这就是「怎么改都黑」的根）。
+       全部由 --lt-sys-white / --lt-sys-black / --lt-sys-brown / --lt-sys-teal 现场混，
+       四个系统色色值恒定，不看宿主脸色。 */
+    --v5-paper: color-mix(in srgb, var(--lt-sys-white) 96%, var(--lt-sys-orange) 4%);
+    --v5-ink: color-mix(in srgb, var(--lt-sys-black) 84%, var(--lt-sys-brown));
+    --v5-ink-2: color-mix(in srgb, var(--v5-ink) 76%, var(--v5-paper));
+    --v5-ink-3: color-mix(in srgb, var(--v5-ink) 54%, var(--v5-paper));
+    --v5-ink-4: color-mix(in srgb, var(--v5-ink) 36%, var(--v5-paper));
+    --v5-bg: transparent;
+    --v5-bg-1: var(--v5-paper);
+    --v5-bg-2: color-mix(in srgb, var(--v5-ink) 5%, var(--v5-paper));
+    --v5-bg-3: color-mix(in srgb, var(--v5-ink) 9%, var(--v5-paper));
+    --v5-line: color-mix(in srgb, var(--v5-ink) 12%, var(--v5-paper));
+    --v5-line-2: color-mix(in srgb, var(--v5-ink) 20%, var(--v5-paper));
+    --v5-accent: color-mix(in srgb, var(--lt-sys-teal) 42%, var(--v5-ink));
+    --v5-accent-ink: var(--v5-paper);
+    --v5-accent-soft: color-mix(in srgb, var(--v5-accent) 12%, transparent);
+    --v5-ok: color-mix(in srgb, var(--lt-sys-green) 52%, var(--v5-ink));
+    --v5-warn: color-mix(in srgb, var(--lt-sys-orange) 62%, var(--v5-ink));
+    --v5-danger: color-mix(in srgb, var(--lt-sys-red) 62%, var(--v5-ink));
+    --v5-elev: 0 24px 56px -26px color-mix(in srgb, var(--v5-ink) 30%, transparent),
+               0 4px 14px -8px color-mix(in srgb, var(--v5-ink) 16%, transparent);
+    font: var(--v5-fs-body) / 1.5 var(--lt-font, system-ui, -apple-system, "PingFang SC", "Noto Sans SC", sans-serif);
+    color: var(--v5-ink);
+    -webkit-font-smoothing: antialiased;
+}
+:is(.ls-dash[data-ui-rev="5"], .lsm5),
+:is(.ls-dash[data-ui-rev="5"], .lsm5) * {
+    box-sizing: border-box;
 }
 
-/* ---------- 2. 顶栏 / 标题 ---------- */
-.lsm5-hd {
+/* ---------- 2. 窗口件（在 .ls-dash 之外，只能从 overlay 侧锚定） ---------- */
+/* 用 :has() 而不是「dash 后代」：dashboard-v3.css 里已有同款先例。
+   特异性 .lonsha-overlay(0,1,0) + :has(.ls-dash[data-ui-rev="5"])(0,2,0) = (0,3,0)，
+   与注入样式 .lonsha-overlay .lonsha-sheet .ls-btn 打平，再由层序裁决 —— v5 最后导入。 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet, .ls-sheet) {
     display: flex;
-    align-items: center;
-    gap: var(--v5-gap);
-    padding: 11px 12px;
-    border-bottom: 1px solid var(--v5-line);
-    box-sizing: border-box;
-}
-.lsm5-hd > h2,
-.lsm5-title {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    font: 600 13px/1.3 inherit;
-    color: var(--v5-fg);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.lsm5-sub {
-    font: 11px/1.3 inherit;
-    color: var(--v5-fg3);
-}
-
-/* ---------- 3. 控件：搜索 / 分段 / 输入 / 图标按钮 ---------- */
-.lsm5-search,
-.lsm5-select,
-.lsm5-input {
-    box-sizing: border-box;
-    height: var(--v5-ctl);
-    padding: 0 10px;
-    border: 1px solid var(--v5-line);
-    border-radius: var(--v5-r);
-    background: var(--v5-field);
-    color: var(--v5-fg);
-    font: 12px/var(--v5-ctl) inherit;
-    outline: none;
-    min-width: 0;
-}
-.lsm5-input,
-.lsm5-textarea {
+    flex-direction: column;
     width: 100%;
-}
-.lsm5-textarea {
-    box-sizing: border-box;
-    min-height: 84px;
-    padding: 10px;
-    border: 1px solid var(--v5-line);
-    border-radius: var(--v5-r);
-    background: var(--v5-field);
-    color: var(--v5-fg);
-    font: 12px/1.5 inherit;
-    outline: none;
-    resize: vertical;
-}
-.lsm5-search:focus,
-.lsm5-select:focus,
-.lsm5-input:focus,
-.lsm5-textarea:focus {
-    border-color: var(--v5-fg3);
-}
-.lsm5-search::placeholder,
-.lsm5-input::placeholder,
-.lsm5-textarea::placeholder {
-    color: var(--v5-fg3);
-}
-.lsm5-seg {
-    display: inline-flex;
-    border: 1px solid var(--v5-line);
-    border-radius: var(--v5-r);
-    overflow: hidden;
-    background: var(--v5-field);
-    flex: none;
-}
-.lsm5-seg > button {
-    height: 28px;
-    padding: 0 12px;
-    border: 0;
-    border-right: 1px solid var(--v5-line);
-    background: none;
-    color: var(--v5-fg2);
-    font: 500 11px/28px inherit;
-    cursor: pointer;
-}
-.lsm5-seg > button:last-child { border-right: 0; }
-.lsm5-seg > button.on,
-.lsm5-seg > button[aria-pressed="true"] {
-    background: var(--v5-hover);
-    color: var(--v5-fg);
-}
-.lsm5-ib {
-    flex: none;
-    width: var(--v5-hit);
-    height: var(--v5-hit);
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: var(--lt-r-xs, 4px);
-    background: none;
-    color: var(--v5-fg2);
-    font-size: 12px;
-    cursor: pointer;
+    max-width: var(--lt-sheet-max-w, 520px);
+    max-height: var(--lt-sheet-max-h, 88%);
+    margin: 0;
     padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-win) var(--v5-r-win) 0 0;
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: var(--v5-elev);
+    color: var(--v5-ink);
+    font: var(--v5-fs-body) / 1.5 var(--lt-font, system-ui, -apple-system, "PingFang SC", sans-serif);
 }
-.lsm5-ib:hover { background: var(--v5-hover); color: var(--v5-fg); }
-.lsm5-ib:active { background: var(--v5-pressed); }
-.lsm5-ib.del:hover { color: var(--v5-danger); }
-
-/* ---------- 4. 列表与行 ---------- */
-.lsm5-list {
+@media (min-width: 641px) {
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet, .ls-sheet) {
+        max-height: var(--lt-sheet-max-h-desktop, 84%);
+        border-radius: var(--v5-r-win);
+    }
+}
+/* 题首：16px/600，上下 12px，右边一个 32×32 方块按钮 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-header, .ls-sheet-header) {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 0;
+    margin: 0;
+    padding: 12px var(--v5-pad);
+    border: 0;
+    border-bottom: 1px solid var(--v5-line);
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    font-size: var(--v5-fs-head);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--v5-ink);
+    font-size: var(--v5-fs-head);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+/* 标题图标：尺寸与小圆底都写死，避免 mask 没接上时露出一块纯色方块 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-ico) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--v5-r-xs);
+    background: transparent;
+    color: var(--v5-accent);
+    font-size: 16px;
+    line-height: 1;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 9px;
+    align-items: center;
+    min-width: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-ico) {
+    grid-row: 1 / span 2;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-text) {
+    grid-column: 2;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+/* 题首第二行：一句用途。11px / ink-3 / 400，压在主标题下面，不参与标题层级 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-sub) {
+    grid-column: 2;
+    margin-top: 1px;
+    overflow: hidden;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 400;
+    line-height: 1.3;
+    letter-spacing: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-close, .ls-sheet-close) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-2);
+    color: var(--v5-ink-3);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 140ms, background 140ms;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-close, .ls-sheet-close):hover {
+    background: var(--v5-bg-3);
+    color: var(--v5-ink);
+}
+/* 内容区：滚动交给它，内边距只给一次（在 .ls-dash-main 上） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-body, .ls-sheet-body) {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+    background: transparent;
+    color: var(--v5-ink);
 }
-.lsm5-row {
-    position: relative;
+/* 底部操作条：从「三连大按钮占满宽」改成右对齐、主次分明 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dirtybar, .lsm5-dirtybar) {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 9px 12px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: 0;
+    padding: 10px var(--v5-pad);
+    border: 0;
+    border-top: 1px solid var(--v5-line);
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dirtybar, .lsm5-dirtybar) .ls-btn {
+    min-width: 88px;
+    min-height: 36px;
+    margin: 0;
+    border-radius: var(--v5-r-sm);
+}
+
+/* ---------- 3. 导航：一条可横滚的细导轨，选中只换色 + 底线 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-nav, .lsm5-tabs) {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: stretch;
+    gap: 18px;
+    margin: 0;
+    padding: 2px var(--v5-pad) 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: 0;
     border-bottom: 1px solid var(--v5-line);
-    box-sizing: border-box;
+    background: transparent;
+    scrollbar-width: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-nav, .lsm5-tabs)::-webkit-scrollbar {
+    display: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab) {
+    position: relative;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 42px;
+    margin: 0;
+    padding: 9px 1px 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink-3);
+    font: 500 var(--v5-fs-sm) / 1.2 inherit;
+    white-space: nowrap;
     cursor: pointer;
+    transition: color 140ms;
 }
-.lsm5-row:last-child { border-bottom: 0; }
-.lsm5-row:hover { background: var(--v5-hover); }
-.lsm5-row-main { flex: 1; min-width: 0; }
-.lsm5-row-txt {
-    margin: 0 0 3px;
-    font: 12px/1.4 inherit;
-    color: var(--v5-fg);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: transparent;
+    transition: background 140ms;
 }
-.lsm5-row-sub {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab):hover {
+    background: transparent;
+    color: var(--v5-ink-2);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab).on,
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab)[aria-selected="true"] {
+    background: transparent;
+    color: var(--v5-ink);
+    font-weight: 600;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab).on::after,
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab)[aria-selected="true"]::after {
+    background: var(--v5-accent);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-ico, .lsm5-tab-ico) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    color: inherit;
+    font-size: 15px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-label, .lsm5-tab-label) {
+    color: inherit;
+    font-size: var(--v5-fs-sm);
+    font-weight: inherit;
+}
+/* 窄屏不再「等分大图标」：四项带字仍有 350px 宽，导轨自己横滚，字不必删 */
+@media (max-width: 640px) {
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-nav, .lsm5-tabs) {
+        gap: 16px;
+    }
+}
+
+/* ---------- 4. 页面骨架：一列到底 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-main, .lsm5-main) {
+    display: block;
+    margin: 0;
+    padding: 4px var(--v5-pad) 26px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-pane, .lsm5-pane) {
+    display: none;
+    margin: 0;
+    padding: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-pane, .lsm5-pane) > :first-child {
+    margin-top: 0;
+}
+/* 原来这里是 2 列/逐张卡的网格，现在只是纵向文档流 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-overview-grid, .lsm5-grid) {
+    display: block;
+    margin: 0;
+}
+
+/* ---------- 5. 区块：不是卡，是「带小竖条的小节标题 + 内容」 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card, .lsm5-card) {
+    display: block;
+    margin: 0;
+    padding: 16px 0;
+    border: 0;
+    border-bottom: 1px solid var(--v5-line);
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card, .lsm5-card):last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-width, .ls-card-wide) {
+    padding-top: 16px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-head, .lsm5-card-hd) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-title, .lsm5-card-title) {
     display: flex;
     align-items: center;
     gap: 8px;
-    font: 11px/1.3 inherit;
-    color: var(--v5-fg3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--v5-ink);
+    font: 600 var(--v5-fs-body) / 1.3 inherit;
+    letter-spacing: 0.01em;
 }
-.lsm5-row-acts {
-    position: absolute;
-    top: 7px;
-    right: 8px;
-    display: none;
+/* 3×12 的青瓷小竖条：整个面板唯一的「装饰」，不占位、不画框 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-title, .lsm5-card-title)::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 3px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--v5-accent);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-link, .lsm5-card-link) {
+    display: inline-flex;
     align-items: center;
     gap: 2px;
-    padding: 2px;
-    border: 1px solid var(--v5-line);
-    border-radius: var(--v5-r);
-    background: var(--SmartThemeBlurTintColor, var(--lt-surface-glass, var(--v5-field)));
+    margin: 0;
+    padding: 2px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--v5-ink-3);
+    font: 500 var(--v5-fs-sm) / 1.2 inherit;
+    cursor: pointer;
 }
-.lsm5-row:hover .lsm5-row-acts,
-.lsm5-row:focus-within .lsm5-row-acts {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-link, .lsm5-card-link):hover {
+    color: var(--v5-accent);
+}
+
+/* ---------- 6. 状态行：一个圆点 + 两行字，没有任何框 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero, .lsm5-hero) {
     display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 0;
+    padding: 0 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
 }
-.lsm5-dot {
-    flex: none;
-    width: 7px;
-    height: 7px;
-    border-radius: var(--v5-r-pill);
-    background: var(--v5-fg3);
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-dot, .lsm5-hero-dot) {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--v5-ok);
+    box-shadow: none;
 }
-.lsm5-dot.on { background: var(--v5-ok); }
-.lsm5-dot.long { background: var(--v5-info); }
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero, .lsm5-hero)[data-state="warn"] :is(.ls-hero-dot, .lsm5-hero-dot) {
+    background: var(--v5-warn);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero, .lsm5-hero)[data-state="off"] :is(.ls-hero-dot, .lsm5-hero-dot) {
+    background: var(--v5-ink-4);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-title, .lsm5-hero-title) {
+    color: var(--v5-ink);
+    font: 600 var(--v5-fs-title) / 1.35 inherit;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-sub, .lsm5-hero-sub) {
+    margin-top: 3px;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.55;
+}
 
-/* ---------- 5. 空态 ---------- */
-.lsm5-empty {
-    padding: 64px 24px;
+/* ---------- 7. 指标：三格等分 + 竖细线，数值最大、标签在下 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpis, .lsm5-kpis) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 14px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi, .lsm5-kpi) {
+    margin: 0;
+    padding: 0 12px;
+    border: 0;
+    border-left: 1px solid var(--v5-line);
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi, .lsm5-kpi):first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi-v, .lsm5-kpi-v) {
+    color: var(--v5-ink);
+    font: 600 21px / 1.1 inherit;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.02em;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi-k, .lsm5-kpi-k) {
+    margin-top: 4px;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    line-height: 1.35;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi, .lsm5-kpi)[data-tone="warn"] :is(.ls-kpi-v, .lsm5-kpi-v) {
+    color: var(--v5-danger);
+}
+/* ---------- 8. 分段控件 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) {
+    display: flex;
+    gap: 3px;
+    margin: 0;
+    padding: 3px;
+    border: 0;
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-2);
+    background-image: none;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) :is(.ls-seg-btn, .lsm5-seg-btn) {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--v5-r-xs);
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink-2);
+    font: 500 var(--v5-fs-sm) / 1.3 inherit;
     text-align: center;
-    color: var(--v5-fg3);
+    cursor: pointer;
+    transition: background 140ms, color 140ms;
 }
-.lsm5-empty-icon { font-size: 40px; margin-bottom: 12px; opacity: .5; }
-.lsm5-empty-txt { margin: 0 0 6px; font: 13px/1.5 inherit; color: var(--v5-fg2); }
-.lsm5-empty-sub { font: 12px/1.4 inherit; }
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) :is(.ls-seg-btn, .lsm5-seg-btn):hover {
+    color: var(--v5-ink);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) :is(.ls-seg-btn, .lsm5-seg-btn).on,
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) :is(.ls-seg-btn, .lsm5-seg-btn)[aria-checked="true"],
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) > *:last-child {
+    background: var(--v5-bg-3);
+    color: var(--v5-ink);
+    font-weight: 600;
+}
 
-/* ---------- 6. 编辑区 ---------- */
-.lsm5-edit { padding: 16px 12px; }
-.lsm5-field { margin-bottom: 18px; }
-.lsm5-field:last-child { margin-bottom: 0; }
-.lsm5-label {
-    margin-bottom: 6px;
-    font: 600 11px/1.3 inherit;
-    color: var(--v5-fg2);
-    letter-spacing: .3px;
-    text-transform: uppercase;
+/* ---------- 9. 徽章 / 进度 / 提示 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-badge, .lsm5-badge) {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    margin: 0;
+    padding: 0 7px;
+    border: 1px solid var(--v5-line);
+    border-radius: var(--v5-r-xs);
+    background: transparent;
+    background-image: none;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
 }
-.lsm5-field-row { display: flex; gap: 12px; }
-.lsm5-field-row > .lsm5-field { flex: 1; margin-bottom: 0; }
-.lsm5-toggle {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-badge, .lsm5-badge)[data-tone="warn"] {
+    border-color: color-mix(in srgb, var(--v5-warn) 40%, transparent);
+    color: var(--v5-warn);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-badge, .lsm5-badge)[data-tone="ok"] {
+    border-color: color-mix(in srgb, var(--v5-ok) 40%, transparent);
+    color: var(--v5-ok);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-meter, .lsm5-meter) {
+    position: relative;
+    height: 6px;
+    margin: 8px 0 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 3px;
+    background: var(--v5-bg-2);
+    background-image: none;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-meter, .lsm5-meter) > span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--v5-ok);
+    background-image: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-meter, .lsm5-meter)[data-tone="warn"] > span {
+    background: var(--v5-warn);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hint, .lsm5-hint) {
+    margin: 8px 0 0;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.55;
+}
+
+/* ---------- 10. 列表：行 + 细分隔线 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list, .ls-rows, .lsm5-list) {
+    display: block;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-item, .ls-row2, .lsm5-row) {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    min-height: 38px;
+    margin: 0;
+    padding: 8px 0;
+    border: 0;
+    border-top: 1px solid var(--v5-line);
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-item, .ls-row2, .lsm5-row):first-child {
+    border-top: 0;
+    padding-top: 2px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-item, .ls-row2, .lsm5-row):last-child {
+    padding-bottom: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-item, .ls-row2, .lsm5-row):hover {
+    background: transparent;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-main, .ls-row2-main, .lsm5-row-main) {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-text, .ls-row2-text, .lsm5-row-txt) {
+    color: var(--v5-ink);
+    font-size: var(--v5-fs-body);
+    font-weight: 400;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-meta, .ls-row2-sub, .lsm5-row-sub) {
+    margin: 2px 0 0;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    line-height: 1.4;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-row2-meta, .lsm5-row-meta) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kind, .lsm5-kind) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--v5-line);
+    border-radius: var(--v5-r-xs);
+    background: var(--v5-bg-1);
+    color: var(--v5-ink-2);
+    font-size: 12px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-avatars, .lsm5-avatars) {
+    display: inline-flex;
+    align-items: center;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-avatar, .lsm5-avatar) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-left: -4px;
+    border: 1px solid var(--v5-bg-1);
+    border-radius: 50%;
+    background: var(--v5-bg-3);
+    color: var(--v5-ink-2);
+    font-size: var(--v5-fs-xs);
+    line-height: 1;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-avatar, .lsm5-avatar):first-child {
+    margin-left: 0;
+}
+
+/* ---------- 11. 空态 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty, .ls-empty2, .lsm5-empty) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0;
+    padding: 28px 16px;
+    border: 1px dashed var(--v5-line-2);
+    border-radius: var(--v5-r);
+    background: transparent;
+    background-image: none;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.55;
+    text-align: center;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-icon, .ls-empty2-art, .ls-empty-ico, .lsm5-empty-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    border: 0;
+    border-radius: 12px;
+    background: var(--v5-bg-2);
+    color: var(--v5-ink-3);
+    font-size: 20px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty2-card, .ls-empty2-badge, .lsm5-empty-extra) {
+    display: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-txt, .ls-empty2-title, .lsm5-empty-txt) {
+    color: var(--v5-ink-2);
+    font-size: var(--v5-fs-body);
+    font-weight: 600;
+    line-height: 1.4;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-sub, .ls-empty2-sub, .lsm5-empty-sub) {
+    max-width: 30ch;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.55;
+}
+
+/* ---------- 12. 设置项：行，不是卡 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-legacy, .lsm5-legacy) {
+    margin: 0;
+    padding: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group, .lsm5-group) {
+    margin: 0 0 14px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group-title, .lsm5-label) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 6px;
+    padding: 0;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    line-height: 1.3;
+    text-transform: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group, .lsm5-group):first-child > :is(.ls-group-title, .lsm5-label):first-child {
+    margin-top: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-row, .ls-row2, .lsm5-field-row) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 9px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 9px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
     cursor: pointer;
-    user-select: none;
 }
-.lsm5-switch {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch-text, .lsm5-toggle-label, .lsm5-field) {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch-title, .ls-group-title.ls-switch-title) {
+    display: block;
+    margin: 0;
+    color: var(--v5-ink);
+    font-size: var(--v5-fs-body);
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.45;
+    text-transform: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch-sub, .lsm5-field-hint) {
+    display: block;
+    margin: 2px 0 0;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    font-weight: 400;
+    line-height: 1.5;
+}
+/* 开关：40×24 轨道 + 18 圆钮；不给 !important，靠层序赢 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"] {
     position: relative;
-    flex: none;
-    width: 38px;
-    height: 22px;
-    border-radius: var(--v5-r-pill);
-    background: var(--v5-line-strong);
-    transition: background var(--lt-dur-fast, .18s) var(--lt-ease, ease);
+    flex: 0 0 auto;
+    width: 40px;
+    min-width: 40px;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--v5-pill);
+    background: var(--v5-bg-3);
+    background-image: none;
+    box-shadow: inset 0 0 0 1px var(--v5-line);
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    transition: background 160ms;
 }
-.lsm5-switch::after {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"]::after {
     content: "";
     position: absolute;
     top: 3px;
     left: 3px;
-    width: 16px;
-    height: 16px;
-    border-radius: var(--v5-r-pill);
-    background: var(--lt-sys-white, #fff);
-    transition: left var(--lt-dur-fast, .18s) var(--lt-ease, ease);
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--v5-ink-3);
+    box-shadow: none;
+    transform: none;
+    transition: transform 160ms, background 160ms;
 }
-.lsm5-toggle.on .lsm5-switch,
-.lsm5-toggle[aria-checked="true"] .lsm5-switch { background: var(--v5-ok); }
-.lsm5-toggle.on .lsm5-switch::after,
-.lsm5-toggle[aria-checked="true"] .lsm5-switch::after { left: 19px; }
-.lsm5-toggle-label { font: 12px/1.3 inherit; color: var(--v5-fg); }
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"]:checked {
+    background: var(--v5-accent);
+    box-shadow: inset 0 0 0 1px var(--v5-accent);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"]:checked::after {
+    background: var(--v5-accent-ink);
+    transform: translateX(16px);
+}
+/* 直接露在面板里的裸复选框（非 .ls-switch 包装）保持原生语义，只统一尺寸与取色 */
+:is(.ls-dash[data-ui-rev="5"], .lsm5) input[type="checkbox"]:not([class]):not(.lsm5) {
+    accent-color: var(--v5-accent);
+}
 
-/* ---------- 7. 卡片 / KPI / 表格 ---------- */
-.lsm5-card {
-    box-sizing: border-box;
+/* 输入框 / 文本域 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-input, .lsm5-input) {
+    width: 100%;
+    margin: 0 0 8px;
+    padding: 9px 11px;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    font: 400 var(--v5-fs-body) / 1.45 inherit;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-input, .lsm5-input):last-child {
+    margin-bottom: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-input, .lsm5-input):focus {
+    outline: none;
+    border-color: var(--v5-accent);
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-input, .lsm5-input)::placeholder {
+    color: var(--v5-ink-4);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-textarea, .lsm5-textarea) {
+    display: block;
+    width: 100%;
+    min-height: 72px;
+    margin: 0;
+    padding: 9px 11px;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    font: 400 var(--v5-fs-body) / 1.6 inherit;
+    resize: vertical;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-textarea, .lsm5-textarea):focus {
+    outline: none;
+    border-color: var(--v5-accent);
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-textarea, .lsm5-textarea)::placeholder {
+    color: var(--v5-ink-4);
+}
+
+/* 按钮：主次分明，靠右、不撑满 */
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .ls-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    margin: 0 0 6px;
+    padding: 7px 14px;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    font: 500 var(--v5-fs-sm) / 1.2 inherit;
+    cursor: pointer;
+}
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .ls-btn:last-child {
+    margin-bottom: 0;
+}
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .ls-btn-danger {
+    border-color: color-mix(in srgb, var(--v5-danger) 38%, transparent);
+    background: color-mix(in srgb, var(--v5-danger) 10%, transparent);
+    background-image: none;
+    color: var(--v5-danger);
+}
+
+/* 开发者提示条：一行灰字，不做彩色告示牌 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-devnote, .lsm5-note) {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-left: 2px solid var(--v5-line-2);
+    border-radius: 0 var(--v5-r-xs) var(--v5-r-xs) 0;
+    background: var(--v5-bg-1);
+    background-image: none;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+/* ---------- 13. 记忆页：磁贴 / 标签 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tiles, .lsm5-tiles) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 0 14px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    margin: 0;
+    padding: 11px 12px;
     border: 1px solid var(--v5-line);
     border-radius: var(--v5-r);
-    background: var(--lt-surface-1, transparent);
-    overflow: hidden;
+    background: var(--v5-bg);
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    text-align: left;
+    cursor: pointer;
 }
-.lsm5-card-hd {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile):hover {
+    background: var(--v5-bg-1);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-ico, .lsm5-tile-ico) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--v5-accent);
+    font-size: 16px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-title, .lsm5-tile-title) {
+    color: var(--v5-ink);
+    font-size: var(--v5-fs-body);
+    font-weight: 600;
+    line-height: 1.35;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-sub, .lsm5-tile-sub) {
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    line-height: 1.35;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-chips, .lsm5-chips) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-home-chip, .ls-chip, .lsm5-chip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding: 5px 10px;
+    border: 1px solid var(--v5-line);
+    border-radius: var(--v5-pill);
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink-2);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.3;
+    cursor: pointer;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-chip, .lsm5-chip)[aria-pressed="true"] {
+    border-color: var(--v5-accent);
+    background: var(--v5-accent-soft);
+    color: var(--v5-accent);
+    font-weight: 600;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-chip-n, .lsm5-chip-n) {
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 14. 记忆页 v2 工具栏 ---------- */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-toolbar, .lsm5-toolbar) {
+    display: block;
+    margin: 0 0 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-toolbar-row, .lsm5-toolbar-row) {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 12px;
-    border-bottom: 1px solid var(--v5-line);
-    font: 600 11px/1.3 inherit;
-    color: var(--v5-fg2);
-    letter-spacing: .3px;
-    text-transform: uppercase;
+    margin: 0 0 8px;
 }
-.lsm5-card-bd { padding: 10px 12px; }
-.lsm5-kpi {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 7px;
     min-width: 0;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-1);
+    background-image: none;
+    box-shadow: none;
 }
-.lsm5-kpi-num {
-    font: 600 20px/1.15 var(--lt-font-mono, ui-monospace, monospace);
-    font-variant-numeric: tabular-nums;
-    color: var(--v5-fg);
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) input[type="search"],
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) input[type="text"],
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) input:not([type]) {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 34px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    font: 400 var(--v5-fs-body) / 1.4 inherit;
+    -webkit-appearance: none;
+    appearance: none;
 }
-.lsm5-kpi-label {
-    font: 11px/1.3 inherit;
-    color: var(--v5-fg3);
-    white-space: nowrap;
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) input:focus {
+    outline: none;
+    border: 0;
+    box-shadow: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search, .lsm5-search) input::placeholder {
+    color: var(--v5-ink-4);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-search-ico, .lsm5-search-ico) {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    color: var(--v5-ink-3);
+    font-size: 14px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-sr, .lsm5-sr) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
-.lsm5-kpis { display: flex; gap: 18px; flex-wrap: wrap; }
-.lsm5-table {
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-views, .lsm5-views) {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 2px;
+    margin: 0;
+    padding: 3px;
+    border: 0;
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-2);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-view, .lsm5-view) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--v5-r-xs);
+    background: transparent;
+    background-image: none;
+    color: var(--v5-ink-3);
+    font-size: 14px;
+    cursor: pointer;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-view, .lsm5-view)[aria-checked="true"] {
+    background: var(--v5-bg-3);
+    color: var(--v5-ink);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-view-label, .lsm5-view-label) {
+    display: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-section-title, .lsm5-section-title) {
+    margin: 16px 0 8px;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-v2-more, .lsm5-more) {
+    display: block;
     width: 100%;
-    border-collapse: collapse;
-    font: 12px/1.4 inherit;
-    font-variant-numeric: tabular-nums;
+    min-height: 36px;
+    margin: 8px 0 0;
+    padding: 8px;
+    border: 1px dashed var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: transparent;
+    color: var(--v5-ink-3);
+    font: 500 var(--v5-fs-sm) / 1.3 inherit;
+    cursor: pointer;
 }
-.lsm5-table :is(th, td) {
-    padding: 7px 10px;
+
+/* ---------- 15. 底部操作条的规则已移到第 2 节（它在 .ls-dash 之外） ---------- */
+
+/* ---------- 16. 预留形态（DOM 暂无产出点，见 tests/panel-v5-wiring.test.mjs） ---------- */
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .lsm5-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: collapse;
+    font-size: var(--v5-fs-sm);
+}
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .lsm5-table :is(th, td) {
+    padding: 7px 8px;
     border-bottom: 1px solid var(--v5-line);
     text-align: left;
     vertical-align: top;
 }
-.lsm5-table th {
-    font: 600 11px/1.3 inherit;
-    color: var(--v5-fg2);
-    white-space: nowrap;
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .lsm5-table th {
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    font-weight: 600;
 }
-.lsm5-table tr:last-child :is(td, th) { border-bottom: 0; }
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .lsm5-table tr:last-child :is(td, th) {
+    border-bottom: 0;
+}
+:is(.ls-dash[data-ui-rev="5"], .lsm5) .lsm5-select {
+    width: 100%;
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--v5-line-2);
+    border-radius: var(--v5-r-sm);
+    background: var(--v5-bg-1);
+    color: var(--v5-ink);
+    font: 400 var(--v5-fs-body) / 1.4 inherit;
+}
 
-/* ---------- 8. 页签 ---------- */
-.lsm5-tabs {
-    display: flex;
-    gap: 2px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--v5-line);
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-.lsm5-tabs::-webkit-scrollbar { display: none; }
-.lsm5-tab {
-    flex: none;
-    height: 34px;
-    padding: 0 12px;
+/* ---------- 17. 世界轴语法补丁：空态 / 记忆页磁贴 / 题首副标题 ---------- */
+/* 空态不再是「居中大图标 + 虚线盒」，而是一句话 + 虚线左竖线（world-axis .wa-empty 同款） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty, .ls-empty2, .lsm5-empty) {
+    display: block;
+    margin: 0;
+    padding: 2px 0 2px 11px;
     border: 0;
-    border-bottom: 2px solid transparent;
-    background: none;
-    color: var(--v5-fg2);
-    font: 500 12px/34px inherit;
-    cursor: pointer;
-    white-space: nowrap;
+    border-left: 2px dashed var(--v5-line-2);
+    border-radius: 0;
+    background: transparent;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-sm);
+    line-height: 1.6;
+    text-align: left;
 }
-.lsm5-tab:hover { color: var(--v5-fg); }
-.lsm5-tab.on,
-.lsm5-tab[aria-selected="true"] {
-    color: var(--v5-fg);
-    border-bottom-color: var(--lt-accent, var(--v5-fg));
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-icon, .ls-empty-ico, .ls-empty2-art, .lsm5-empty-icon) {
+    display: none;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-txt, .ls-empty2-title, .lsm5-empty-txt) {
+    color: var(--v5-ink-2);
+    font-size: var(--v5-fs-sm);
+    font-weight: 500;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-sub, .ls-empty2-sub, .lsm5-empty-sub) {
+    display: block;
+    max-width: none;
+    margin-top: 2px;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+}
+/* 记忆页磁贴：从 2×N 小卡改成「图标 + 标题/副标题」的行，行间一条细线 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tiles, .lsm5-tiles) {
+    display: block;
+    margin: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile) {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    column-gap: 10px;
+    align-items: center;
+    margin: 0;
+    padding: 11px 0;
+    border: 0;
+    border-top: 1px solid var(--v5-line);
+    border-radius: 0;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink);
+    text-align: left;
+    cursor: pointer;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tiles, .lsm5-tiles) > :is(.ls-tile, .lsm5-tile):first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile):hover {
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-ico, .lsm5-tile-ico) {
+    grid-row: 1 / span 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--v5-accent);
+    font-size: 16px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-title, .lsm5-tile-title) {
+    color: var(--v5-ink);
+    font: 500 var(--v5-fs-body) / 1.4 inherit;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-sub, .lsm5-tile-sub) {
+    margin-top: 1px;
+    color: var(--v5-ink-3);
+    font-size: var(--v5-fs-xs);
+    line-height: 1.4;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile):hover :is(.ls-tile-title, .lsm5-tile-title) {
+    color: var(--v5-accent);
 }
 
-/* ---------- 9. 弹层外右：面板容器的几何收敏 ---------- */
-:is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-sheet-header, .lonsha-sheet-header) {
-    padding: 11px 12px;
-    border-bottom: 1px solid var(--v5-line);
+
+/* ---------- 18. 放大刻度（world-axis 真机刻度回填）----------
+   上一版把「信息密度」当目标，结果整块面板像 A4 缩印：13px 正文、11px 说明、
+   36px 按钮。world-axis 真机是 17px 正文 / 19px 行标签 / 56px 按钮，
+   一屏只放三块，读起来才像「手札」而不是「报表」。
+   本节只改刻度（字号 / 行高 / 间距 / 圆角 / 触控高度），不改结构、不改配色。 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]),
+:is(.ls-dash[data-ui-rev="5"], .lsm5) {
+    --v5-fs-display: 26px;   /* 概览首屏那句状态话 */
+    --v5-fs-head: 19px;      /* 窗口题首 */
+    --v5-fs-title: 18.5px;   /* 小节标题 */
+    --v5-fs-body: 16px;      /* 正文 */
+    --v5-fs-row: 17px;       /* 行标签（设置项 / 列表主文） */
+    --v5-fs-sm: 14px;
+    --v5-fs-xs: 12.5px;
+    --v5-gap: 22px;
+    --v5-pad: clamp(18px, 5.2vw, 24px);
+    --v5-r-win: 20px;
+    --v5-r: 14px;
+    --v5-r-sm: 10px;
+    --v5-r-xs: 8px;
+    --v5-tap: 46px;
+    --v5-hair: 1px;
+}
+/* 题首：19px + 字间 0.16em（世界手札那种呼吸感），副标题 13px */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-header, .ls-sheet-header) {
+    padding: 15px var(--v5-pad);
+    gap: 12px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title) {
+    column-gap: 11px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-ico) {
+    width: 24px;
+    height: 24px;
+    font-size: 20px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-text) {
+    font-size: var(--v5-fs-head);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash-title-sub) {
+    margin-top: 3px;
+    font-size: var(--v5-fs-xs);
+    line-height: 1.4;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.lonsha-sheet-close, .ls-sheet-close) {
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
+}
+/* 导航：54px 高，图标 19 + 字 12.5，选中 3px 底线 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-nav, .lsm5-tabs) {
+    gap: 22px;
+    padding: 0 var(--v5-pad);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab) {
+    min-height: 54px;
+    gap: 7px;
+    padding: 10px 1px 13px;
+    font-size: var(--v5-fs-xs);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab)::after {
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-ico, .lsm5-tab-ico) {
+    width: 19px;
+    height: 19px;
+    font-size: 19px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-label, .lsm5-tab-label) {
+    font-size: var(--v5-fs-xs);
+}
+/* 内容区：22px 侧边距，区块之间 0（靠细线分），页尾 32px */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-main, .lsm5-main) {
+    padding: 8px var(--v5-pad) 32px;
+}
+/* 区块：24px 上下留白 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card, .lsm5-card) {
+    padding: 24px 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-width, .ls-card-wide) {
+    padding-top: 20px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-head, .lsm5-card-hd) {
+    margin-bottom: 14px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-title, .lsm5-card-title) {
+    gap: 9px;
+    font-size: var(--v5-fs-title);
+    font-weight: 600;
+    letter-spacing: 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-title, .lsm5-card-title)::before {
+    width: 3px;
+    height: 15px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-card-link, .lsm5-card-link) {
+    padding: 6px 0;
+    font-size: var(--v5-fs-sm);
+}
+/* 首屏状态：26px 粗标题 + 15px 说明（对应「世界还没开始转动」那一屏） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero, .lsm5-hero) {
+    gap: 11px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-dot, .lsm5-hero-dot) {
+    width: 10px;
+    height: 10px;
+    margin-top: 9px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-title, .lsm5-hero-title) {
+    font-size: var(--v5-fs-display);
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hero-sub, .lsm5-hero-sub) {
+    margin-top: 7px;
+    font-size: 15px;
+    line-height: 1.65;
+}
+/* 指标：30px 数字 + 13px 标签，格与格之间 16px 气口 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpis, .lsm5-kpis) {
+    margin-top: 22px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi, .lsm5-kpi) {
+    padding: 0 16px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi-v, .lsm5-kpi-v) {
+    font-size: 30px;
+    font-weight: 600;
+    line-height: 1.15;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-kpi-k, .lsm5-kpi-k) {
+    margin-top: 6px;
+    font-size: var(--v5-fs-xs);
+    line-height: 1.45;
+}
+/* 列表：行高 17px 主文 + 13px 元信息，行间距 14px */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list, .lsm5-list) {
+    font-size: var(--v5-fs-row);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-item, .lsm5-list-item) {
+    padding: 14px 0;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-text, .lsm5-list-text) {
+    font-size: var(--v5-fs-row);
+    line-height: 1.6;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-list-meta, .lsm5-list-meta) {
+    margin-top: 5px;
+    font-size: var(--v5-fs-xs);
+}
+/* 空态：一句话，15px，虚线左竖线加粗到 3px */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty, .ls-empty2, .lsm5-empty) {
+    padding: 4px 0 4px 14px;
+    border-left-width: 3px;
+    font-size: 15px;
+    line-height: 1.7;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-txt, .ls-empty2-title, .lsm5-empty-txt) {
+    font-size: 15px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-empty-sub, .ls-empty2-sub, .lsm5-empty-sub) {
+    font-size: var(--v5-fs-xs);
+}
+/* 记忆页磁贴：从「行」升级成 world-axis 那种 56px 起跳的行盒（1px 描边 + 14px 圆角） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile) {
+    grid-template-columns: 22px minmax(0, 1fr);
+    column-gap: 14px;
+    margin: 0 0 10px;
+    padding: 15px 16px;
+    border: 1px solid var(--v5-line);
+    border-top: 1px solid var(--v5-line);
+    border-radius: var(--v5-r);
+    background: transparent;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tiles, .lsm5-tiles) > :is(.ls-tile, .lsm5-tile):first-child {
+    padding-top: 15px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile, .lsm5-tile):hover {
+    background: var(--v5-bg-2);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-ico, .lsm5-tile-ico) {
+    width: 22px;
+    height: 22px;
+    font-size: 20px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-title, .lsm5-tile-title) {
+    font-size: var(--v5-fs-row);
+    font-weight: 500;
+    line-height: 1.45;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-tile-sub, .lsm5-tile-sub) {
+    margin-top: 3px;
+    font-size: var(--v5-fs-xs);
+    line-height: 1.45;
+}
+/* 设置项：行标签 17px、说明 13px、开关 46×28（指腹能按住的最小值） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch-title, .lsm5-switch-title) {
+    font-size: var(--v5-fs-row);
+    font-weight: 500;
+    line-height: 1.45;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch-sub, .lsm5-switch-sub) {
+    font-size: var(--v5-fs-xs);
+    line-height: 1.6;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-switch) {
+    min-height: 56px;
+    padding: 12px 0;
+}
+/* 分段控件：40px 高的大胶囊，选中块抬起 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) {
+    min-height: 40px;
+    padding: 4px;
+    border-radius: 12px;
+    gap: 2px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg-btn, .lsm5-seg-btn) {
+    min-height: 32px;
+    padding: 0 14px;
+    border-radius: 9px;
+    font-size: var(--v5-fs-sm);
+}
+/* 按钮：46px 起跳，圆角 12；底部三键等分铺满（world-axis「让世界走一步」的处理） */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-btn, .lsm5-btn) {
+    min-height: var(--v5-tap);
+    padding: 0 18px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 500;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dirtybar, .lsm5-dirtybar) {
+    gap: 10px;
+    padding: 12px var(--v5-pad) 14px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dirtybar, .lsm5-dirtybar) :is(.ls-btn, .lsm5-btn) {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--v5-tap);
+    border-radius: 12px;
+    font-size: 15px;
+}
+/* 徽章 / 进度 / 提示条：跟着放大，别再是 10px 芝麻 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-badge, .lsm5-badge) {
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: var(--v5-fs-xs);
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-meter, .lsm5-meter) {
+    height: 8px;
+    border-radius: 999px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-hint, .lsm5-hint) {
+    font-size: var(--v5-fs-sm);
+    line-height: 1.65;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-devnote, .lsm5-devnote) {
+    padding: 14px 0 14px 14px;
+    font-size: 15px;
+    line-height: 1.65;
+}
+
+
+/* ---------- 19. 底部页签条（窄屏）----------
+   世界手札的真机布局里，导航在面板**底部**：图标在上、字在下，5 等分，
+   选中项顶上一条 3px 强调色短线。顶部只剩题首，首屏第一眼直接落在内容上。
+   这里不改 DOM：.ls-dash 里只有 nav 和 main 两个子元素，order 换位即可。 */
+@media (max-width: 640px) {
+    :is(.ls-dash[data-ui-rev="5"], .lsm5) {
+        display: flex;
+        flex-direction: column;
+        min-height: 100%;
+    }
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-main, .lsm5-main) {
+        order: 1;
+        flex: 1 1 auto;
+        padding-bottom: 20px;
+    }
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-nav, .lsm5-tabs) {
+        order: 2;
+        position: sticky;
+        bottom: 0;
+        z-index: 3;
+        gap: 0;
+        padding: 4px var(--v5-pad) 6px;
+        border-top: 1px solid var(--v5-line);
+        border-bottom: 0;
+        background: var(--v5-bg-1);
+        background-image: none;
+        box-shadow: none;
+    }
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab) {
+        flex: 1 1 0;
+        flex-direction: column;
+        gap: 4px;
+        min-height: 56px;
+        padding: 10px 0 6px;
+    }
+    /* 选中指示条挪到顶部（world-axis 底部页签就是这么标的） */
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab, .lsm5-tab)::after {
+        top: -4px;
+        bottom: auto;
+        right: 18%;
+        left: 18%;
+        height: 3px;
+        border-radius: 0 0 3px 3px;
+    }
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-ico, .lsm5-tab-ico) {
+        width: 21px;
+        height: 21px;
+        font-size: 21px;
+    }
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-tab-label, .lsm5-tab-label) {
+        font-size: var(--v5-fs-xs);
+        letter-spacing: 0.04em;
+    }
+}
+
+/* ---------- 20. 真机三处走形修正 ---------- */
+/* (1) 底部页签是 sticky，最后一行内容必须让位，否则被压在页签底下 */
+@media (max-width: 640px) {
+    .lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-dash-main, .lsm5-main) {
+        padding-bottom: 88px;
+    }
+}
+/* (2) 分段控件：三格等分、同一高度、只有一圈底、没有各自的小盒子 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg, .lsm5-seg) {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
     box-sizing: border-box;
 }
-:is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-sheet-body, .lonsha-sheet-body) {
-    padding: 0;
-    box-sizing: border-box;
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg-btn, .lsm5-seg-btn) {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: var(--v5-ink-2);
+    font-size: var(--v5-fs-sm);
+    font-weight: 500;
+    line-height: 1;
+    text-align: center;
+    -webkit-text-fill-color: currentColor;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg-btn, .lsm5-seg-btn)[aria-checked="true"],
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-seg-btn, .lsm5-seg-btn).on {
+    background: var(--v5-bg-1);
+    color: var(--v5-ink);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--v5-line);
+}
+/* (3) 小节标签：不再带一条横贯到右边的细线，也不许放大成标题 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group-title, .lsm5-label) {
+    margin: 22px 0 8px;
+    font-size: var(--v5-fs-xs);
+    font-weight: 600;
+    color: var(--v5-ink-3);
+    letter-spacing: 0.08em;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group-title, .lsm5-label)::before,
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-group-title, .lsm5-label)::after {
+    content: none;
+    display: none;
+}
+/* (4) 开关：钉死 40×24，圆钮 18，别让任何一层把它撑成「大药丸」 */
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"] {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    height: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    flex: 0 0 40px;
+    border-radius: 999px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"]::after {
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+}
+.lonsha-overlay:has(.ls-dash[data-ui-rev="5"]) :is(.ls-dash[data-ui-rev="5"], .lsm5) :is(.ls-switch, .lsm5-toggle) input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
 }

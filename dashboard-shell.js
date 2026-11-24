@@ -321,7 +321,14 @@
         sheet.classList.add('ls-dash-sheet');
         try { overlay.querySelectorAll('[data-ls-shell-mark]').forEach((n) => n.remove()); } catch (_e) { /* 记号清理失败无妨 */ }
         const head = overlay.querySelector('.lonsha-sheet-header > span');
-        if (head) { head.textContent = ''; head.classList.add('ls-dash-title'); head.insertAdjacentHTML('afterbegin', `<span class="ls-dash-title-ico" aria-hidden="true">${I('brain', { fill: true })}</span><span class="ls-dash-title-text">${diag ? '记忆引擎 · 开发者' : '记忆引擎'}</span>`); }
+        if (head) {
+            head.textContent = '';
+            head.classList.add('ls-dash-title');
+            /* 题首两行：主题 + 一句用途（world-axis 顶栏同款）。副标题只在正常面出现，
+               开发者面已经有 ‹ 返回 与门禁读数，再塞一句话只会挤掉标题。 */
+            const sub = diag ? '' : '<span class="ls-dash-title-sub">你聊过的，它自己整理好了</span>';
+            head.insertAdjacentHTML('afterbegin', `<span class="ls-dash-title-ico" aria-hidden="true">${I('brain', { fill: true })}</span><span class="ls-dash-title-text">${diag ? '记忆引擎 · 开发者' : '记忆引擎'}</span>${sub}`);
+        }
         scrubChromeGlyphs(overlay);
 
         /* 默认开（默认值 '0' -> '1'）：做完了却默认关着，用户永远不知道有这一层。

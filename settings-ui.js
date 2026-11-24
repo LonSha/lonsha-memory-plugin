@@ -52,66 +52,66 @@
                  *   checkbox 未勾选态的方块底、input 的默认底都由浏览器按 color-scheme 决定，
                  *   而本面板此前从未声明它 —— 宿主页面若是浅色 color-scheme，
                  *   深色面板里就必然嵌着几块白底原生控件。声明 dark 后原生件随深色走。 */
-                color-scheme: dark;
-                --ls-accent: #38bdf8; --ls-accent-strong: #0284c7; --ls-accent-hover: #7dd3fc;
-                --ls-accent-soft: rgba(56,189,248,0.10); --ls-accent-softer: rgba(56,189,248,0.05);
-                --ls-accent-line: rgba(56,189,248,0.28); --ls-on-accent: #04121e;
-                --ls-gold: #fbbf24; --ls-gold-soft: rgba(251,191,36,0.10); --ls-gold-line: rgba(251,191,36,0.30); --ls-gold-hover: #fde68a;
-                --ls-bg-0: #06080d; --ls-bg-1: #0a0f18; --ls-bg-2: #111827; --ls-bg-3: #1b2436; --ls-bg-4: #27334a;
-                --ls-bg-glass: rgba(10,15,24,0.88);
-                --ls-line: rgba(255,255,255,0.07); --ls-line-strong: rgba(255,255,255,0.14); --ls-line-subtle: rgba(255,255,255,0.04);
-                --ls-inner-rim: inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 0 rgba(0,0,0,0.40);
-                --ls-inner-glow: inset 0 0 16px rgba(56,189,248,0.04);
-                --ls-text: #f1f5f9; --ls-text-2: #94a3b8; --ls-text-3: #64748b; --ls-text-4: #475569; --ls-inverse: #06080d;
-                --ls-success: #34d399; --ls-success-soft: rgba(52,211,153,0.10);
-                --ls-warn: #fbbf24; --ls-warn-soft: rgba(251,191,36,0.10);
-                --ls-danger: #f87171; --ls-danger-soft: rgba(248,113,113,0.12); --ls-danger-line: rgba(248,113,113,0.30);
-                --ls-info: #38bdf8; --ls-info-soft: rgba(56,189,248,0.10);
-                --ls-r-xs: 4px; --ls-r-sm: 6px; --ls-r-md: 10px; --ls-r-lg: 14px; --ls-r-xl: 18px; --ls-r-pill: 9999px;
-                --ls-sh-1: 0 1px 2px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.35);
-                --ls-sh-2: 0 4px 20px -2px rgba(0,0,0,0.65), 0 12px 32px -4px rgba(2,6,23,0.55);
-                --ls-sh-3: 0 20px 50px -10px rgba(0,0,0,0.85), 0 10px 24px -5px rgba(0,0,0,0.65);
-                --ls-sh-accent: 0 2px 14px rgba(56,189,248,0.28); --ls-sh-accent-lg: 0 6px 28px rgba(56,189,248,0.38);
-                --ls-glow-gold: 0 2px 14px rgba(251,191,36,0.25);
-                --ls-t-fast: 140ms; --ls-t-med: 220ms; --ls-t-slow: 360ms;
+                color-scheme: light;
+                --ls-accent: #2f6f63; --ls-accent-strong: #245b52; --ls-accent-hover: #3d8478;
+                --ls-accent-soft: rgba(47,111,99,0.10); --ls-accent-softer: rgba(47,111,99,0.05);
+                --ls-accent-line: rgba(47,111,99,0.28); --ls-on-accent: #fbf7f0;
+                --ls-gold: #a9762f; --ls-gold-soft: rgba(169,118,47,0.10); --ls-gold-line: rgba(169,118,47,0.28); --ls-gold-hover: #c08a3e;
+                --ls-bg-0: #f2ece0; --ls-bg-1: #fbf7f0; --ls-bg-2: #f5efe4; --ls-bg-3: #ede5d7; --ls-bg-4: #e2d8c6;
+                --ls-bg-glass: rgba(251,247,240,0.94);
+                --ls-line: rgba(36,31,24,0.12); --ls-line-strong: rgba(36,31,24,0.20); --ls-line-subtle: rgba(36,31,24,0.06);
+                --ls-inner-rim: inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -1px 0 rgba(36,31,24,0.05);
+                --ls-inner-glow: inset 0 0 0 rgba(0,0,0,0);
+                --ls-text: #241f18; --ls-text-2: #5b5344; --ls-text-3: #8a806c; --ls-text-4: #a99e88; --ls-inverse: #fbf7f0;
+                --ls-success: #2f7d4f; --ls-success-soft: rgba(47,125,79,0.12);
+                --ls-warn: #a9762f; --ls-warn-soft: rgba(169,118,47,0.12);
+                --ls-danger: #b3402f; --ls-danger-soft: rgba(179,64,47,0.10); --ls-danger-line: rgba(179,64,47,0.26);
+                --ls-info: #2f6f63; --ls-info-soft: rgba(47,111,99,0.10);
+                --ls-r-xs: 4px; --ls-r-sm: 8px; --ls-r-md: 10px; --ls-r-lg: 16px; --ls-r-xl: 20px; --ls-r-pill: 9999px;
+                --ls-sh-1: 0 1px 2px rgba(36,31,24,0.06), 0 4px 10px rgba(36,31,24,0.05);
+                --ls-sh-2: 0 8px 24px -8px rgba(36,31,24,0.16), 0 2px 6px rgba(36,31,24,0.05);
+                --ls-sh-3: 0 24px 56px -26px rgba(36,31,24,0.28), 0 6px 18px -8px rgba(36,31,24,0.10);
+                --ls-sh-accent: 0 2px 10px rgba(47,111,99,0.18); --ls-sh-accent-lg: 0 6px 22px rgba(47,111,99,0.24);
+                --ls-glow-gold: 0 2px 10px rgba(169,118,47,0.16);
+                --ls-t-fast: 140ms; --ls-t-med: 220ms; --ls-t-slow: 320ms;
                 --ls-ease: cubic-bezier(0.16, 1, 0.3, 1); --ls-ease-out: cubic-bezier(0, 0, 0.2, 1);
                 --ls-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-                --ls-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
-                --ls-blur: saturate(160%) blur(20px);
-                --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(56,189,248,0.08) 0%, transparent 75%);
+--ls-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
+                --ls-blur: none;
+                --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 72%);
             }
-            .lonsha-overlay { position: fixed; inset: 0; background: rgba(4, 7, 12, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,220ms) var(--ls-ease-out,ease); }
+            .lonsha-overlay { position: fixed; inset: 0; background: rgba(36, 31, 24, 0.26); backdrop-filter: none; -webkit-backdrop-filter: none; z-index: 10002; display: flex; align-items: flex-end; justify-content: center; animation: ls-fade var(--ls-t-med,220ms) var(--ls-ease-out,ease); }
             @media (min-width: 600px) { .lonsha-overlay { align-items: center; } }
             @keyframes ls-fade { from { opacity: 0; } to { opacity: 1; } }
-            .lonsha-sheet { background: var(--ls-bg-1, #0a0f18); background-image: var(--ls-radial-glow); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); width: 100%; max-width: 520px; max-height: 85vh; border-radius: var(--ls-r-lg, 14px) var(--ls-r-lg, 14px) 0 0; display: flex; flex-direction: column; border: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); box-shadow: var(--ls-sh-3), var(--ls-inner-rim); color: var(--ls-text, #f1f5f9); font-family: var(--ls-font, system-ui, sans-serif); animation: ls-sheet-up var(--ls-t-slow, 360ms) var(--ls-ease); overflow: hidden; }
+            .lonsha-sheet { background: var(--ls-bg-1); background-image: var(--ls-radial-glow); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); width: 100%; max-width: 520px; max-height: 85vh; border-radius: var(--ls-r-lg, 14px) var(--ls-r-lg, 14px) 0 0; display: flex; flex-direction: column; border: 1px solid var(--ls-line-strong); box-shadow: var(--ls-sh-3), var(--ls-inner-rim); color: var(--ls-text); font-family: var(--ls-font, system-ui, sans-serif); animation: ls-sheet-up var(--ls-t-slow, 360ms) var(--ls-ease); overflow: hidden; }
             @media (min-width: 600px) { .lonsha-sheet { border-radius: var(--ls-r-lg, 14px); max-height: 82vh; animation: ls-sheet-pop var(--ls-t-slow, 360ms) var(--ls-ease); } }
             @keyframes ls-sheet-up { from { transform: translateY(28px); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
             @keyframes ls-sheet-pop { from { transform: scale(0.96); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
-            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--ls-bg-2, #111827); border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); color: var(--ls-text, #f1f5f9); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex-shrink: 0; box-shadow: 0 1px 0 rgba(255,255,255,0.02); }
-            .lonsha-sheet-close { padding: 6px 10px; color: var(--ls-text-3, #64748b); font-size: 17px; cursor: pointer; border-radius: var(--ls-r-sm, 6px); border: 1px solid transparent; transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
-            .lonsha-sheet-close:hover { background: var(--ls-danger-soft, rgba(248,113,113,0.12)); border-color: var(--ls-danger-line); color: var(--ls-danger, #f87171); }
-            .lonsha-sheet-body { padding: 16px 20px 28px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text, #f1f5f9); }
+            .lonsha-sheet-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: var(--ls-bg-2); border-bottom: 1px solid var(--ls-line); color: var(--ls-text); font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex-shrink: 0; box-shadow: 0 1px 0 rgba(255,255,255,0.02); }
+            .lonsha-sheet-close { padding: 6px 10px; color: var(--ls-text-3); font-size: 17px; cursor: pointer; border-radius: var(--ls-r-sm, 6px); border: 1px solid transparent; transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .lonsha-sheet-close:hover { background: var(--ls-danger-soft); border-color: var(--ls-danger-line); color: var(--ls-danger); }
+            .lonsha-sheet-body { padding: 16px 20px 28px; overflow-y: auto; -webkit-overflow-scrolling: touch; color: var(--ls-text); }
             .ls-group { margin-bottom: 20px; }
-            .ls-group-title { font-size: 11px; color: var(--ls-accent, #38bdf8); margin: 12px 0 8px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow-wrap: anywhere; word-break: break-word; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
+            .ls-group-title { font-size: 11px; color: var(--ls-accent); margin: 12px 0 8px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; overflow-wrap: anywhere; word-break: break-word; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
             .ls-group-title::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--ls-accent); box-shadow: 0 0 6px var(--ls-accent); }
-            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.06)); font-size: 14px; border-radius: var(--ls-r-sm); transition: background var(--ls-t-fast) var(--ls-ease); }
+            .ls-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid var(--ls-line); font-size: 14px; border-radius: var(--ls-r-sm); transition: background var(--ls-t-fast) var(--ls-ease); }
             .ls-row:hover { background: var(--ls-accent-softer); }
             .ls-row > div { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
             .ls-row:last-child { border-bottom: none; }
-            .ls-row input[type="checkbox"] { width: 38px; height: 38px; margin: 0; cursor: pointer; accent-color: var(--ls-accent, #38bdf8); appearance: none; -webkit-appearance: none; background-color: var(--ls-bg-2, #111827); border: 2px solid var(--ls-line-strong, rgba(255,255,255,0.14)); border-radius: var(--ls-r-sm, 6px); position: relative; box-sizing: border-box; transition: background-color var(--ls-t-fast, 140ms) var(--ls-ease), border-color var(--ls-t-fast, 140ms) var(--ls-ease); }
-            .ls-row input[type="checkbox"]:hover { border-color: var(--ls-accent-line, rgba(56,189,248,0.28)); }
+            .ls-row input[type="checkbox"] { width: 38px; height: 38px; margin: 0; cursor: pointer; accent-color: var(--ls-accent); appearance: none; -webkit-appearance: none; background-color: var(--ls-bg-2); border: 2px solid var(--ls-line-strong); border-radius: var(--ls-r-sm, 6px); position: relative; box-sizing: border-box; transition: background-color var(--ls-t-fast, 140ms) var(--ls-ease), border-color var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-row input[type="checkbox"]:hover { border-color: var(--ls-accent-line); }
             /* 勾选态：自绘对勾（appearance:none 后原生勾选标记不再出现，必须自己画） */
-            .ls-row input[type="checkbox"]:checked { background-color: var(--ls-accent-strong, #0284c7); border-color: var(--ls-accent, #38bdf8); }
+            .ls-row input[type="checkbox"]:checked { background-color: var(--ls-accent-strong); border-color: var(--ls-accent); }
             .ls-row input[type="checkbox"]:checked::after { content: ''; position: absolute; left: 12px; top: 5px; width: 8px; height: 15px; border: solid #ffffff; border-width: 0 3px 3px 0; transform: rotate(45deg); box-sizing: border-box; }
-            .ls-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
-            .ls-slider { width: 100%; accent-color: var(--ls-accent, #38bdf8); height: 28px; cursor: pointer; color-scheme: dark; }
-            .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; padding: 8px 4px; color: var(--ls-text-2, #94a3b8); overflow-wrap: anywhere; word-break: break-word; }
-            .ls-slider-val { color: var(--ls-accent, #38bdf8); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--ls-mono); }
-            .ls-input { width: 100%; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 10px 12px; font-size: 13px; margin: 5px 0; box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
-            .ls-input:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
-            .ls-input::placeholder { color: var(--ls-text-4, #475569); }
-            .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2, #111827); color: var(--ls-text, #f1f5f9); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-sm, 6px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono, monospace); box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); line-height: 1.5; }
-            .ls-textarea:focus { outline: none; border-color: var(--ls-accent, #38bdf8); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
+            .ls-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
+            .ls-slider { width: 100%; accent-color: var(--ls-accent); height: 28px; cursor: pointer; color-scheme: dark; }
+            .ls-slider-label { display: flex; justify-content: space-between; gap: 8px; min-width: 0; font-size: 13px; padding: 8px 4px; color: var(--ls-text-2); overflow-wrap: anywhere; word-break: break-word; }
+            .ls-slider-val { color: var(--ls-accent); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--ls-mono); }
+            .ls-input { width: 100%; background: var(--ls-bg-2); color: var(--ls-text); border: 1px solid var(--ls-line); border-radius: var(--ls-r-sm, 6px); padding: 10px 12px; font-size: 13px; margin: 5px 0; box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
+            .ls-input:focus { outline: none; border-color: var(--ls-accent); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
+            .ls-input::placeholder { color: var(--ls-text-4); }
+            .ls-textarea { width: 100%; min-height: 120px; background: var(--ls-bg-2); color: var(--ls-text); border: 1px solid var(--ls-line); border-radius: var(--ls-r-sm, 6px); padding: 11px 12px; font-size: 13px; font-family: var(--ls-mono, monospace); box-sizing: border-box; box-shadow: inset 0 1px 2px rgba(0,0,0,0.4); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); line-height: 1.5; }
+            .ls-textarea:focus { outline: none; border-color: var(--ls-accent); box-shadow: 0 0 0 2px var(--ls-accent-soft), inset 0 1px 2px rgba(0,0,0,0.4); }
             /* [v3.445.0] 真机红点修复：底部三个胶囊按钮变白底浅字。
              *   根因不是配色，而是宿主选择器特异性：SillyTavern 主题里 「#chat button」
              *   一类带 ID 的规则特异性为 (1,0,1)，高于本面板 「.ls-btn」 的 (0,1,0)，
@@ -121,75 +121,75 @@
              *   宿主那些 ID 选择器没带 !important 时本面板必胜。
              *   background 拆成 color + image 两格：宿主若用渐变做面板底，
              *   只写 background 简写会被它的 background-image 透回来。 */
-            .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background-color: var(--ls-bg-3, #1b2436) !important; background-image: none !important; color: var(--ls-text, #f1f5f9) !important; border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important; border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important; }
-            .ls-btn:hover { background-color: var(--ls-bg-4, #27334a) !important; background-image: none !important; border-color: var(--ls-line-strong) !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+            .ls-btn { display: block; width: 100%; padding: 11px 14px; margin: 8px 0; background-color: var(--ls-bg-3) !important; background-image: none !important; color: var(--ls-text) !important; border: 1px solid var(--ls-line) !important; border-radius: var(--ls-r-sm, 6px); font-size: 14px; font-weight: 500; letter-spacing: 0.01em; text-align: center; cursor: pointer; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-fast, 140ms) var(--ls-ease); -webkit-text-fill-color: var(--ls-text) !important; }
+            .ls-btn:hover { background-color: var(--ls-bg-4) !important; background-image: none !important; border-color: var(--ls-line-strong) !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
             /* [v3.424.0] 面板内**所有**原生按钮兜底压成深色：真机反馈底部三个胶囊按钮仍是白底。
              *   它们没带 .ls-btn（走的是行内样式），宿主浅色主题的 button 默认底因此透出来。
              *   只作用于面板容器内部，不影响宿主其他 UI。 */
-            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill) {
-                background-color: var(--ls-bg-3, #1b2436) !important;
+            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill):not([role="tab"]):not(.ls-seg-btn):not(.ls-tile):not(.ls-card-link):not(.ls-chip) {
+                background-color: transparent !important;
                 background-image: none !important;
-                color: var(--ls-text, #f1f5f9) !important;
-                -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important;
-                border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important;
+                color: var(--ls-text) !important;
+                -webkit-text-fill-color: var(--ls-text) !important;
+                border: 1px solid var(--ls-line-strong) !important;
                 border-radius: var(--ls-r-sm, 6px);
                 box-shadow: var(--ls-inner-rim);
             }
-            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill):hover {
-                background-color: var(--ls-bg-4, #27334a) !important;
+            .lonsha-sheet button:not(.ls-btn):not(.ls-tab-btn):not(.ls-mode-pill):not([role="tab"]):not(.ls-seg-btn):not(.ls-tile):not(.ls-card-link):not(.ls-chip):hover {
+                background-color: var(--ls-bg-2) !important;
                 background-image: none !important;
-                color: #ffffff !important;
-                -webkit-text-fill-color: #ffffff !important;
+                color: var(--ls-text) !important;
+                -webkit-text-fill-color: var(--ls-text) !important;
             }
             .ls-btn:active { transform: translateY(1px); box-shadow: none; }
             /* [v3.445.0] hover 反馈改走 filter：底色已被 inline !important 固定，
              *   :hover 改 background-color 对已硬化的按钮不再生效（但对未硬化的仍然生效）。 */
             .ls-btn:hover { filter: brightness(1.18); }
             .ls-btn.ls-btn-primary:hover { filter: brightness(1.12); }
-            .ls-btn-primary { background-color: var(--ls-accent-strong, #0284c7) !important; background-image: none !important; border-color: transparent !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
-            .ls-btn-primary:hover { background-color: var(--ls-accent, #38bdf8) !important; background-image: none !important; color: #04121e !important; -webkit-text-fill-color: #04121e !important; box-shadow: var(--ls-sh-accent-lg); }
-            .ls-btn-danger { background-color: var(--ls-danger-soft, rgba(248,113,113,0.12)) !important; background-image: none !important; border-color: var(--ls-danger-line) !important; color: var(--ls-danger, #f87171) !important; -webkit-text-fill-color: var(--ls-danger, #f87171) !important; }
+            .ls-btn-primary { background-color: var(--ls-accent-strong) !important; background-image: none !important; border-color: transparent !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(255,255,255,0.22); }
+            .ls-btn-primary:hover { background-color: var(--ls-accent) !important; background-image: none !important; color: #04121e !important; -webkit-text-fill-color: #04121e !important; box-shadow: var(--ls-sh-accent-lg); }
+            .ls-btn-danger { background-color: var(--ls-danger-soft) !important; background-image: none !important; border-color: var(--ls-danger-line) !important; color: var(--ls-danger) !important; -webkit-text-fill-color: var(--ls-danger) !important; }
             .ls-btn-danger:hover { background-color: var(--ls-danger) !important; background-image: none !important; color: #04121e !important; -webkit-text-fill-color: #04121e !important; border-color: transparent !important; }
 
-            .ls-stat-section-title { font-size: 11px; font-weight: 600; color: var(--ls-accent, #38bdf8); margin: 16px 0 6px 2px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
+            .ls-stat-section-title { font-size: 11px; font-weight: 600; color: var(--ls-accent); margin: 16px 0 6px 2px; letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--ls-mono); display: flex; align-items: center; gap: 6px; }
             .ls-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
-            .ls-stat-card { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-sm, 6px); padding: 14px 6px; text-align: center; position: relative; overflow: hidden; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-med, 220ms) var(--ls-ease); }
+            .ls-stat-card { background: var(--ls-bg-2); border: 1px solid var(--ls-line); border-radius: var(--ls-r-sm, 6px); padding: 14px 6px; text-align: center; position: relative; overflow: hidden; box-shadow: var(--ls-sh-1), var(--ls-inner-rim); transition: all var(--ls-t-med, 220ms) var(--ls-ease); }
             .ls-stat-card::before { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent); }
             .ls-stat-card:hover { transform: translateY(-2px); border-color: var(--ls-accent-line); box-shadow: var(--ls-sh-2), 0 0 16px -4px rgba(56,189,248,0.2); }
-            .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-text, #f1f5f9); font-variant-numeric: tabular-nums; font-family: var(--ls-mono); letter-spacing: -0.02em; }
-            .ls-stat-label { font-size: 11px; color: var(--ls-text-2, #94a3b8); margin-top: 3px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 500; }
-            .ls-hint { font-size: 12px; color: var(--ls-text-3, #64748b); padding: 6px 4px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
+            .ls-stat-num { font-size: 20px; font-weight: 700; color: var(--ls-text); font-variant-numeric: tabular-nums; font-family: var(--ls-mono); letter-spacing: -0.02em; }
+            .ls-stat-label { font-size: 11px; color: var(--ls-text-2); margin-top: 3px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 500; }
+            .ls-hint { font-size: 12px; color: var(--ls-text-3); padding: 6px 4px; line-height: 1.55; overflow-wrap: anywhere; word-break: break-word; }
             .ls-clickable { cursor: pointer; transition: all var(--ls-t-fast, 140ms) var(--ls-ease); }
             .ls-clickable:active { transform: scale(0.98); }
-            .ls-item { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-sm, 6px); padding: 12px 14px; margin: 8px 0; box-shadow: var(--ls-inner-rim); }
-            .ls-item-meta { font-size: 11px; color: var(--ls-text-3, #64748b); margin-bottom: 5px; font-family: var(--ls-mono); }
-            .ls-item-text { font-size: 14px; color: var(--ls-text, #f1f5f9); line-height: 1.6; word-break: break-word; }
+            .ls-item { background: var(--ls-bg-2); border: 1px solid var(--ls-line); border-radius: var(--ls-r-sm, 6px); padding: 12px 14px; margin: 8px 0; box-shadow: var(--ls-inner-rim); }
+            .ls-item-meta { font-size: 11px; color: var(--ls-text-3); margin-bottom: 5px; font-family: var(--ls-mono); }
+            .ls-item-text { font-size: 14px; color: var(--ls-text); line-height: 1.6; word-break: break-word; }
             .ls-toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%); background: var(--ls-bg-glass); backdrop-filter: var(--ls-blur); -webkit-backdrop-filter: var(--ls-blur); color: var(--ls-text); border: 1px solid var(--ls-accent-line); padding: 10px 22px; border-radius: var(--ls-r-pill, 999px); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; box-shadow: var(--ls-sh-3), var(--ls-sh-accent); z-index: 10003; animation: ls-toast-in var(--ls-t-med, 220ms) var(--ls-ease); }
             @keyframes ls-toast-in { from { transform: translate(-50%,10px); opacity: 0; } to { transform: translate(-50%,0); opacity: 1; } }
             /* ==== Tab 选项卡导航（微刻度分段芯片） ==== */
-            .ls-tabs-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--ls-line, rgba(255,255,255,0.07)); padding: 0 0 10px 0; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            .ls-tabs-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--ls-line); padding: 0 0 10px 0; margin-bottom: 16px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
             .ls-tabs-nav::-webkit-scrollbar { display: none; }
-            .ls-tab-btn { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); color: var(--ls-text-2, #94a3b8); padding: 7px 13px; border-radius: var(--ls-r-sm, 6px); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast, 140ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
-            .ls-tab-btn:hover { color: var(--ls-text, #f1f5f9); background: var(--ls-bg-3, #1b2436); border-color: var(--ls-line-strong); }
-            .ls-tab-btn.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-4, #27334a); border-color: var(--ls-accent-line); font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(56,189,248,0.3); }
+            .ls-tab-btn { background: var(--ls-bg-2); border: 1px solid var(--ls-line); color: var(--ls-text-2); padding: 7px 13px; border-radius: var(--ls-r-sm, 6px); font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all var(--ls-t-fast, 140ms); flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); }
+            .ls-tab-btn:hover { color: var(--ls-text); background: var(--ls-bg-3); border-color: var(--ls-line-strong); }
+            .ls-tab-btn.active { color: var(--ls-accent); background: var(--ls-bg-4); border-color: var(--ls-accent-line); font-weight: 600; box-shadow: var(--ls-sh-accent), inset 0 1px 0 rgba(56,189,248,0.3); }
             /* [v3.472.0 · L22 UI] 面板骨架重排：固定头 / 固定底栏 / 可滚动主体。
              *   修前三个问题：
              *     ① 「保存」在 body 最末尾 —— 用户在实验室改完要滚过几屏才能找到它；
              *     ② 点遮罩 / 点 直接 remove() —— 未保存的改动静默丢失，也不提示；
              *     ③ 页签是普通 button，无 role/aria-selected，键盘不可用。
              *   本段只新增类，不改动既有 token 与既有类名（避免已有渲染判据整片失效）。 */
-            .lonsha-sheet-head-fixed { position: sticky; top: 0; z-index: 3; background: var(--ls-bg-2, #111827); }
+            .lonsha-sheet-head-fixed { position: sticky; top: 0; z-index: 3; background: var(--ls-bg-2); }
             .lonsha-sheet-close { background: transparent; font-family: inherit; line-height: 1; }
-            .lonsha-sheet-close:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            .lonsha-sheet-close:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
             .ls-sheet-body-scroll { padding-bottom: 8px; }
-            .ls-dirtybar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--ls-bg-glass, rgba(10,15,24,0.88)); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); border-top: 1px solid var(--ls-line-strong, rgba(255,255,255,0.14)); box-shadow: 0 -6px 20px -8px rgba(0,0,0,0.7); }
+            .ls-dirtybar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--ls-bg-glass); backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); -webkit-backdrop-filter: var(--ls-blur, saturate(160%) blur(20px)); border-top: 1px solid var(--ls-line-strong); box-shadow: 0 -6px 20px -8px rgba(0,0,0,0.7); }
             .ls-dirtybar[data-dirty="0"] { opacity: 0.55; }
-            .ls-dirty-count { flex: 1; min-width: 0; font-size: 12px; color: var(--ls-text-2, #94a3b8); overflow-wrap: anywhere; }
-            .ls-dirtybar[data-dirty="1"] .ls-dirty-count { color: var(--ls-gold, #fbbf24); font-weight: 600; }
+            .ls-dirty-count { flex: 1; min-width: 0; font-size: 12px; color: var(--ls-text-2); overflow-wrap: anywhere; }
+            .ls-dirtybar[data-dirty="1"] .ls-dirty-count { color: var(--ls-gold); font-weight: 600; }
             .ls-dirtybar .ls-btn { margin: 0; width: auto; }
-            .ls-confirm-inline { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--ls-warn-soft, rgba(251,191,36,0.10)); border-top: 1px solid var(--ls-gold-line, rgba(251,191,36,0.30)); font-size: 12px; color: var(--ls-text, #f1f5f9); flex-wrap: wrap; }
+            .ls-confirm-inline { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--ls-warn-soft); border-top: 1px solid var(--ls-gold-line); font-size: 12px; color: var(--ls-text); flex-wrap: wrap; }
             .ls-confirm-inline .ls-btn { margin: 0; width: auto; padding: 6px 12px; font-size: 12px; }
-            .ls-tab-btn:focus-visible { outline: 2px solid var(--ls-accent, #38bdf8); outline-offset: 2px; }
+            .ls-tab-btn:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
             @media (prefers-reduced-motion: reduce) {
                 .lonsha-overlay, .lonsha-sheet, .ls-tab-pane.active { animation: none !important; }
                 .ls-row, .ls-btn, .ls-tab-btn { transition: none !important; }
@@ -197,27 +197,27 @@
             /* [v3.472.0 · L22 UI] 健康页卡片：三态必须不同形（有数据 / 真的没有 / 读不到），
              *   压成一句「暂无」就是把「你去聊几句」和「模块没装上」说成同一件事。 */
             .ls-health-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 8px 0; }
-            .ls-health-card { border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-md, 10px); padding: 10px 12px; background: var(--ls-bg-2, #111827); cursor: pointer; transition: border-color var(--ls-t-fast,140ms) var(--ls-ease,ease); }
-            .ls-health-card:hover { border-color: var(--ls-accent-line, rgba(56,189,248,0.28)); }
-            .ls-health-card[data-face="ok"] { border-left: 3px solid var(--ls-success, #34d399); }
-            .ls-health-card[data-face="warn"] { border-left: 3px solid var(--ls-warn, #fbbf24); }
-            .ls-health-card[data-face="crit"] { border-left: 3px solid var(--ls-danger, #f87171); }
-            .ls-health-card[data-face="none"], .ls-health-card[data-face="pending"], .ls-health-card[data-face="absent"] { border-left: 3px solid var(--ls-text-4, #475569); opacity: 0.8; }
-            .ls-health-card .ls-hc-k { font-size: 11px; color: var(--ls-text-3, #64748b); }
-            .ls-health-card .ls-hc-v { font-size: 20px; font-weight: 600; color: var(--ls-text, #f1f5f9); font-variant-numeric: tabular-nums; line-height: 1.3; }
-            .ls-health-card .ls-hc-w { font-size: 11px; color: var(--ls-text-3, #64748b); overflow-wrap: anywhere; }
+            .ls-health-card { border: 1px solid var(--ls-line); border-radius: var(--ls-r-md, 10px); padding: 10px 12px; background: var(--ls-bg-2); cursor: pointer; transition: border-color var(--ls-t-fast,140ms) var(--ls-ease,ease); }
+            .ls-health-card:hover { border-color: var(--ls-accent-line); }
+            .ls-health-card[data-face="ok"] { border-left: 3px solid var(--ls-success); }
+            .ls-health-card[data-face="warn"] { border-left: 3px solid var(--ls-warn); }
+            .ls-health-card[data-face="crit"] { border-left: 3px solid var(--ls-danger); }
+            .ls-health-card[data-face="none"], .ls-health-card[data-face="pending"], .ls-health-card[data-face="absent"] { border-left: 3px solid var(--ls-text-4); opacity: 0.8; }
+            .ls-health-card .ls-hc-k { font-size: 11px; color: var(--ls-text-3); }
+            .ls-health-card .ls-hc-v { font-size: 20px; font-weight: 600; color: var(--ls-text); font-variant-numeric: tabular-nums; line-height: 1.3; }
+            .ls-health-card .ls-hc-w { font-size: 11px; color: var(--ls-text-3); overflow-wrap: anywhere; }
             /* [v3.472.0 · L22 Lab] 实验室搜索：分组过滤，不改控件 DOM / 保存契约。 */
             .ls-lab-searchbar { display: flex; gap: 8px; align-items: center; margin: 0 8px 10px; }
             .ls-lab-search { flex: 1; min-width: 0; margin: 0 !important; }
             .ls-lab-clear { width: auto !important; margin: 0 !important; padding: 8px 12px !important; }
-            .ls-lab-result { min-height: 18px; padding: 0 8px 8px; font-size: 11px; color: var(--ls-text-3, #64748b); }
-            .ls-lab-result[data-state="empty"] { color: var(--ls-warn, #fbbf24); }
+            .ls-lab-result { min-height: 18px; padding: 0 8px 8px; font-size: 11px; color: var(--ls-text-3); }
+            .ls-lab-result[data-state="empty"] { color: var(--ls-warn); }
             .ls-tab-pane { display: none; }
             .ls-tab-pane.active { display: block; animation: ls-fade var(--ls-t-fast,150ms) var(--ls-ease,ease); }
-            .ls-mode-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px 0; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
-            .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2, #94a3b8); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
-            .ls-mode-pill:hover { color: var(--ls-text, #f1f5f9); background: rgba(255,255,255,0.04); }
-            .ls-mode-pill.active { color: var(--ls-accent, #38bdf8); background: var(--ls-bg-3, #1b2436); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
+            .ls-mode-banner { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 16px 0; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line); }
+            .ls-mode-pill { padding: 8px 4px; text-align: center; font-size: 11px; font-weight: 600; color: var(--ls-text-2); border-radius: 4px; cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+            .ls-mode-pill:hover { color: var(--ls-text); background: rgba(255,255,255,0.04); }
+            .ls-mode-pill.active { color: var(--ls-accent); background: var(--ls-bg-3); box-shadow: var(--ls-inner-rim), 0 0 12px rgba(56,189,248,0.15); }
             @media (max-width: 480px) { #lonsha-settings-overlay .ls-tabs-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } #lonsha-settings-overlay .ls-tab-btn { white-space: normal; min-height: 44px; padding: 8px 4px; } }
             #lonsha-settings-overlay [hidden] { display: none !important; }
             #lonsha-settings-overlay .ls-player-welcome { padding: 12px; margin-bottom: 12px; border: 1px solid var(--ls-accent-line); border-radius: 10px; background: var(--ls-bg-2); }
@@ -230,17 +230,17 @@
             #lonsha-settings-overlay :focus-visible, #lonsha-home-overlay .ls-mode-pill:focus-visible { outline: 2px solid var(--ls-accent); outline-offset: 2px; }
             #lonsha-settings-overlay .ls-settings-footer { position: sticky; bottom: -16px; padding-bottom: 12px; background: var(--ls-bg-1); z-index: 1; }
             /* ==== [v3.423] 玩家主页（FAB 直达） ==== */
-            .ls-home-status { background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.07)); border-radius: var(--ls-r-md, 10px); padding: 14px; margin-bottom: 16px; box-shadow: var(--ls-inner-rim); }
+            .ls-home-status { background: var(--ls-bg-2); border: 1px solid var(--ls-line); border-radius: var(--ls-r-md, 10px); padding: 14px; margin-bottom: 16px; box-shadow: var(--ls-inner-rim); }
             .ls-home-status-main { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
             .ls-home-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-            .ls-home-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); }
+            .ls-home-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 4px; background: rgba(0,0,0,0.25); border-radius: var(--ls-r-sm, 6px); border: 1px solid var(--ls-line); }
             .ls-home-section { margin-bottom: 18px; }
-            .ls-home-title { font-size: 13px; font-weight: 600; color: var(--ls-text-2, #94a3b8); margin: 0 0 8px 2px; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: space-between; }
-            .ls-home-more { font-size: 12px; color: var(--ls-accent, #38bdf8); cursor: pointer; font-weight: 500; }
-            .ls-home-event { padding: 10px 12px; background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.06)); border-radius: var(--ls-r-sm, 6px); margin-bottom: 6px; font-size: 13px; color: var(--ls-text, #f1f5f9); line-height: 1.5; position: relative; }
-            .ls-home-event-meta { display: block; font-size: 11px; color: var(--ls-text-3, #64748b); margin-top: 3px; font-family: var(--ls-mono, monospace); }
-            .ls-home-chip { display: inline-block; padding: 6px 14px; margin: 0 6px 6px 0; background: var(--ls-bg-2, #111827); border: 1px solid var(--ls-line, rgba(255,255,255,0.08)); border-radius: var(--ls-r-pill, 999px); font-size: 13px; color: var(--ls-text, #f1f5f9); cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
-            .ls-home-chip:hover { border-color: var(--ls-accent-line); color: var(--ls-accent, #38bdf8); }
+            .ls-home-title { font-size: 13px; font-weight: 600; color: var(--ls-text-2); margin: 0 0 8px 2px; letter-spacing: 0.04em; display: flex; align-items: center; justify-content: space-between; }
+            .ls-home-more { font-size: 12px; color: var(--ls-accent); cursor: pointer; font-weight: 500; }
+            .ls-home-event { padding: 10px 12px; background: var(--ls-bg-2); border: 1px solid var(--ls-line); border-radius: var(--ls-r-sm, 6px); margin-bottom: 6px; font-size: 13px; color: var(--ls-text); line-height: 1.5; position: relative; }
+            .ls-home-event-meta { display: block; font-size: 11px; color: var(--ls-text-3); margin-top: 3px; font-family: var(--ls-mono, monospace); }
+            .ls-home-chip { display: inline-block; padding: 6px 14px; margin: 0 6px 6px 0; background: var(--ls-bg-2); border: 1px solid var(--ls-line); border-radius: var(--ls-r-pill, 999px); font-size: 13px; color: var(--ls-text); cursor: pointer; transition: all var(--ls-t-fast, 140ms); }
+            .ls-home-chip:hover { border-color: var(--ls-accent-line); color: var(--ls-accent); }
             .ls-home-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px; }
             .ls-home-actions .ls-btn { margin: 0; width: 100%; box-sizing: border-box; }
             /* [v3.445.0] 总闸：面板内按钮的最后一道保护。
@@ -251,35 +251,35 @@
              *   同时显式抹掉主题常用的几个白底来源：background-image / filter / text-shadow。 */
             .lonsha-overlay .lonsha-sheet .ls-btn,
             .lonsha-overlay .lonsha-sheet button.ls-btn {
-                background-color: var(--ls-bg-3, #1b2436) !important;
+                background-color: transparent !important;
                 background-image: none !important;
-                color: var(--ls-text, #f1f5f9) !important;
-                -webkit-text-fill-color: var(--ls-text, #f1f5f9) !important;
-                border: 1px solid var(--ls-line, rgba(255,255,255,0.08)) !important;
+                color: var(--ls-text) !important;
+                -webkit-text-fill-color: var(--ls-text) !important;
+                border: 1px solid var(--ls-line-strong) !important;
                 text-shadow: none !important;
                 opacity: 1 !important;
             }
             .lonsha-overlay .lonsha-sheet .ls-btn:hover,
             .lonsha-overlay .lonsha-sheet button.ls-btn:hover {
-                background-color: var(--ls-bg-4, #27334a) !important;
+                background-color: var(--ls-bg-2) !important;
                 background-image: none !important;
-                color: #ffffff !important;
-                -webkit-text-fill-color: #ffffff !important;
+                color: var(--ls-text) !important;
+                -webkit-text-fill-color: var(--ls-text) !important;
             }
             .lonsha-overlay .lonsha-sheet .ls-btn.ls-btn-primary,
             .lonsha-overlay .lonsha-sheet button.ls-btn.ls-btn-primary {
-                background-color: var(--ls-accent-strong, #0284c7) !important;
+                background-color: var(--ls-accent) !important;
                 background-image: none !important;
-                color: #ffffff !important;
-                -webkit-text-fill-color: #ffffff !important;
-                border-color: transparent !important;
+                color: var(--ls-on-accent) !important;
+                -webkit-text-fill-color: var(--ls-on-accent) !important;
+                border-color: var(--ls-accent) !important;
             }
             .lonsha-overlay .lonsha-sheet .ls-btn.ls-btn-danger,
             .lonsha-overlay .lonsha-sheet button.ls-btn.ls-btn-danger {
-                background-color: var(--ls-danger-soft, rgba(248,113,113,0.12)) !important;
+                background-color: var(--ls-danger-soft) !important;
                 background-image: none !important;
-                color: var(--ls-danger, #f87171) !important;
-                -webkit-text-fill-color: var(--ls-danger, #f87171) !important;
+                color: var(--ls-danger) !important;
+                -webkit-text-fill-color: var(--ls-danger) !important;
                 border-color: var(--ls-danger-line) !important;
             }
 
@@ -318,14 +318,14 @@
                     let bg;
                     let fg;
                     if (el.classList.contains('ls-btn-primary')) {
-                        bg = 'var(--ls-accent-strong, #0284c7)';
+                        bg = 'var(--ls-accent-strong)';
                         fg = '#ffffff';
                     } else if (el.classList.contains('ls-btn-danger')) {
-                        bg = 'var(--ls-danger-soft, rgba(248,113,113,0.12))';
-                        fg = 'var(--ls-danger, #f87171)';
+                        bg = 'var(--ls-danger-soft)';
+                        fg = 'var(--ls-danger)';
                     } else {
-                        bg = el.style.backgroundColor || 'var(--ls-bg-3, #1b2436)';
-                        fg = 'var(--ls-text, #f1f5f9)';
+                        bg = el.style.backgroundColor || 'var(--ls-bg-3)';
+                        fg = 'var(--ls-text)';
                     }
                     /* [v3.1] 开发者控制台（[data-ls-dc="3"]）的按钮由 css/dev-console-v3.css 按 token 着色，不再写死深色 */
                     if (el.closest && el.closest('[data-ls-dc="3"]')) return;
@@ -508,16 +508,16 @@
                     <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">详细设置</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">生成</div><div class="ls-stat-label">全景档案报告</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' 项') : '正常') : '—') : '—'}</div><div class="ls-stat-label">存档健康体检</div></div>
-                    <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn,#e3b341)">※</span>' : ''}</div><div class="ls-stat-label">操作审计日志</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="oplog" title="${(s.opLog?._truncated || s.opLog?._trimFields) ? '账本已发生淘汰或字段裁剪，点击查看自述' : '事件审计链（窗口/累计/损失）'}"><div class="ls-stat-num">${s.opLog?.entries?.length || 0}${(s.opLog?._truncated || s.opLog?._trimFields) ? '<span title="账本有损失" style="font-size:12px;color:var(--ls-warn)">※</span>' : ''}</div><div class="ls-stat-label">操作审计日志</div></div>
                     <div class="ls-stat-card"><div class="ls-stat-num" style="font-size:13px;line-height:24px;">${phoneStatus}</div><div class="ls-stat-label">RubyPhone 协同</div></div>
                 </div>
                 <div class="ls-hint" style="display:flex;align-items:center;gap:6px;"><span style="color:var(--ls-accent);font-size:14px;"><i class="ls-ico" data-i="info" aria-hidden="true"></i></span> 点击卡片可查看对应档案的条目明细与演进事实。数据自动与对话快照安全绑定。</div>
-                <details style="margin-top:14px;border:1px solid var(--ls-line,rgba(240,246,252,0.10));border-radius:var(--ls-r-md,12px);padding:8px 12px;background:var(--ls-bg-2,#161b22);">
-                    <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:4px 0;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>展开查看底层运行轨迹与诊断指标</summary>
-                    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--ls-line,rgba(240,246,252,0.10));">
-                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近召回监控：生成过一次后显示命中来源分布。</div>'}
-                ${(s._lastRecallHitExplanations && s._lastRecallHitExplanations.length > 0) ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="person" aria-hidden="true"></i>人物消歧与召回路线命中解释 (L14-O4)</div><div class="ls-item">${s._lastRecallHitExplanations.map(exp => `<div class="ls-item-text" style="margin:2px 0;font-size:12px;"><b>[${exp.activeRoute || 'HYBRID'}]</b> ${exp.title || exp.itemId} · 世界线: <code>${exp.worldline || 'main'}</code> · 消歧状态: <span style="color:${exp.disambiguation?.passed ? 'var(--ls-success,#3fb950)' : 'var(--ls-warn,#d29922)'}">${exp.disambiguation?.passed ? '<i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>通过' : '<i class="ls-ico" data-i="xmark" data-tone="error" aria-hidden="true"></i>隔离'}</span> · 权重系数: ${exp.routeWeight ?? 1.0}</div>`).join('')}</div><div class="ls-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>召回偏好自适应调校，不修改人物事实真源。支持单次查询隔离与回退。</div></div>` : ''}
-                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length || s._staleTaskDropped || s._epochDropped || s.mutex?._foreignRelease ? (() => {   /* [v3.145] 栅栏作废/越权释放也强制可见 */ /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>时间倒跳 ${s._timeWentBack.from}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta"><i class="ls-ico" data-i="save" aria-hidden="true"></i>保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`<i class="ls-ico" data-i="save" aria-hidden="true"></i>写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn,#d29922)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (s._staleTaskDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="pause" aria-hidden="true"></i>会话租约作废 ${s._staleTaskDropped} 次${s._lastStaleDrop ? `（最近 ${s._lastStaleDrop.task || '提取'}：${s._lastStaleDrop.from} -> ${s._lastStaleDrop.to}）` : ''}</span>`); if (s._epochDropped) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>状态变更栅栏作废 ${s._epochDropped} 次${s._lastEpochBump ? `（最近 ${s._lastEpochBump.reason} -> 栅栏 ${s._lastEpochBump.epoch}）` : ''}</span>`); if (s.mutex?._foreignRelease) parts.push(`<span style="color:var(--ls-warn,#d29922)"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>拒绝越权释放锁 ${s.mutex._foreignRelease} 次</span>`); if (r && r.at) { const f = (r.failed || []).length; parts.push(`<i class="ls-ico" data-i="refresh" aria-hidden="true"></i>最近恢复(${r.source}${r.loadedProducer ? ' v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn,#d29922)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}${r.rolledBack ? ' <span style="color:var(--ls-warn,#d29922)">已自动回滚原状态</span>' : (f ? ' <span style="color:#f85149">未回滚（保留半套，可紧急备份恢复）</span>' : '')}${r.rollbackWarning ? ' <span style="color:#f85149">' + r.rollbackWarning + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
+                <details style="margin-top:14px;border:1px solid var(--ls-line);border-radius:var(--ls-r-md,12px);padding:8px 12px;background:var(--ls-bg-2);">
+                    <summary style="cursor:pointer;color:var(--ls-accent);font-size:12px;font-weight:600;padding:4px 0;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>展开查看底层运行轨迹与诊断指标</summary>
+                    <div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--ls-line);">
+                ${s._lastRecallTrace ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近一次召回（MemoryPilot monitor）</div><div class="ls-item"><div class="ls-item-meta">查询「${s._lastRecallTrace.query || ''}」 · ${s._lastRecallTrace.hitCount || 0} 条 · ${s._lastRecallTrace.durationMs || 0}ms · ${new Date(s._lastRecallTrace.ts).toLocaleTimeString('zh-CN')}${s._lastRecallTrace.triggerHit ? ' · <span style="color:var(--ls-warn)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>触发词命中</span>' : ''}</div><div class="ls-item-text">来源分布: ${Object.entries(s._lastRecallTrace.sources || {}).map(([k, v]) => `${k}×${v}`).join(' · ') || '无'}</div></div></div>` : '<div class="ls-hint"><i class="ls-ico" data-i="scope" aria-hidden="true"></i>最近召回监控：生成过一次后显示命中来源分布。</div>'}
+                ${(s._lastRecallHitExplanations && s._lastRecallHitExplanations.length > 0) ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="person" aria-hidden="true"></i>人物消歧与召回路线命中解释 (L14-O4)</div><div class="ls-item">${s._lastRecallHitExplanations.map(exp => `<div class="ls-item-text" style="margin:2px 0;font-size:12px;"><b>[${exp.activeRoute || 'HYBRID'}]</b> ${exp.title || exp.itemId} · 世界线: <code>${exp.worldline || 'main'}</code> · 消歧状态: <span style="color:${exp.disambiguation?.passed ? 'var(--ls-success)' : 'var(--ls-warn)'}">${exp.disambiguation?.passed ? '<i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>通过' : '<i class="ls-ico" data-i="xmark" data-tone="error" aria-hidden="true"></i>隔离'}</span> · 权重系数: ${exp.routeWeight ?? 1.0}</div>`).join('')}</div><div class="ls-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>召回偏好自适应调校，不修改人物事实真源。支持单次查询隔离与回退。</div></div>` : ''}
+                ${s._lastChangeTrace || s._timelineInjectFloor != null || s._diaryInjectFloor != null || s.storage?._lastWrite?.status === 'failed' || s._lastRestore?.failed?.length || s._staleTaskDropped || s._epochDropped || s.mutex?._foreignRelease ? (() => {   /* [v3.145] 栅栏作废/越权释放也强制可见 */ /* [v3.140] 写入失败/恢复失败必须无条件可见（坏了有人知道吗） */  const ct = s._lastChangeTrace || {}; const seg = (o) => o ? `${o.found ?? 0} 找到${o.added != null ? ` / ${o.added} 新增` : ''}` : '—'; return `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>变化注入（Horae/HCDiary 诊断）</div><div class="ls-item"><div class="ls-item-meta">楼层 ${ct.floor ?? '—'} · 游标 ${ct.cursor ?? '—'} · 锚点「${ct.anchorDate || '—'}」${ct.ts ? ' · ' + new Date(ct.ts).toLocaleTimeString('zh-CN') : ''}${s._timeWentBack ? ` · <span style="color:var(--ls-warn)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>时间倒跳 ${s._timeWentBack.from}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>${s._timeWentBack.to}(第${s._timeWentBack.floor}楼)</span>` : ''}</div><div class="ls-item-text">时间线 ${seg(ct.timeline)} · 状态 ${seg(ct.status)} · 关系 ${seg(ct.pair)} · 物品 ${seg(ct.items)} · 日记 ${seg(ct.diary)}</div><div class="ls-item-meta">游标持久化: timeline=${s._timelineInjectFloor ?? '未初始化'} diary=${s._diaryInjectFloor ?? '未初始化'} · chat=${s._timelineCursorChatId ?? '—'}${(() => { const c = s.clock || s._clock; const t = c?.timeTagStats; if (!t) return ''; const warn = t.total > 0 && t.calibrated === 0 ? ` · <span style="color:var(--ls-warn)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>标签从未成功校准，检查正文格式</span>` : ''; return `</div><div class="ls-item-meta"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>时间标签协议: 共${t.total}楼 · 成对${t.paired} · 校准${t.calibrated}${t.unparseable ? ` · 无法解析${t.unparseable}` : ''}${warn}`; })()}</div><div class="ls-item-meta"><i class="ls-ico" data-i="save" aria-hidden="true"></i>保存地面真源: ${(() => { const g = s._lastSaveGroundTruth; if (!g || !g.ts) return '尚未保存'; return `${new Date(g.ts).toLocaleString('zh-CN')} · 楼层 ${g.floor} · 来源 ${Object.entries(g.sources || {}).map(([k, v]) => `${k}×${v}`).join(' /') || '—'}`; })()}</div>${(() => { const w = s.storage?._lastWrite, r = s._lastRestore; const parts = []; if (w && w.ts) { const bad = w.status !== 'confirmed'; parts.push(`<i class="ls-ico" data-i="save" aria-hidden="true"></i>写入 ${w.status}${bad ? ' <span style="color:var(--ls-warn)">' + (w.error || '未落地') + '</span>' : ''} · rev ${w.revision} · ${new Date(w.ts).toLocaleTimeString('zh-CN')}`); } if (s._staleTaskDropped) parts.push(`<span style="color:var(--ls-warn)"><i class="ls-ico" data-i="pause" aria-hidden="true"></i>会话租约作废 ${s._staleTaskDropped} 次${s._lastStaleDrop ? `（最近 ${s._lastStaleDrop.task || '提取'}：${s._lastStaleDrop.from} -> ${s._lastStaleDrop.to}）` : ''}</span>`); if (s._epochDropped) parts.push(`<span style="color:var(--ls-warn)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>状态变更栅栏作废 ${s._epochDropped} 次${s._lastEpochBump ? `（最近 ${s._lastEpochBump.reason} -> 栅栏 ${s._lastEpochBump.epoch}）` : ''}</span>`); if (s.mutex?._foreignRelease) parts.push(`<span style="color:var(--ls-warn)"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>拒绝越权释放锁 ${s.mutex._foreignRelease} 次</span>`); if (r && r.at) { const f = (r.failed || []).length; parts.push(`<i class="ls-ico" data-i="refresh" aria-hidden="true"></i>最近恢复(${r.source}${r.loadedProducer ? ' v' + r.loadedProducer : ''}) ${new Date(r.at).toLocaleTimeString('zh-CN')} · ${r.count} 字段${f ? ' <span style="color:var(--ls-warn)">失败 ' + r.failed.map(x => x.key).join('/') + '</span>' : ''}${r.rolledBack ? ' <span style="color:var(--ls-warn)">已自动回滚原状态</span>' : (f ? ' <span style="color:#f85149">未回滚（保留半套，可紧急备份恢复）</span>' : '')}${r.rollbackWarning ? ' <span style="color:#f85149">' + r.rollbackWarning + '</span>' : ''}`); } return parts.length ? '<div class="ls-item-meta">' + parts.join(' · ') + '</div>' : ''; })()}</div></div>`; })() : ''}
                 ${(s._recallSourceStats && s._recallSourceStats.total > 0) ? `<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="trend-up" aria-hidden="true"></i>召回源命中率（最近 ${s._recallSourceStats.total} 轮）</div><div class="ls-item">${Object.entries(s._recallSourceStats.bySource || {}).sort((a, b) => b[1].hits - a[1].hits).map(([k, v]) => { const pct = Math.min(100, Math.round((v.hits / Math.max(1, v.rounds)) * 100)); const bar = '█'.repeat(Math.max(1, Math.round(pct / 10))); return `<div class="ls-item-text" style="margin:2px 0"><b>${k}</b> ${bar} ${pct}%（${v.hits} 次/${v.rounds} 轮）</div>`; }).join('')}</div><div class="ls-hint"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>长期 0% 的召回源可在设置中关闭以省资源；命中率数据 200 轮半衰，反映近期状态。</div></div>` : ''}
                     </div>
                 </details>
@@ -544,13 +544,13 @@
                 return `<div class="ls-item" style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;">
                     <input type="checkbox" class="ls-extract-cb" data-idx="${idx}" checked style="margin-top:3px;flex:0 0 auto;">
                     <div style="flex:1;">
-                        <div><b>${esc(r.name)}</b> ${isKnown ? '<span style="color:var(--ls-success,#3fb950);font-size:11px;">（已存在，仅补别名）</span>' : '<span style="color:var(--ls-warn,#d29922);font-size:11px;">（新角色）</span>'}</div>
-                        ${r.aliases?.length ? `<div style="color:var(--ls-text-2,#9da7b3);font-size:12px;">别名: ${esc(r.aliases.join('、'))}</div>` : ''}
+                        <div><b>${esc(r.name)}</b> ${isKnown ? '<span style="color:var(--ls-success);font-size:11px;">（已存在，仅补别名）</span>' : '<span style="color:var(--ls-warn);font-size:11px;">（新角色）</span>'}</div>
+                        ${r.aliases?.length ? `<div style="color:var(--ls-text-2);font-size:12px;">别名: ${esc(r.aliases.join('、'))}</div>` : ''}
                     </div>
                 </div>`;
             }).join('') || '<div class="ls-hint">无角色可写入</div>';
             const body = `
-                <div style="padding:4px 8px;font-size:12px;color:var(--ls-text-2,#9da7b3);">提取到 ${roles.length} 个角色，勾选要写入的条目（已存在角色只会补别名，不会覆盖主名或数据）</div>
+                <div style="padding:4px 8px;font-size:12px;color:var(--ls-text-2);">提取到 ${roles.length} 个角色，勾选要写入的条目（已存在角色只会补别名，不会覆盖主名或数据）</div>
                 <div style="max-height:40vh;overflow-y:auto;margin:6px 0;">${rows}</div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
                     <button class="ls-btn" id="ls-extract-cancel">取消</button>
@@ -645,18 +645,18 @@
             const faceHTML = (howTo) => {
                 if (faceState.state === 'absent') {
                     return '<div class="ls-hint ls-face-absent" data-ls-face="absent" data-face-why="' + escAttr(faceState.code) + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ' + esc(faceState.reason || '原因未知')
-                        + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这一面<b>没装上</b>，不是「0 条」。装回对应模块（或换完整快照）后重开本页。</div></div>';
+                        + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">这一面<b>没装上</b>，不是「0 条」。装回对应模块（或换完整快照）后重开本页。</div></div>';
                 }
                 if (faceState.state === 'blocked') {
                     /* 文案必须**随态变化**且点名缺什么：把「缺前置条件」写成「没有数据」，
                      *   等于让人去查一个不存在的 bug。 */
                     return '<div class="ls-hint ls-face-blocked" data-ls-face="blocked" data-face-why="' + escAttr(faceState.code) + '"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>需要先配置 · ' + esc(faceState.reason || '前置条件缺失')
-                        + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这一面<b>装上了，但缺前置条件</b>，所以暂时产不出数据 —— 它不是「本来就没有」。</div></div>';
+                        + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">这一面<b>装上了，但缺前置条件</b>，所以暂时产不出数据 —— 它不是「本来就没有」。</div></div>';
                 }
                 if (faceState.state === 'failed') {
                     return '<div class="ls-hint ls-face-failed" data-ls-face="failed"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取数失败 · ' + esc(faceState.reason || 'thrown')
                         + '<button class="ls-btn ls-face-retry" style="margin-left:8px;padding:2px 10px;font-size:12px;">重试</button>'
-                        + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">失败的取数不是「没有数据」—— 它可能是可恢复的。</div></div>';
+                        + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">失败的取数不是「没有数据」—— 它可能是可恢复的。</div></div>';
                 }
                 faceState.code = faceState.code || 'no-data';
                 return '<div class="ls-hint ls-face-empty" data-ls-face="empty" data-face-why="' + escAttr(faceState.code) + '">真的没有。' + esc(howTo || '') + '</div>';
@@ -667,16 +667,16 @@
                 const list = faceRead(() => (s.summary ? '' : '摘要服务缺席'), () => s.summary.summaries);
                 // [v3.74] B2: 手动补摘输入框（柏宝书：任意楼层单独补摘）
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
-                    <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
-                    <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
+                    <input id="ls-ms-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong);border-radius:6px;background:var(--ls-bg-1);color:var(--ls-text);font-size:13px;" />
+                    <input id="ls-ms-text" type="text" placeholder="手动补摘：该楼剧情一句话…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong);border-radius:6px;background:var(--ls-bg-1);color:var(--ls-text);font-size:13px;" />
                     <button id="ls-ms-add" class="ls-btn" style="padding:6px 14px;">+ 补摘</button>
-                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-line-strong,rgba(240,246,252,0.18))!important;background-image:none!important;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>批量补齐</button>
+                    <button id="ls-ms-complete" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-line-strong)!important;background-image:none!important;" title="扫描缺失楼层并批量 LLM 补齐（每批最多 5 楼）"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>批量补齐</button>
                 </div>
                 <div style="display:flex;gap:6px;margin:0 0 8px 0;">
-                    <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
-                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）"><i class="ls-ico" data-i="film" aria-hidden="true"></i>标记番外</button>
-                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3,#21262d)!important;background-image:none!important;" title="取消番外标记，恢复该楼记忆处理"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>取消番外</button>
-                </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3,#6e7681);margin:4px 0;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
+                    <input id="ls-omit-floor" type="number" placeholder="楼层" min="0" style="width:70px;padding:6px 8px;border:1px solid var(--ls-line-strong);border-radius:6px;background:var(--ls-bg-1);color:var(--ls-text);font-size:13px;" />
+                    <button id="ls-omit-mark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3)!important;background-image:none!important;" title="将该楼排除出记忆系统（小剧场/玩梗楼用，可取消）"><i class="ls-ico" data-i="film" aria-hidden="true"></i>标记番外</button>
+                    <button id="ls-omit-unmark" class="ls-btn" style="padding:6px 14px;background-color:var(--ls-bg-3)!important;background-image:none!important;" title="取消番外标记，恢复该楼记忆处理"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>取消番外</button>
+                </div><div class="ls-hint" style="font-size:11px;color:var(--ls-text-3);margin:4px 0;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>若正文出现 &lt;bbs_start&gt;/&lt;bbs_end&gt; 标签原文，可在酒馆设置<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>正则中添加隐藏规则（Find: /&lt;bbs_(start|end)&gt;[\s\S]*?&lt;\/bbs_(start|end)&gt;/g, Replace: 空白），标签仍会保留在底层数据供记忆系统使用。</div>`;
                 body = addForm + (list.length === 0 ? faceHTML('去聊几句，AI 回复后会自动生成。') :
                     list.slice().reverse().map(m => `
                         <div class="ls-item ls-clickable" data-opkind="summary" data-opid="${escAttr(String(m.floor))}">
@@ -753,12 +753,12 @@
                 if (povFaceState === 'absent' || povFaceState === 'failed') {
                     const povTag = (povFaceState === 'failed') ? 'data-pov-state="failed"' : 'data-pov-state="absent"';
                     body = '<div ' + povTag + '>' + faceHTML('这一面靠 pov-projection.js 与三本账（私密心声 / 秘密账 / 知识轨迹）。')
-                        + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这不是「他什么都不知道」—— 「面不在」与「他确实不知道」是两个结论。</div></div>';
+                        + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">这不是「他什么都不知道」—— 「面不在」与「他确实不知道」是两个结论。</div></div>';
                 } else if (!povRead || povRead.ok !== true) {
                     /* 面在、但宿主这一调用没成功（方法缺 / 抛错）—— 仍然不许与「空」同形。 */
                     body = '<div data-pov-state="absent" data-pov-why="' + escAttr(String((povRead && povRead.reason) || 'unknown')) + '">'
                         + '<div class="ls-hint"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>视角投影面不可用（不是「他什么都不知道」）：' + esc((povRead && povRead.reason) || 'unknown') + '</div>'
-                        + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">这不是「他什么都不知道」—— 「面不在」与「他确实不知道」是两个结论。</div></div>';
+                        + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">这不是「他什么都不知道」—— 「面不在」与「他确实不知道」是两个结论。</div></div>';
                 } else if (!povRead.viewers || povRead.viewers.length === 0) {
                     body = '<div data-pov-state="empty">' + faceHTML('三本账里还没有任何角色。提取到角色内心/秘密后，这里会出现可选的视角。') + '</div>';
                 } else {
@@ -775,7 +775,7 @@
                  *   空列表不挂（不造假空壳），读不到也不挂（那是上面的 absent/failed 面在答）。 */
                 if (povRawList.length) {
                     body += '<details class="ls-item" style="margin-top:10px;" data-pov-raw="1">'
-                        + '<summary style="cursor:pointer;font-size:12px;color:var(--ls-text-3,#6e7681);">'
+                        + '<summary style="cursor:pointer;font-size:12px;color:var(--ls-text-3);">'
                         + '<i class="ls-ico" data-i="download" aria-hidden="true"></i>原始私密记忆 · ' + povRawList.length + ' 条（点条目可删除）</summary>'
                         + povRawList.slice().reverse().map((p) => (
                             '<div class="ls-item ls-clickable" data-opkind="pov" data-opid="' + escAttr(String(p.id)) + '">'
@@ -797,7 +797,7 @@
                 body = lineageHeader + (tl.length === 0 ? faceHTML('剧情中出现明确日期时会自动记录。') :
                     tl.slice().reverse().map(e => `
                         <div class="ls-item ls-clickable" data-opkind="timeline" data-opid="${escAttr(e.id)}">
-                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · <i class="ls-ico" data-i="star" aria-hidden="true"></i>${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent,#58a6ff);text-decoration:none;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>沿革</a></div>
+                            <div class="ls-item-meta"><b>${esc(e.date)}</b> · 楼层 ${e.floor ?? '?'} · <i class="ls-ico" data-i="star" aria-hidden="true"></i>${e.importance || 5}${e.characters?.length ? ' · ' + esc(e.characters.join('、')) : ''} · <a href="javascript:void(0)" class="ls-lineage-link" data-lid="${escAttr(e.id)}" style="color:var(--ls-accent);text-decoration:none;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>沿革</a></div>
                             <div class="ls-item-text">${esc(e.text)}</div>
                         </div>`).join(''));
             }
@@ -837,14 +837,14 @@
                         ? String(s._commitmentInstanceLine() || '') : '';
 
                     if (!commitState || commitState.ok !== true) {
-                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>约定履约面不可用 · ${esc(commitState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>约定履约面不可用 · ${esc(commitState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (commitState.state === 'no-instances') {
-                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        commitHtml = `<div class="ls-item" data-face="commitments" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期 · <span>${esc(lineText)}</span></div>
-                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无具体约定履约实例（约定生成单次实例、豁免或部分履约时在此跟踪）。</div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3);">暂无具体约定履约实例（约定生成单次实例、豁免或部分履约时在此跟踪）。</div>
                         </div>`;
                     } else {
                         const insts = commitState.instances || [];
@@ -856,13 +856,13 @@
                                 <div class="ls-item-text">${esc(inst.content)}</div>
                             </div>`;
                         }).join('');
-                        commitHtml = `<div class="ls-group" data-face="commitments" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                        commitHtml = `<div class="ls-group" data-face="commitments" style="margin-top:14px;border-top:1px dashed var(--ls-border);padding-top:8px;">
+                            <div class="ls-group-title"><i class="ls-ico" data-i="people" aria-hidden="true"></i>约定履约与生命周期 · <span style="font-weight:400;color:var(--ls-text-3);font-size:11px;">${esc(lineText)}</span></div>
                             ${instRows}
                         </div>`;
                     }
                 } catch (e) {
-                    commitHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">约定履约面板渲染异常: ${esc(e.message || String(e))}</div>`;
+                    commitHtml = `<div class="ls-item" style="color:var(--ls-warn);">约定履约面板渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
 
                 /* [v3.448.0 · 第十四期 L14-X9] 记忆回访日程工作台面板渲染 */
@@ -874,14 +874,14 @@
                     const revLine = (typeof s._revisitScheduleLine === 'function')
                         ? String(s._revisitScheduleLine() || '') : '';
                     if (!revState || revState.ok !== true) {
-                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆回访工作台不可用 · ${esc(revState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆回访工作台不可用 · ${esc(revState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (revState.state === 'no-sessions') {
-                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        revisitHtml = `<div class="ls-item" data-face="revisit-schedule" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台 · <span>${esc(revLine)}</span></div>
-                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无已登记回访日程会话（主题序列回顾与纪念卡将在此呈现，不生成伪造事实）。</div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3);">暂无已登记回访日程会话（主题序列回顾与纪念卡将在此呈现，不生成伪造事实）。</div>
                         </div>`;
                     } else {
                         const sess = revState.sessions || [];
@@ -890,14 +890,14 @@
                                 <div class="ls-item-meta">会话「${esc(se.sessionId || '默认')}」· 待回访 ${esc(se.sequenceCount || 0)} 张 · 留存回执 ${esc(se.receiptCount || 0)} 笔</div>
                             </div>`;
                         }).join('');
-                        revisitHtml = `<div class="ls-group" data-face="revisit-schedule" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(revLine)}</span></div>
+                        revisitHtml = `<div class="ls-group" data-face="revisit-schedule" style="margin-top:14px;border-top:1px dashed var(--ls-border);padding-top:8px;">
+                            <div class="ls-group-title"><i class="ls-ico" data-i="calendar" aria-hidden="true"></i>记忆回访日程工作台 · <span style="font-weight:400;color:var(--ls-text-3);font-size:11px;">${esc(revLine)}</span></div>
                             ${sessRows}
                             <div class="ls-hint" style="margin-top:4px;">口径：只读回顾有据记忆卡片，浏览与暂缓不产生事实，绝不代角色私自发言。</div>
                         </div>`;
                     }
                 } catch (e) {
-                    revisitHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">记忆回访日程工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                    revisitHtml = `<div class="ls-item" style="color:var(--ls-warn);">记忆回访日程工作台渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
 
                 body = charHtml + commitHtml + revisitHtml;
@@ -949,8 +949,8 @@
                             const rev = it.status === 'needs_reverification';
                             const stageTxt = stageName[it.reachedStage] || it.reachedStage || '—';
                             const ev = (it.evidenceIds || []).length
-                                ? '<div class="ls-item-text" style="font-size:11px;color:var(--ls-text-3,#6e7681);">凭据 ' + esc((it.evidenceIds || []).join('、')) + '</div>'
-                                : '<div class="ls-item-text" style="font-size:11px;color:var(--ls-warn,#d29922);">无凭据编号（只记了次数，回不到那一楼）</div>';
+                                ? '<div class="ls-item-text" style="font-size:11px;color:var(--ls-text-3);">凭据 ' + esc((it.evidenceIds || []).join('、')) + '</div>'
+                                : '<div class="ls-item-text" style="font-size:11px;color:var(--ls-warn);">无凭据编号（只记了次数，回不到那一楼）</div>';
                             const latestTxt = (it.latest && it.latest.description)
                                 ? '<div class="ls-item-text">最近一次：' + esc(it.latest.description)
                                     + (it.latest.contextCondition ? '（条件：' + esc(it.latest.contextCondition) + '）' : '') + '</div>'
@@ -973,7 +973,7 @@
                 }
                 /* 对账两块账的差额：成形待证 / 无主束 —— **只报条数，不猜对应**。 */
                 const hgDiff = (hg.ok === true && hg.counts && (hg.counts.unproven || hg.counts.orphan))
-                    ? '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>对账：成形待证 '
+                    ? '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>对账：成形待证 '
                         + hg.counts.unproven + ' 条（习惯本体在、但没留下任何凭据）· 无主束 '
                         + hg.counts.orphan + ' 条（证据在、但找不到对应本体）—— 两块账不互相充抵，也不自动合并。</div>'
                     : '';
@@ -981,7 +981,7 @@
                     ? (function () { try { return String(s._habitGrowthLine() || ''); } catch (_e) { return ''; } })()
                     : '';
                 const hgBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="flower" aria-hidden="true"></i>习惯与成长证据'
-                    + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
+                    + '<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">'
                     + esc(hgLine) + '</span></div>' + hgHtml + hgDiff
                     + '<div class="ls-hint">口径：只显示**有凭据**的习惯；凭据被撤回<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>转「待复验」而不是静默归零；'
                     + '「学会了」只留凭据，不折算成任何数值。</div></div>';
@@ -1015,12 +1015,12 @@
                     try { return typeof s._seatingPartitionLine === 'function' ? String(s._seatingPartitionLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _seatHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>下一幕多角色分席准备<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_seatLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>下一幕多角色分席准备<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(_seatLine)}</span></div>`;
                     if (!_seat || _seat.ok !== true) {
                         if (_seat && _seat.state === 'no-seats') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未排定席位：当前场景暂无活跃角色登场。当有角色进入席位后，将自动根据各人知情链完成公共池与私密口袋切分。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_seat && _seat.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_seat && _seat.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _seat.counts || {};
                     const seats = (_seat.activeSeats || []).join('、') || '无';
@@ -1058,7 +1058,7 @@
                 let edgeHtml = edges.length === 0 ? faceHTML('人物同场出现且关系被提取后会自动连边。') :
                     edges.map(e => `
                         <div class="ls-item">
-                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent,#58a6ff)">—[${esc(e.label || '相关')}]<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i></span> ${esc(nameOf(e.to))}</div>
+                            <div class="ls-item-text">${esc(nameOf(e.from))} <span style="color:var(--ls-accent)">—[${esc(e.label || '相关')}]<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i></span> ${esc(nameOf(e.to))}</div>
                         </div>`).join('');
 
                 /* [v3.448.0 · 第十四期 L14-X3] 认知改观与解释版本对照工作台 */
@@ -1074,14 +1074,14 @@
                         /* [v3.459.0] 用词与三态口径对齐：本页上方关系边已落「真的没有」(empty)，
                          *   这里若写「不可用」会让整页读成「关系面没装上」——把「没有」说成「没装上」。
                          *   故点名是哪一块没装上、并说清它不影响关系边读数。 */
-                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>认知改观工作台没装上（关系边读数不受影响） · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>认知改观工作台没装上（关系边读数不受影响） · ${esc(reinterpState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (reinterpState.state === 'no-ledgers') {
-                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        reinterpHtml = `<div class="ls-item" data-face="reinterpretation" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照 · <span>${esc(lineText)}</span></div>
-                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无角色改观账本（人物对往事态度产生认知转变并记录触发证据后，版本对照将在此呈现）。</div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3);">暂无角色改观账本（人物对往事态度产生认知转变并记录触发证据后，版本对照将在此呈现）。</div>
                         </div>`;
                     } else {
                         const ledgers = reinterpState.ledgers || [];
@@ -1089,26 +1089,26 @@
                             const vList = (l.versions || []).map(v => {
                                 const stBadge = v.status === 'accepted' ? '采纳' : (v.status === 'draft' ? '草案' : (v.status === 'superseded' ? '归档' : '拒绝'));
                                 const ev = v.triggerEvidence ? ` · 触发证据: ${esc(v.triggerEvidence.summary || v.triggerEvidence.evidenceId)} (第${v.triggerEvidence.floor}楼)` : '';
-                                return `<div style="margin:2px 0 2px 8px;padding-left:4px;border-left:2px solid var(--ls-border,#30363d);font-size:11px;">
+                                return `<div style="margin:2px 0 2px 8px;padding-left:4px;border-left:2px solid var(--ls-border);font-size:11px;">
                                     <b>v${v.versionNumber}</b> [${stBadge}] 第${v.floor}楼 (${esc(v.perspective || 'view')})：${esc(v.interpretationText)}${ev}
                                 </div>`;
                             }).join('');
                             return `<div class="ls-item" style="margin-bottom:6px;background:rgba(255,255,255,0.02);padding:6px;border-radius:4px;">
                                 <div class="ls-item-meta"><b>${esc(l.characterId)}</b> 对 <b>${esc(l.targetEntityId)}</b> · 事实: <i>${esc(l.factSummary || '未记录事实')}</i></div>
                                 <div class="ls-item-text" style="margin:4px 0;">当前认识: <b>${esc(l.activeText || '—')}</b></div>
-                                <details style="cursor:pointer;font-size:11px;color:var(--ls-text-3,#6e7681);">
+                                <details style="cursor:pointer;font-size:11px;color:var(--ls-text-3);">
                                     <summary>查看解释版本链 (${l.versionCount || 0} 版)</summary>
                                     <div style="margin-top:4px;">${vList}</div>
                                 </details>
                             </div>`;
                         }).join('');
-                        reinterpHtml = `<div class="ls-group" data-face="reinterpretation" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(lineText)}</span></div>
+                        reinterpHtml = `<div class="ls-group" data-face="reinterpretation" style="margin-top:14px;border-top:1px dashed var(--ls-border);padding-top:8px;">
+                            <div class="ls-group-title"><i class="ls-ico" data-i="refresh" data-tone="pending" aria-hidden="true"></i>认知改观与解释版本对照 · <span style="font-weight:400;color:var(--ls-text-3);font-size:11px;">${esc(lineText)}</span></div>
                             ${cardList}
                         </div>`;
                     }
                 } catch (e) {
-                    reinterpHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">认知改观工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                    reinterpHtml = `<div class="ls-item" style="color:var(--ls-warn);">认知改观工作台渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
 
                 /* [v3.448.0 · 第十四期 L14-X7] 关系修复回应与行为回链工作台 */
@@ -1122,14 +1122,14 @@
                     if (!repairState || repairState.ok !== true) {
                         /* [v3.459.0] 同「认知改观」那条：本页上游三态是「真的没有」，
                          *   这里写「不可用」会让整页被读成关系面没装上。改为点名这块没装上。 */
-                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链</div>
-                            <div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>关系修复工作台没装上（关系边读数不受影响） · ${esc(repairState?.reason || 'module-unavailable')}</div>
+                            <div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>关系修复工作台没装上（关系边读数不受影响） · ${esc(repairState?.reason || 'module-unavailable')}</div>
                         </div>`;
                     } else if (repairState.state === 'no-records') {
-                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
+                        repairHtml = `<div class="ls-item" data-face="repair-response" style="margin-top:12px;border-top:1px dashed var(--ls-border);padding-top:8px;">
                             <div class="ls-item-meta"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链 · <span>${esc(repLine)}</span></div>
-                            <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">暂无关系修复记录（发生道歉、求和或设界提议并逐条回应后在此呈现履约证据链）。</div>
+                            <div class="ls-item-text" style="color:var(--ls-text-3);">暂无关系修复记录（发生道歉、求和或设界提议并逐条回应后在此呈现履约证据链）。</div>
                         </div>`;
                     } else {
                         const recs = repairState.records || [];
@@ -1145,13 +1145,13 @@
                                 <div class="ls-item-text">${respList}</div>
                             </div>`;
                         }).join('');
-                        repairHtml = `<div class="ls-group" data-face="repair-response" style="margin-top:14px;border-top:1px dashed var(--ls-border,#30363d);padding-top:8px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链 · <span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;">${esc(repLine)}</span></div>
+                        repairHtml = `<div class="ls-group" data-face="repair-response" style="margin-top:14px;border-top:1px dashed var(--ls-border);padding-top:8px;">
+                            <div class="ls-group-title"><i class="ls-ico" data-i="wrench" aria-hidden="true"></i>关系修复回应与行为回链 · <span style="font-weight:400;color:var(--ls-text-3);font-size:11px;">${esc(repLine)}</span></div>
                             ${cardList}
                         </div>`;
                     }
                 } catch (e) {
-                    repairHtml = `<div class="ls-item" style="color:var(--ls-warn,#d29922);">关系修复工作台渲染异常: ${esc(e.message || String(e))}</div>`;
+                    repairHtml = `<div class="ls-item" style="color:var(--ls-warn);">关系修复工作台渲染异常: ${esc(e.message || String(e))}</div>`;
                 }
                 body = edgeHtml + reinterpHtml + repairHtml;
             }
@@ -1233,9 +1233,9 @@
                 };
                 /* 一面 = 标题 + 诊断行 + 三态体。render 只在「有数据」时被调用。 */
                 const face = (label, lineName, r, howTo, render) => {
-                    const head = `<div class="ls-group-title">${label}<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(lineOf(lineName))}</span></div>`;
+                    const head = `<div class="ls-group-title">${label}<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(lineOf(lineName))}</span></div>`;
                     if (!r || r.ok !== true) {
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc((r && r.reason) || 'module-unavailable')}（不是「0 条」，是这个面没装上）</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc((r && r.reason) || 'module-unavailable')}（不是「0 条」，是这个面没装上）</div></div></div>`;
                     }
                     if (r.reason === 'empty') {
                         return `<div class="ls-group">${head}<div class="ls-hint">真的没有。${howTo}</div></div>`;
@@ -1289,7 +1289,7 @@
                         <div class="ls-item">
                             <div class="ls-item-meta"><b>${esc(x.name || x.entityId)}</b> · 出场 ${x.appearances} · 视角 ${x.actorCount}</div>
                             <div class="ls-item-text">${who.length ? '意义持有者：' + who.map(w => esc(w)).join('、') : '（尚无人赋予意义）'}</div>
-                            ${objs ? `<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">反例 ${objs}</div>` : ''}
+                            ${objs ? `<div class="ls-item-text" style="color:var(--ls-warn);">反例 ${objs}</div>` : ''}
                         </div>`;
                     }).join('')
                     + `<div class="ls-hint">口径：意义是**视角**不是事实<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>永远不写回事实 owner；反例单列，不进「共识」。</div>`);
@@ -1352,14 +1352,14 @@
                     try { return typeof s[name] === 'function' ? String(s[name]() || '') : ''; } catch (e) { return ''; }
                 };
                 const faceX = (label, lineName, r, howTo, render) => {
-                    const head = `<div class="ls-group-title">${label}<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(lineX(lineName))}</span></div>`;
+                    const head = `<div class="ls-group-title">${label}<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(lineX(lineName))}</span></div>`;
                     if (!r || r.ok !== true) {
                         /* 「问错了对象」与「模块没装上」必须不同形：前者是正常结论
                          * （ok:false + topic-not-found 之类），后者是缺失。
                          * 两者都渲染成「不可用」会让用户去查模块，而其实只是名字写错了。 */
                         const soft = ['topic-not-found', 'rule-not-found', 'fact-key-required', 'actor-or-whole-required'];
                         const isSoft = soft.indexOf(String((r && r.reason) || '')) >= 0;
-                        const cls = isSoft ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)';
+                        const cls = isSoft ? 'var(--ls-text-3)' : 'var(--ls-warn)';
                         const word = isSoft ? '这一问没有对象（不是「没装上」）' : '不可用（不是「0 条」，是这个面没装上）';
                         return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:${cls};">${isSoft ? '' : '<i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>'}${word} · ${esc((r && r.reason) || 'module-unavailable')}</div></div></div>`;
                     }
@@ -1395,7 +1395,7 @@
                         <div class="ls-item">
                             <div class="ls-item-meta"><b>${esc(x.name || x.symbolId)}</b> · 跃迁 ${x.historyCount} 次 · 阶段 ${esc((x.stages || []).slice(-3).join(' '))}</div>
                             <div class="ls-item-text">${(x.actors || []).length ? '各人理解：' + x.actors.map(a => esc(a.actor) + '「' + esc(a.meaning) + '」').join(' / ') : '（尚无人赋予意义）'}</div>
-                            ${(x.objectionActors || []).length ? `<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">反例（不认同，不计入视角人数）：${x.objectionActors.map(a => esc(a)).join('、')}</div>` : ''}
+                            ${(x.objectionActors || []).length ? `<div class="ls-item-text" style="color:var(--ls-warn);">反例（不认同，不计入视角人数）：${x.objectionActors.map(a => esc(a)).join('、')}</div>` : ''}
                             ${(x.actors || []).length ? `<div class="ls-item-text">${(x.actors || []).map(a => xbtn('meaning-drop', x.symbolId, '<i class="ls-ico" data-i="eye" aria-hidden="true"></i>删掉「' + a.actor + '」的理解', ' data-actor="' + escAttr(a.actor) + '"')).join('')}</div>` : ''}
                         </div>`).join('')
                     + `<div class="ls-hint">口径：意义是视角不是事实<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>永不写回事实 owner（本面显式 touchesFactOwner=false）；删一条解释只删那一格，其他人的理解原样保留。</div>`);
@@ -1453,7 +1453,7 @@
                                 ${x.question === 'muted' ? xbtn('silence-reopen', x.topicId, '<i class="ls-ico" data-i="unlock" aria-hidden="true"></i>重开') : ''}
                                 ${x.question !== 'muted' && x.question !== 'surfacing' ? xbtn('silence-mute', x.topicId, '<i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音') : ''}
                             </div>
-                            ${x.secretSuppressedByAnniversary ? '<div class="ls-item-text" style="color:var(--ls-warn,#d29922);">秘密主题：不因周年浮现（不是 bug，是权限前置短路）</div>' : ''}
+                            ${x.secretSuppressedByAnniversary ? '<div class="ls-item-text" style="color:var(--ls-warn);">秘密主题：不因周年浮现（不是 bug，是权限前置短路）</div>' : ''}
                         </div>`;
                     }).join('')
                     + `<div class="ls-hint">口径：一个主题只落一问（否则会给出四个互相矛盾的答案）；静音不删除、随时可重开；「主题不存在」与「主题没进来」不同形。</div>`);
@@ -1484,7 +1484,7 @@
                 const slLine = (function () {
                     try { return typeof s._silenceListLine === 'function' ? String(s._silenceListLine() || '') : ''; } catch (e) { return ''; }
                 })();
-                const slHead = `<div class="ls-group-title"><i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音清单（本轮上下文 / 持久存档 两源分列）<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(slLine)}</span></div>`;
+                const slHead = `<div class="ls-group-title"><i class="ls-ico" data-i="bell-slash" aria-hidden="true"></i>静音清单（本轮上下文 / 持久存档 两源分列）<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(slLine)}</span></div>`;
                 /* 逐条渲染：两源**绝不合并**。同一个 topicId 同时出现在两源时，
                  *   两列都保留 —— 「持久静音 + 本轮又静了一次」本身就是一条信息。 */
                 const slRow = (x) => {
@@ -1494,18 +1494,18 @@
                         : (x.sinceKind === 'this-run' ? '仅本轮生效，无持久起点' : '起点未知（内核只记动作词，不记时间）');
                     const untilWord = x.until === null ? '不设到期（本仓没有静音到期机制）' : String(x.until);
                     return `<div class="ls-item" data-silence-src="${escAttr(x.source)}" data-silence-id="${escAttr(x.topicId)}">
-                        <div class="ls-item-meta"><b>${esc(x.title || x.topicId)}</b>${x.title && x.title !== x.topicId ? ` <span style="color:var(--ls-text-3,#6e7681);">（${esc(x.topicId)}）</span>` : ''} · ${srcWord}</div>
+                        <div class="ls-item-meta"><b>${esc(x.title || x.topicId)}</b>${x.title && x.title !== x.topicId ? ` <span style="color:var(--ls-text-3);">（${esc(x.topicId)}）</span>` : ''} · ${srcWord}</div>
                         <div class="ls-item-text">${esc(x.why)}</div>
-                        <div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">起点：${esc(sinceWord)} · 到期：${esc(untilWord)}</div>
+                        <div class="ls-item-text" style="color:var(--ls-text-3);">起点：${esc(sinceWord)} · 到期：${esc(untilWord)}</div>
                         ${x.liftable
                             ? `<div class="ls-item-text"><button class="ls-btn" data-silence-lift="${escAttr(x.topicId)}" style="padding:2px 8px;font-size:11px;"><i class="ls-ico" data-i="unlock" aria-hidden="true"></i>解除这一条</button></div>`
-                            : `<div class="ls-item-text" style="color:var(--ls-text-3,#6e7681);">本轮静音改不动（调用方给的上下文）：要撤掉得重开对话或让调用方移除。</div>`}
+                            : `<div class="ls-item-text" style="color:var(--ls-text-3);">本轮静音改不动（调用方给的上下文）：要撤掉得重开对话或让调用方移除。</div>`}
                     </div>`;
                 };
                 let slBody = '';
                 if (!sl || sl.ok !== true) {
                     /* 缺席**不许**装成「你什么都没静音」—— 这两件事对用户的意义完全相反。 */
-                    slBody = `<div class="ls-group">${slHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「你没有静音任何东西」**，是这个面没装上） · ${esc((sl && sl.reason) || 'module-unavailable')}</div></div></div>`;
+                    slBody = `<div class="ls-group">${slHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「你没有静音任何东西」**，是这个面没装上） · ${esc((sl && sl.reason) || 'module-unavailable')}</div></div></div>`;
                 } else if (!sl.counts || !sl.counts.total) {
                     const why = (sl.listable && sl.listable.season === false)
                         ? '持久静音账还没有落格（这份存档里从没写过静音）；本轮上下文也没静音任何主题。'
@@ -1540,9 +1540,9 @@
                     //   不同步，等于账本自己没被完整读出来。补齐后由测试锁定集合关系。
                     const typeCn = { summary: '摘要', graph: '图谱', status: '状态', item: '物品', suspense: '悬念', diary: '日记', pov: '认知', timeline: '时间线', card: '卡牌', money: '钱财', conflict: '矛盾', pair: '群像', rollback: '回滚', locked_fact: '锁定事实', worldprogress: '世界进度', cse: '人物状态', delta: '正史增量', gc: '回收账本', ledger: '楼层账本', tombstone: '已删除', char_mem: '角色记忆' };
                     const head = `<div class="ls-hint">共 ${st.total} 条事件（环形 500）：${Object.entries(st.byType).sort((a,b) => b[1]-a[1]).map(([k,v]) => `${typeCn[k] || k}×${v}`).join(' · ')}</div>`
-                        + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn,#e3b341)' : ''}"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
+                        + `<div class="ls-hint" style="${(st.truncated || st.trimFields) ? 'color:var(--ls-warn)' : ''}"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>账本自述：${esc(opLog.auditSummary?.() || ('窗口 ' + st.total))}${(st.truncated || st.trimFields) ? '　（下方类型统计只覆盖当前窗口；已淘汰事件不计入，且其类型会从统计中整体消失）' : ''}</div>`;
                     // [v3.59] B: 楼层过滤输入框（输入楼层号只显示该楼事件；空=全部）
-                    const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
+                    const floorInput = `<div style="margin:6px 0"><input type="number" id="lonsha-oplog-floor-filter" placeholder="按楼层过滤（空=全部）" style="width:100%;background:var(--ls-bg-1);color:var(--ls-text);border:1px solid var(--ls-line-strong);border-radius:6px;padding:6px 10px;font-size:13px;box-sizing:border-box;" /></div>`;
                     const rows = opLog.recent(80).slice().reverse().map(e => {
                         /* [v3.466.0 · L21-X8] 每行可展开的「这次改动牵动了什么」：
                          *   operation-echo-report 四档（graph/summary/injection/timeline）三态
@@ -1563,12 +1563,12 @@
                         return `
                         <div class="ls-item">
                             <div class="ls-item-meta">#${e.seq} · ${typeCn[e.type] || e.type} · ${esc(e.op)} · ${e.floor !== null && e.floor !== undefined ? `第${e.floor}楼` : '—'} · ${fmtTime(e.ts)}</div>
-                            <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2,#9da7b3)">— ${esc(e.meta)}</span>` : ''}</div>
-                            ${echoLine ? `<details class="ls-echo"><summary style="cursor:pointer;font-size:12px;color:var(--ls-text-2,#9da7b3);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>这次改动牵动了什么</summary><div class="ls-item-text" style="font-size:12px;">${esc(echoLine.replace('这次改动牵动了什么：', ''))}</div></details>` : ''}
+                            <div class="ls-item-text">${esc(e.ref)}${e.meta ? ` <span style="color:var(--ls-text-2)">— ${esc(e.meta)}</span>` : ''}</div>
+                            ${echoLine ? `<details class="ls-echo"><summary style="cursor:pointer;font-size:12px;color:var(--ls-text-2);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>这次改动牵动了什么</summary><div class="ls-item-text" style="font-size:12px;">${esc(echoLine.replace('这次改动牵动了什么：', ''))}</div></details>` : ''}
                         </div>`; }).join('');
                     const tombstones = typeof s.charMem?.getTombstones === 'function' ? s.charMem.getTombstones() : [];
                     const tombRows = tombstones.length
-                        ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger,#f85149);">彻底清除</button></div></div>`).join('')
+                        ? tombstones.slice().reverse().map(t => `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>${esc(t.char || '角色')} · 已删除 · ${fmtTime(t.deletedAt)} · ${esc(t.reason || 'manual-delete')}</div><div class="ls-item-text">${esc(t.item?.text || t.item?.id || '')} <button class="ls-btn ls-tomb-restore" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>恢复</button> <button class="ls-btn ls-tomb-purge" data-tomb-char="${escAttr(t.char || '')}" data-tomb-id="${escAttr(t.item?.id || '')}" style="padding:2px 8px;font-size:12px;color:var(--ls-danger);">彻底清除</button></div></div>`).join('')
                         : '<div class="ls-hint">暂无软删记忆。</div>';
                     /* [v3.443.0 · L13-X8] 本轮生成的可撤销快照面（Problem 8：生成后新增的条目
                      *   此前没有一键回滚入口 —— 只能去各面对着手删，或整份回滚把同轮正确写入一起吞掉）。
@@ -1589,10 +1589,10 @@
                         try { return typeof s._roundUndoLine === 'function' ? String(s._roundUndoLine() || '') : ''; } catch (e) { return ''; }
                     })();
                     const roundUndoHtml = (function () {
-                        const ruHead = `<div class="ls-group-title"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮写入<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(ruLine)}</span></div>`;
+                        const ruHead = `<div class="ls-group-title"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮写入<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(ruLine)}</span></div>`;
                         const rule = '口径：只回滚本轮**新增**的条目；本轮**修改**过的条目保持原样、只标待复核（回退修改会吞掉别的动作）；本轮删除过的不可恢复（正文未留，撤回来等于编造）。';
                         if (!ru || ru.ok !== true) {
-                            return `<div class="ls-group">${ruHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「本轮什么都没新增」**，是这个面没装上） · ${esc((ru && ru.reason) || 'module-unavailable')}</div></div></div>`;
+                            return `<div class="ls-group">${ruHead}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（**不是「本轮什么都没新增」**，是这个面没装上） · ${esc((ru && ru.reason) || 'module-unavailable')}</div></div></div>`;
                         }
                         if (ru.state === 'undone') {
                             /* 「撤过了」不许装成「本轮没有新增」——后者会让用户以为自己白点了按钮。 */
@@ -1613,11 +1613,11 @@
                             ? `<div class="ls-hint" style="color:${color};">${esc(word)}：${arr.map((x) => esc(String(x.ledger || '?') + '/' + String(x.id || '?'))).join(' · ')}</div>`
                             : '';
                         const btn = added.length
-                            ? `<div class="ls-item-text"><button class="ls-btn" data-round-undo="1" style="padding:4px 10px;font-size:12px;color:var(--ls-danger,#f85149);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮新增 ${added.length} 条</button></div>`
+                            ? `<div class="ls-item-text"><button class="ls-btn" data-round-undo="1" style="padding:4px 10px;font-size:12px;color:var(--ls-danger);"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销本轮新增 ${added.length} 条</button></div>`
                             : '<div class="ls-hint">本轮没有新增条目 —— 没有可撤销的东西（这不是失败）。</div>';
                         return `<div class="ls-group">${ruHead}
                         <div class="ls-item-meta">第 ${ru.seq === null || ru.seq === undefined ? '—' : esc(String(ru.seq))} 轮 · 新增 ${c.added || 0} 条 · 删除 ${c.removed || 0} 条 · 改过 ${c.modified || 0} 条</div>
-                        ${listOf(added, '新增（可撤）', 'var(--ls-text-2,#9da7b3)')}${listOf(modified, '改过（只标待复核，不回退）', 'var(--ls-text-3,#6e7681)')}${listOf(removed, '删除（不可撤：正文未留）', 'var(--ls-text-3,#6e7681)')}
+                        ${listOf(added, '新增（可撤）', 'var(--ls-text-2)')}${listOf(modified, '改过（只标待复核，不回退）', 'var(--ls-text-3)')}${listOf(removed, '删除（不可撤：正文未留）', 'var(--ls-text-3)')}
                         ${btn}
                         <div class="ls-hint">${esc(rule)}</div>
                     </div>`;
@@ -1679,7 +1679,7 @@
                     /* 空态：**必须**把「扫了多少条」念出来。只说「没有缺口」会让
                      *   一次空扫（0 条事实）与一次真扫（扫了 40 条都够厚）同形。 */
                     gapBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="search" aria-hidden="true"></i>证据缺口'
-                        + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
+                        + '<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">'
                         + esc(gapLine) + '</span></div>'
                         + '<div class="ls-hint" data-ls-gap-face="empty">扫过 ' + (gap.scanned || 0)
                         + ' 条事实（证据够厚 ' + (gap.thick || 0) + ' 条），没有落在「证据薄」阈值（≤ '
@@ -1698,7 +1698,7 @@
                             : '') + '</div>'
                         + '<div class="ls-item-text">' + esc(it.subject || '（未署名）') + ' · ' + esc(it.predicate || '—')
                         + ' = ' + esc(it.value || '') + '</div>'
-                        + '<div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681);">' + esc(it.note || '') + '</div>'
+                        + '<div class="ls-item-meta" style="color:var(--ls-text-3);">' + esc(it.note || '') + '</div>'
                         + '<div style="margin-top:4px;display:flex;gap:6px;">'
                         + '<button class="ls-btn ls-gap-refill" data-gap-refill="' + escAttr(it.factId) + '"'
                         + ' style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>去补证</button>'
@@ -1713,18 +1713,18 @@
                         const b = gapBadge[c];
                         boxes += '<div class="ls-group" data-gap-group="' + c + '"><div class="ls-group-title">'
                             + b.cls + ' ' + b.txt + ' (' + list.length + ')'
-                            + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
+                            + '<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">'
                             + esc(b.why) + '</span></div>'
                             + list.map(rowOf).join('') + '</div>';
                     }
                     /* 两侧核验状态：**不许省**。它是「判不了」这一格能说清的前提。 */
                     const chk = gap.checked || {};
-                    const chkHtml = '<div class="ls-hint" style="color:' + ((chk.source && chk.conflict) ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)') + ';">'
+                    const chkHtml = '<div class="ls-hint" style="color:' + ((chk.source && chk.conflict) ? 'var(--ls-text-3)' : 'var(--ls-warn)') + ';">'
                         + '核验状态：来源侧 ' + (chk.source ? '已核验（正文可读）' : '未核验（正文不可读 => 不判「证据失效」）')
                         + ' · 矛盾侧 ' + (chk.conflict ? '已核验（矛盾账在）' : '未核验（矛盾账没装上 => 不判「没有矛盾」）')
                         + '</div>';
                     gapBlock = '<div class="ls-group"><div class="ls-group-title"><i class="ls-ico" data-i="search" aria-hidden="true"></i>证据缺口'
-                        + '<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">'
+                        + '<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">'
                         + esc(gapLine) + '</span></div>'
                         + '<div class="ls-hint">扫过 ' + (gap.scanned || 0) + ' 条事实，其中证据薄 '
                         + gap.thin.length + ' 条（已撤销未盘 ' + (gap.skippedRevoked || 0)
@@ -1767,11 +1767,11 @@
                     archiveBody = '<div class="ls-hint">尚无恢复记录。导入一次存档（或恢复快照）后，此处显示该档的三分判定：活真源 / 可清理候选 / 保留。</div>';
                 } else if (aa.verdict !== 'classified') {
                     archiveBody = `<div class="ls-hint">本档未产出判定：<b>${esc(aa.verdict)}</b>${aa.why ? ' · ' + esc(aa.why) : ''}</div>`
-                        + '<div class="ls-hint" style="color:var(--ls-text-3,#6e7681)">「判不了」不等于「查过没问题」——故不编默认值，如实说判不了。</div>';
+                        + '<div class="ls-hint" style="color:var(--ls-text-3)">「判不了」不等于「查过没问题」——故不编默认值，如实说判不了。</div>';
                 } else {
                     const head = `<div class="ls-hint">判定 <b>${esc(aa.verdict)}</b> · 总 ${aa.total ?? 0} 键 / ${aa.bytes ?? 0} 字节 · 活真源 ${aa.active ?? 0} · 可清理候选 ${aa.cleanup ?? 0} · 保留 ${aa.retained ?? 0}</div>`;
                     const warn = (aa.cleanup || 0) > 0
-                        ? `<div class="ls-hint" style="color:var(--ls-warn,#e3b341)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>有 ${aa.cleanup} 个键可清理：不在本插件存档顶层键集合内、且值可读。清理不在本页执行，此处只点名。</div>`
+                        ? `<div class="ls-hint" style="color:var(--ls-warn)"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>有 ${aa.cleanup} 个键可清理：不在本插件存档顶层键集合内、且值可读。清理不在本页执行，此处只点名。</div>`
                         : '';
                     const ckRow = (aa.cleanupKeys || []).length
                         ? `<div class="ls-item"><div class="ls-item-meta">可清理候选</div><div class="ls-item-text">${(aa.cleanupKeys || []).map(esc).join(' · ')}</div></div>` : '';
@@ -1779,10 +1779,10 @@
                         ? `<div class="ls-item"><div class="ls-item-meta">保留（含原因）</div><div class="ls-item-text">${(aa.retainedKeys || []).map(esc).join(' · ')}</div></div>` : '';
                     const cl = s._lastItemOpsClaim;
                     const claim = cl
-                        ? `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>物品 op 忠实认领证明</div><div class="ls-item-text">候选 ${cl.ops} 条 / 楼层 ${cl.floors} 层 · 可证明 ${cl.proved} · 判不了 ${cl.unproved}${cl.issue ? ' · 根因 ' + esc(cl.issue) : ''}</div><div class="ls-item-meta" style="color:var(--ls-text-3,#6e7681)">只读证明：不删任何 op —— 失效清理的唯一真源是优化 3b 段（fp 不在该楼任何 swipe 取值里）。</div></div>`
+                        ? `<div class="ls-item"><div class="ls-item-meta"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>物品 op 忠实认领证明</div><div class="ls-item-text">候选 ${cl.ops} 条 / 楼层 ${cl.floors} 层 · 可证明 ${cl.proved} · 判不了 ${cl.unproved}${cl.issue ? ' · 根因 ' + esc(cl.issue) : ''}</div><div class="ls-item-meta" style="color:var(--ls-text-3)">只读证明：不删任何 op —— 失效清理的唯一真源是优化 3b 段（fp 不在该楼任何 swipe 取值里）。</div></div>`
                         : '<div class="ls-hint"><i class="ls-ico" data-i="bag" aria-hidden="true"></i>物品 op 认领证明：本次导入无 itemOps，或聊天未就绪。</div>';
                     archiveBody = head + warn + ckRow + rkRow + claim
-                        + (aa.line ? `<div class="ls-hint" style="color:var(--ls-text-3,#6e7681)">${esc(aa.line)}</div>` : '');
+                        + (aa.line ? `<div class="ls-hint" style="color:var(--ls-text-3)">${esc(aa.line)}</div>` : '');
                 }
                 /* 拼装：缺口面在上、存档体检在下。
                  *   顺序有意义 —— 缺口面回答「我的结论靠不靠得住」（内容），
@@ -1797,7 +1797,7 @@
                 const list = faceRead(() => ((s.summary && typeof s.summary.getLockedFacts === 'function') ? '' : '锁定事实服务缺席'), () => s.summary.getLockedFacts() || []);
                 const head = `<div class="ls-hint">锁定的剧情事实会<b>逐字</b>进入每轮摘要与注入流，永不因压缩丢失。摘要生成后有校验器防遗漏。适用于：关键约定、物品归属、重要转折、你不想被 AI 忘记的一切。</div>`;
                 const addForm = `<div style="display:flex;gap:6px;margin:8px 0;">
-                    <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong,rgba(240,246,252,0.18));border-radius:6px;background:var(--ls-bg-1,#0d1117);color:var(--ls-text,#e6edf3);font-size:13px;" />
+                    <input id="ls-lf-input" type="text" placeholder="输入要锁定的剧情事实…" style="flex:1;padding:6px 8px;border:1px solid var(--ls-line-strong);border-radius:6px;background:var(--ls-bg-1);color:var(--ls-text);font-size:13px;" />
                     <button id="ls-lf-add" class="ls-btn" style="padding:6px 14px;"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>锁定</button>
                 </div>`;
                 const items = list.length === 0
@@ -1820,9 +1820,9 @@
                         : { ok: false, reason: 'host-method-missing' };
                     const rLine = (typeof s._knowledgeRelayLine === 'function') ? s._knowledgeRelayLine() : '';
                     if (!rState || rState.ok !== true) {
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>消息转告链工作台不可用 · ${esc((rState && rState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>消息转告链工作台不可用 · ${esc((rState && rState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
                     } else if (rState.state === 'no-chains' || !rState.chains || rState.chains.length === 0) {
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-hint">暂无消息转告链。当某条消息被角色A告诉B、再传给C时，此处记录逐跳传播时刻、机密授权与撤回影响，严防时间穿越与超前全知。</div></div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div><div class="ls-hint">暂无消息转告链。当某条消息被角色A告诉B、再传给C时，此处记录逐跳传播时刻、机密授权与撤回影响，严防时间穿越与超前全知。</div></div>`;
                     } else {
                         const chainCards = rState.chains.map(ch => {
                             const chChars = ch.characters && ch.characters.length ? ch.characters.join(' ') : '无节点';
@@ -1831,10 +1831,10 @@
                                 <div class="ls-item-text">跳转总数: ${ch.hopCount} 跃（生效 ${ch.activeHops} · 撤回 ${ch.retractedHops}）· 迟到消息严禁穿越时间</div>
                             </div>`;
                         }).join('');
-                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div>${chainCards}</div>`;
+                        relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="antenna" aria-hidden="true"></i>消息多跳转告链<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(rLine)}</span></div>${chainCards}</div>`;
                     }
                 } catch (e) {
-                    relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">转告链面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                    relayHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);">转告链面板异常 · ${esc(e.message || e)}</div></div></div>`;
                 }
                 /* [v3.446.0] 融合 现场即时快照与在场权限状态 */
                 let sceneHtml = '';
@@ -1844,13 +1844,13 @@
                         : { ok: false, reason: 'host-method-missing' };
                     const scLine = (typeof s._sceneStateTrackerLine === 'function') ? s._sceneStateTrackerLine() : '';
                     if (!scState || scState.ok !== true) {
-                        sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照与在场权限<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>现场快照服务不可用 · ${esc((scState && scState.reason) || 'module-unavailable')}</div></div></div>`;
+                        sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照与在场权限<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>现场快照服务不可用 · ${esc((scState && scState.reason) || 'module-unavailable')}</div></div></div>`;
                     } else {
                         const sceneObj = scState.scene || {};
                         const castStr = scState.inSceneCharacters === undefined ? '未指定（全开）' : (scState.inSceneCharacters.length === 0 ? '【全员离场无人】' : scState.inSceneCharacters.join('、'));
                         const persistStr = scState.isPersisted ? `已落盘（第${scState.scene?.floor ?? 0}楼）` : '待随会话保存';
                         sceneHtml = `<div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="person-circle" aria-hidden="true"></i>物理现场快照 (L0 Scene State)<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(scLine)}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">地点: ${esc(sceneObj.location || '未知')} · 气氛: ${esc(sceneObj.tension || '正常')} · 在场角色: ${esc(castStr)} · 存档状态: ${persistStr}</div>
                                 <div class="ls-item-text">动作: ${esc(sceneObj.action || '无焦点动作')} · 未决: ${esc(sceneObj.unresolved || '无悬念')}</div>
@@ -1860,27 +1860,27 @@
                             <div class="ls-group-title"><i class="ls-ico" data-i="flower" aria-hidden="true"></i>事实纠错影响扩散树 & <i class="ls-ico" data-i="heart" aria-hidden="true"></i>誓约决裂烙印</div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">级联演化树状态: 就绪 (支持根事实追溯、派生下溯与撤销重构) · 誓约创伤烙印: 深度追踪</div>
-                                <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">当根事实被修改时，派生推论自动标记 deprecated 并从生成注入中隔离。</div>
+                                <div class="ls-item-text" style="color:var(--ls-text-2);font-size:12px;">当根事实被修改时，派生推论自动标记 deprecated 并从生成注入中隔离。</div>
                             </div>
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="shield" aria-hidden="true"></i>防全知视界隔离与认知边界四桶动态滤镜<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._cognitiveHorizonLine === 'function') ? s._cognitiveHorizonLine() : '')}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="shield" aria-hidden="true"></i>防全知视界隔离与认知边界四桶动态滤镜<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc((typeof s._cognitiveHorizonLine === 'function') ? s._cognitiveHorizonLine() : '')}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">机制: STBME 仿生四桶 (亲历/共历/传闻/禁区) · 封口指令锁: 活跃 · 隔空读心防御: 物理级0-Token阻断</div>
-                                <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">酒馆多角色通用：按聚焦发言角色进行视界动态投影，严格切断不在场角色私密心声，防止大模型上帝视角出戏剧透。</div>
+                                <div class="ls-item-text" style="color:var(--ls-text-2);font-size:12px;">酒馆多角色通用：按聚焦发言角色进行视界动态投影，严格切断不在场角色私密心声，防止大模型上帝视角出戏剧透。</div>
                             </div>
                         </div>
                         <div class="ls-group" style="margin-top:14px;">
-                            <div class="ls-group-title"><i class="ls-ico" data-i="brain" aria-hidden="true"></i>仿生记忆共振巩固与多跳推演<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._resonanceConsolidationLine === 'function') ? s._resonanceConsolidationLine() : '')}</span></div>
-                            <div class="ls-group-title" style="margin-top:6px;"><i class="ls-ico" data-i="flow" aria-hidden="true"></i>分层折叠金字塔与整合去重演化<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc((typeof s._pyramidEvolutionLine === 'function') ? s._pyramidEvolutionLine() : '')}</span></div>
+                            <div class="ls-group-title"><i class="ls-ico" data-i="brain" aria-hidden="true"></i>仿生记忆共振巩固与多跳推演<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc((typeof s._resonanceConsolidationLine === 'function') ? s._resonanceConsolidationLine() : '')}</span></div>
+                            <div class="ls-group-title" style="margin-top:6px;"><i class="ls-ico" data-i="flow" aria-hidden="true"></i>分层折叠金字塔与整合去重演化<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc((typeof s._pyramidEvolutionLine === 'function') ? s._pyramidEvolutionLine() : '')}</span></div>
                             <div class="ls-item">
                                 <div class="ls-item-meta">PEDSA 激活扩散: 2 跳 · 衰减 0.6 · 时序合成边 0.2 · 矛盾边负能量 ×2.0 · 访问强化正反馈: 活跃</div>
-                                <div class="ls-item-text" style="color:var(--ls-text-2,#8b949e);font-size:12px;">跨实体时空关联形成动态多级激活；旧记忆 0.8 封底不清零，可被重新引燃。访问热表随会话存档落盘，酒馆多角色/群聊通用，不绑定任何特定角色。</div>
+                                <div class="ls-item-text" style="color:var(--ls-text-2);font-size:12px;">跨实体时空关联形成动态多级激活；旧记忆 0.8 封底不清零，可被重新引燃。访问热表随会话存档落盘，酒馆多角色/群聊通用，不绑定任何特定角色。</div>
                             </div>
                         </div>`;
                     }
                 } catch (e) {
-                    sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">现场快照面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                    sceneHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);">现场快照面板异常 · ${esc(e.message || e)}</div></div></div>`;
                 }
                 body = factsHtml + sceneHtml + relayHtml;
             }
@@ -1892,8 +1892,8 @@
                     body = faceHTML('摘要折叠时 LLM 会同步产出增量事实（established=有明确证据，uncertain=存疑待佐证，后续剧情会自动确证）。');
                 } else {
                     const stBadge = (st) => st === 'established'
-                        ? '<span style="font-size:10px;font-weight:700;color:var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>已确证</span>'
-                        : '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>待定</span>';
+                        ? '<span style="font-size:10px;font-weight:700;color:var(--ls-success);background:var(--ls-success-soft);border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>已确证</span>'
+                        : '<span style="font-size:10px;font-weight:700;color:var(--ls-warn);background:var(--ls-warn-soft);border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="hourglass" data-tone="pending" aria-hidden="true"></i>待定</span>';
                     body = list.slice().reverse().map(d => `
                         <div class="ls-item" style="display:flex;align-items:flex-start;gap:8px;">
                             <div style="flex:1;">
@@ -1927,9 +1927,9 @@
                      // 张力曲线（最近 40 楼，纯 CSS 竖条；高度=张力，颜色=极性冷暖）
                      const recent = beats.slice(-40);
                      const barColor = b => {
-                         if (b.polarity > 0.15) return 'var(--ls-success,#3fb950)';   // 暖
-                         if (b.polarity < -0.15) return 'var(--ls-danger,#f85149)';    // 冷
-                         return 'var(--ls-info,#58a6ff)';                                 // 中性
+                         if (b.polarity > 0.15) return 'var(--ls-success)';   // 暖
+                         if (b.polarity < -0.15) return 'var(--ls-danger)';    // 冷
+                         return 'var(--ls-info)';                                 // 中性
                      };
                      const bars = recent.map(b => {
                          const h = Math.max(4, Math.round(b.tension * 60));
@@ -1937,7 +1937,7 @@
                      }).join('');
                      const chart = `<div class="ls-item">
                          <div class="ls-item-meta">张力曲线（近 ${recent.length} 楼 · 绿=情绪上扬 / 红=情绪下沉 / 蓝=中性，高度=张力）</div>
-                         <div style="display:flex;align-items:flex-end;gap:2px;height:64px;padding:6px 2px 0;border-bottom:1px solid var(--ls-border,#30363d);">${bars}</div>
+                         <div style="display:flex;align-items:flex-end;gap:2px;height:64px;padding:6px 2px 0;border-bottom:1px solid var(--ls-border);">${bars}</div>
                      </div>`;
                      // 角色弧光阶段
                      const arcKeys = Object.keys(arcs).filter(k => arcs[k].polarityTrail?.length >= 3);
@@ -1951,7 +1951,7 @@
                          ${arcKeys.slice(0,8).map(k => {
                              const a = arcs[k];
                              const trail = a.polarityTrail.slice(-6).map(x => x.polarity >= 0 ? '' : '').join('');
-                             return `<div class="ls-item-text" style="display:flex;justify-content:space-between;align-items:center;"><span><b>${esc(k)}</b> <span style="color:var(--ls-text-3,#6e7681);font-size:11px;">${trail}</span></span>${phaseBadge(a.phase)}</div>`;
+                             return `<div class="ls-item-text" style="display:flex;justify-content:space-between;align-items:center;"><span><b>${esc(k)}</b> <span style="color:var(--ls-text-3);font-size:11px;">${trail}</span></span>${phaseBadge(a.phase)}</div>`;
                          }).join('')}
                      </div>` : '';
                      body = banner + chart + arcHtml;
@@ -1966,14 +1966,14 @@
                     conflictHtml = '<div class="ls-hint">暂无未决矛盾。LLM 检测到同一事实两个版本对不上时自动登记（矛盾是剧情资产，AI 不会擅自裁决）。</div>';
                 } else {
                     const sevBadge = (sev) => {
-                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger,#f85149);background:var(--ls-danger-soft,rgba(248,81,73,0.14));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="error" aria-hidden="true"></i>高</span>';
-                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info,#58a6ff);background:var(--ls-info-soft,rgba(56,139,253,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="info" aria-hidden="true"></i>低</span>';
-                        return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn,#d29922);background:var(--ls-warn-soft,rgba(210,153,34,0.12));border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="warn" aria-hidden="true"></i>中</span>';
+                        if (sev === 'high') return '<span style="font-size:10px;font-weight:700;color:var(--ls-danger);background:var(--ls-danger-soft);border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="error" aria-hidden="true"></i>高</span>';
+                        if (sev === 'low') return '<span style="font-size:10px;font-weight:700;color:var(--ls-info);background:var(--ls-info-soft);border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="info" aria-hidden="true"></i>低</span>';
+                        return '<span style="font-size:10px;font-weight:700;color:var(--ls-warn);background:var(--ls-warn-soft);border-radius:4px;padding:1px 6px;"><i class="ls-ico" data-i="dot" data-tone="warn" aria-hidden="true"></i>中</span>';
                     };
                     conflictHtml = list.slice().reverse().map(c => `
                         <div class="ls-item">
                             <div class="ls-item-meta">${sevBadge(c.severity)} <b>${esc(c.subject)}</b> · 第${c.floor}楼${c.time ? ' · ' + esc(c.time) : ''}</div>
-                            <div class="ls-item-text">版本A「${esc(c.versionA)}」<i class="ls-ico ls-ico-inline" data-i="swap" role="img" aria-label="与"></i>版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3,#6e7681);">' + esc(c.note) + '</span>' : ''}</div>
+                            <div class="ls-item-text">版本A「${esc(c.versionA)}」<i class="ls-ico ls-ico-inline" data-i="swap" role="img" aria-label="与"></i>版本B「${esc(c.versionB)}」${c.note ? '<br /><span style="color:var(--ls-text-3);">' + esc(c.note) + '</span>' : ''}</div>
                         </div>`).join('');
                 }
 
@@ -1986,22 +1986,22 @@
                     const nLine = (typeof s._narrationCompareLine === 'function') ? s._narrationCompareLine() : '';
 
                     if (!nState || nState.ok !== true) {
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>讲述对照工作台不可用 · ${esc((nState && nState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>讲述对照工作台不可用 · ${esc((nState && nState.reason) || 'module-unavailable')}（不是「0条」，是这个面没装上）</div></div></div>`;
                     } else if (nState.state === 'no-sessions' || !nState.sessions || nState.sessions.length === 0) {
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-hint">暂无多方讲述对照会话。当不同角色对同一过去事件产生讲述分歧时，此处自动列出逐段对比与物理证据反查。</div></div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div><div class="ls-hint">暂无多方讲述对照会话。当不同角色对同一过去事件产生讲述分歧时，此处自动列出逐段对比与物理证据反查。</div></div>`;
                     } else {
                         const sessCards = nState.sessions.map(sess => {
-                            const dispTag = sess.hasDispute ? '<span style="color:var(--ls-danger,#f85149);font-weight:700;"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>存在分歧</span>' : '<span style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>多方吻合</span>';
+                            const dispTag = sess.hasDispute ? '<span style="color:var(--ls-danger);font-weight:700;"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>存在分歧</span>' : '<span style="color:var(--ls-success);"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>多方吻合</span>';
                             const spkStr = sess.speakers.length ? sess.speakers.join('、') : '无讲述者';
                             return `<div class="ls-item">
                                 <div class="ls-item-meta"><b>${esc(sess.title || sess.eventId)}</b> · 讲述人: ${esc(spkStr)} · 物理证据: ${sess.canonicalCount} 条 · ${dispTag}</div>
                                 <div class="ls-item-text">讲述篇数: ${sess.narrationCount} 篇 · 讲述绝不篡改物理正史</div>
                             </div>`;
                         }).join('');
-                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div>${sessCards}</div>`;
+                        narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-group-title"><i class="ls-ico" data-i="chat" aria-hidden="true"></i>往事讲述多方对照<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(nLine)}</span></div>${sessCards}</div>`;
                     }
                 } catch (e) {
-                    narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);">讲述对照面板异常 · ${esc(e.message || e)}</div></div></div>`;
+                    narrationHtml = `<div class="ls-group" style="margin-top:14px;"><div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);">讲述对照面板异常 · ${esc(e.message || e)}</div></div></div>`;
                 }
 
                 body = conflictHtml + narrationHtml;
@@ -2020,7 +2020,7 @@
                 if (!inj?.html) {
                     body = '<div class="ls-hint">暂无注入记录。生成一次回复后，此处显示 AI 实际看到的完整记忆注入块（含预算裁剪后的最终形态）。</div>'
                         // [v3.218.0] R2-E：零块分支同样要带结局（零块 + 被中止 vs 零块 + 已完成，处置不同）
-                        + (inj ? `<div class="ls-hint" style="color:var(--ls-warn,#d29922);">最近一轮（第 ${inj.round} 轮）真生成，实际注入 0 块：读了召回、但没有任何块送进上下文 —— 这与「还没跑过」是两件事，不要混读。${String(inj.outcome || 'pending') === 'aborted' ? '（该轮已被中止）' : (String(inj.outcome || 'pending') === 'completed' ? '（该轮已完成）' : '')}</div>` : '');
+                        + (inj ? `<div class="ls-hint" style="color:var(--ls-warn);">最近一轮（第 ${inj.round} 轮）真生成，实际注入 0 块：读了召回、但没有任何块送进上下文 —— 这与「还没跑过」是两件事，不要混读。${String(inj.outcome || 'pending') === 'aborted' ? '（该轮已被中止）' : (String(inj.outcome || 'pending') === 'completed' ? '（该轮已完成）' : '')}</div>` : '');
                 } else {
                     /* [v3.218.0] R2-E：面板必须说清这一轮的**结局**。
                      *   修前中止与完成同形 —— 用户看到「最近一次实际注入」以为回复在路上，
@@ -2028,10 +2028,10 @@
                      *   两者处置相反：前者该重发、后者该看回复。 */
                     const _oc = String(inj.outcome || 'pending');
                     const _ocBadge = _oc === 'completed'
-                        ? ' <span style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>已完成（回复已落层）</span>'
+                        ? ' <span style="color:var(--ls-success);"><i class="ls-ico" data-i="check" data-tone="success" aria-hidden="true"></i>已完成（回复已落层）</span>'
                         : (_oc === 'aborted'
-                            ? ' <span style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>被中止（本轮无回复，可重发）</span>'
-                            : ' <span style="color:var(--ls-text-3,#6e7681);">· 结局未定（生成进行中或宿主未发结束事件）</span>');
+                            ? ' <span style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>被中止（本轮无回复，可重发）</span>'
+                            : ' <span style="color:var(--ls-text-3);">· 结局未定（生成进行中或宿主未发结束事件）</span>');
                     let head = `<div class="ls-hint">最近一次实际注入 · ${new Date(inj.ts).toLocaleTimeString('zh-CN')} · 第 ${inj.round} 轮 · ${inj.html.length} 字符${inj.tokens ? ` · 约 ${inj.tokens} token（CJK 口径估算）` : ''}（已经预算裁剪，即 AI 真实所见）${_ocBadge}</div>`;
                     // [v3.215.0] R2-A 逐块读数：回答「进的是哪几块 / 裁的是哪几块」——
                     //   修前只有聚合数（丢了几块 / 多少字符），回答不了「丢的是哪一块」。
@@ -2062,23 +2062,23 @@
                             return k || '未标注';
                         };
                         const _attribLine = _bsrc
-                            ? `来源面按<b>拼装顺序推定</b>（attribution=${escAttr(String(_bsrc.attribution || 'by-order'))}）${_bsrc.aligned === true ? '' : ' · <span style="color:var(--ls-warn,#d29922)">与裁剪输入未对齐：来源面不可用作结论</span>'}`
+                            ? `来源面按<b>拼装顺序推定</b>（attribution=${escAttr(String(_bsrc.attribution || 'by-order'))}）${_bsrc.aligned === true ? '' : ' · <span style="color:var(--ls-warn)">与裁剪输入未对齐：来源面不可用作结论</span>'}`
                             : '来源面不可用（本轮回执没有逐块来源）—— 下列来源列一律显示「未归属」，不猜';
                         const _rows = inj.blocks.map(b => {
                             if (!b) return '';
                             const _okRow = !!b.kept;
                             const _half = !!(b && b.partial);
-                            const _tone = _okRow ? 'var(--ls-success,#3fb950)' : (_half ? 'var(--ls-warn,#d29922)' : 'var(--ls-danger,#f85149)');
+                            const _tone = _okRow ? 'var(--ls-success)' : (_half ? 'var(--ls-warn)' : 'var(--ls-danger)');
                             const _mark = _okRow ? '进' : (_half ? '半段' : '裁');
                             return `<details class="ls-item" data-inj-row="${escAttr(String(b.id))}" data-inj-kept="${_okRow ? '1' : '0'}"${_half ? ' data-inj-partial="1"' : ''} data-inj-src="${escAttr(_srcOf(b))}" style="margin:2px 0;border-left:2px solid ${_tone};padding-left:6px;">`
                                 + `<summary style="cursor:pointer;font-size:12.5px;list-style:none;">`
                                 + `<span style="color:${_tone};font-weight:bold;">${_mark}</span> `
-                                + `<span style="color:var(--ls-text-3,#6e7681);">#${esc(String(b.id))}</span> `
-                                + `<span style="color:var(--ls-info,#58a6ff);">${esc(_srcOf(b))}</span> `
+                                + `<span style="color:var(--ls-text-3);">#${esc(String(b.id))}</span> `
+                                + `<span style="color:var(--ls-info);">${esc(_srcOf(b))}</span> `
                                 + `${esc(String(b.label || '(无标题)'))} `
-                                + `<span style="color:var(--ls-text-3,#6e7681);">${Number(b.chars) || 0} 字符 · ${esc(_reasonCn(b.reason))}</span>`
+                                + `<span style="color:var(--ls-text-3);">${Number(b.chars) || 0} 字符 · ${esc(_reasonCn(b.reason))}</span>`
                                 + `</summary>`
-                                + `<div style="font-size:11.5px;color:var(--ls-text-3,#6e7681);padding:4px 0 2px 14px;line-height:1.65;">`
+                                + `<div style="font-size:11.5px;color:var(--ls-text-3);padding:4px 0 2px 14px;line-height:1.65;">`
                                 + `凭什么判：<code>${esc(String(b.via || 'unknown'))}</code>`
                                 + `　·　引用：<code>${esc(String(b.ref || ''))}</code>`
                                 + `　·　载荷内偏移：${Number.isFinite(b.at) ? esc(String(b.at)) : '不适用（未进载荷）'}`
@@ -2086,10 +2086,10 @@
                                 + `</details>`;
                         }).join('');
                         head += `<div class="ls-item" style="margin:6px 0" data-inj-list="1">`
-                            + `<div class="ls-item-meta"><i class="ls-ico" data-i="puzzle" aria-hidden="true"></i>逐条清单 · 候选 ${inj.total} 块 · 进载荷 <span style="color:var(--ls-success,#3fb950);">${_keptN}</span> · `
-                            + `<span style="color:${_dropped.length ? 'var(--ls-warn,#d29922)' : 'var(--ls-text-3,#6e7681)'};">被裁 ${_dropped.length}</span>`
+                            + `<div class="ls-item-meta"><i class="ls-ico" data-i="puzzle" aria-hidden="true"></i>逐条清单 · 候选 ${inj.total} 块 · 进载荷 <span style="color:var(--ls-success);">${_keptN}</span> · `
+                            + `<span style="color:${_dropped.length ? 'var(--ls-warn)' : 'var(--ls-text-3)'};">被裁 ${_dropped.length}</span>`
                             + `　·　点每行展开看「凭什么进来」</div>`
-                            + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">${_attribLine}</div>`
+                            + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3);">${_attribLine}</div>`
                             + `<div style="margin-top:4px;">${_rows}</div>`
                             + `</div>`;
                         /* 「这一轮有没有条目因为预算被裁」的**显式**读数 —— 本仓最容易静默损失的一格。
@@ -2100,7 +2100,7 @@
                             : ((_trimmed === true)
                                 ? `本轮超了预算：被裁 <b>${_dropped.length}</b> 条`
                                 : '本轮是否裁剪<b>不可测</b>（内联回落 / 回执缺席）—— 不等于「没裁」');
-                        const _trimTone = (_trimmed === false) ? 'var(--ls-text-3,#6e7681)' : ((_trimmed === true) ? 'var(--ls-warn,#d29922)' : 'var(--ls-danger,#f85149)');
+                        const _trimTone = (_trimmed === false) ? 'var(--ls-text-3)' : ((_trimmed === true) ? 'var(--ls-warn)' : 'var(--ls-danger)');
                         head += `<div class="ls-item" style="margin:6px 0" data-inj-trim="${_trimmed === true ? 'trimmed' : (_trimmed === false ? 'within-budget' : 'unknown')}" data-inj-dropped="${_trimmed === true ? _dropped.length : ''}">`
                             + `<div class="ls-item-meta" style="color:${_trimTone};"><i class="ls-ico" data-i="scissors" aria-hidden="true"></i>预算裁剪读数 · ${_trimPhrase}</div>`
                             + (_dropped.length
@@ -2113,14 +2113,14 @@
                         if (_srcCounts) {
                             const _keys = Object.keys(_srcCounts);
                             if (_keys.length) {
-                                head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">各来源贡献：${_keys.map(k => esc(k) + ' ' + (Number(_srcCounts[k]) || 0)).join(' · ')}</div>`;
+                                head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3);">各来源贡献：${_keys.map(k => esc(k) + ' ' + (Number(_srcCounts[k]) || 0)).join(' · ')}</div>`;
                             }
                         }
                         if (_injTrace && _injTrace.fusedSourceBlocks && Array.isArray(_injTrace.fusedSourceBlocks.keys) && _injTrace.fusedSourceBlocks.keys.length) {
-                            head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">融合源（构建期不可分，故无逐条归属）：${_injTrace.fusedSourceBlocks.keys.map(k => esc(k)).join(' · ')}</div>`;
+                            head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3);">融合源（构建期不可分，故无逐条归属）：${_injTrace.fusedSourceBlocks.keys.map(k => esc(k)).join(' · ')}</div>`;
                         }
                         if (!_injTrace) {
-                            head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-warn,#d29922);">本轮没有回执快照（旧版本读数 / 内核未接管）—— 逐条清单仍可读，但来源面与被裁判据不可用作结论。</div>`;
+                            head += `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-warn);">本轮没有回执快照（旧版本读数 / 内核未接管）—— 逐条清单仍可读，但来源面与被裁判据不可用作结论。</div>`;
                         }
                     }
                     // [v3.144] CP: 预算实测条（丢弃可见性）——超预算时丢了什么此前完全静默
@@ -2142,12 +2142,12 @@
                             ? `${_dropN} 块`
                             : `块级留存不可测（${String(_bs.keptFrom || 'unknown')}）`;
                         const _whyLine = (!_keptKnown && _bs.keptWhy)
-                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">${esc(String(_bs.keptWhy))}</div>` : '';
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3);">${esc(String(_bs.keptWhy))}</div>` : '';
                         const _partialLine = (Number.isFinite(_bs.partialBlocks) && _bs.partialBlocks > 0)
-                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">被切半的块 ${_bs.partialBlocks} 块（硬截断切口落在块内部：半段进了载荷，与「整块被丢」不是一回事）</div>` : '';
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn);">被切半的块 ${_bs.partialBlocks} 块（硬截断切口落在块内部：半段进了载荷，与「整块被丢」不是一回事）</div>` : '';
                         const _roLine = (Number.isFinite(_bs.residentOverflowOver) && _bs.residentOverflowOver > 0)
-                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn,#d29922);">常驻溢出 ${_bs.residentOverflowOver} 字符（关键事实保护：常驻块优先于预算上限）</div>` : '';
-                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta"><i class="ls-ico" data-i="chart" aria-hidden="true"></i>预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn,#d29922)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
+                            ? `<div class="ls-item-text" style="font-size:12px;color:var(--ls-warn);">常驻溢出 ${_bs.residentOverflowOver} 字符（关键事实保护：常驻块优先于预算上限）</div>` : '';
+                        head += `<div class="ls-item" style="margin:6px 0"><div class="ls-item-meta"><i class="ls-ico" data-i="chart" aria-hidden="true"></i>预算实测 · 上限 ${_bs.requested} 字符 · 裁剪前 ${_bs.beforeChars}<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>实际 ${_bs.afterChars}${_bs.droppedChars ? ` · <span style="color:var(--ls-warn)">丢弃 ${_bs.droppedChars} 字符 / ${_blkPhrase}</span>` : ''} · 策略 ${_bs.strategy}${_bs.tokenBudget ? ` · token 上限 ${_bs.tokenBudget}` : ''} · 约 ${_bs.tokens} token</div>${_bs.droppedSamples && _bs.droppedSamples.length ? `<div class="ls-item-text" style="font-size:12px">被丢弃示例：${_bs.droppedSamples.map(x => String(x).replace(/[<&]/g, ch => ch === '<' ? '&lt;' : '&amp;')).join(' / ')}</div>` : ''}<div class="ls-item-meta">候选块 ${_bs.totalBlocks} · 保留 ${_keptKnown ? _bs.keptBlocks : '不可测'}${_keptKnown ? '' : '（' + String(_bs.keptFrom || 'unknown') + '）'}${_bs.droppedChars > 0 && _keptKnown ? ' —— 如需更少丢弃可上调注入预算或 memoryTokenBudget' : ''}</div>${_partialLine}${_roLine}${_whyLine}</div>`;
                     }
                     /* [L14-O3] 生成前计划 <-> 实际注入对拍：只读消费宿主已落的
                      * materialReconcile，不在面板重算预算/权限；取消、临时排除、预算裁剪、
@@ -2165,12 +2165,12 @@
                         const _mrRows = _mrEntries.slice(0, 24).map(x => {
                             const st = String(x && x.state || 'unknown');
                             const label = _mrNames[st] || st;
-                            const tone = st === 'injected' ? 'var(--ls-success,#3fb950)' : (st === 'unknown' ? 'var(--ls-danger,#f85149)' : 'var(--ls-warn,#d29922)');
+                            const tone = st === 'injected' ? 'var(--ls-success)' : (st === 'unknown' ? 'var(--ls-danger)' : 'var(--ls-warn)');
                             return `<div class="ls-item-text" style="border-left:2px solid ${tone};padding-left:6px;"><b style="color:${tone};">${esc(label)}</b> <code>${esc(String(x.materialId || '(无 materialId)'))}</code> · ${esc(String(x.why || ''))}</div>`;
                         }).join('');
                         head += `<div class="ls-item" style="margin:6px 0" data-material-reconcile="${escAttr(String(_mr.status || 'unknown'))}">`
                             + `<div class="ls-item-meta"><i class="ls-ico" data-i="copy" aria-hidden="true"></i>生成材料逐条对拍 · 状态 <b>${esc(String(_mr.status || 'unknown'))}</b> · 可测 ${_mr.measurable === true ? '是' : '否'} · 计划修订 ${esc(String(_mr.planRevision || '未提供'))}</div>`
-                            + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3,#6e7681);">${esc(String(_mr.note || ''))}${_mrUnknown.length ? ' · 未知映射 ' + _mrUnknown.length + ' 条（不按文本猜身份）' : ''}</div>`
+                            + `<div class="ls-item-text" style="font-size:11.5px;color:var(--ls-text-3);">${esc(String(_mr.note || ''))}${_mrUnknown.length ? ' · 未知映射 ' + _mrUnknown.length + ' 条（不按文本猜身份）' : ''}</div>`
                             + _mrRows + `</div>`;
                     }
                     // 分块渲染：按区块标题拆分便于阅读
@@ -2184,13 +2184,13 @@
                         const text = esc(trimmed);
                         const isNew = prevLines && !prevLines.has(trimmed) && !isHeader;
                         if (isNew) newCount++;
-                        const newStyle = isNew ? 'border-left:2px solid var(--ls-success,#3fb950);background:var(--ls-success-soft,rgba(63,185,80,0.12));' : '';
+                        const newStyle = isNew ? 'border-left:2px solid var(--ls-success);background:var(--ls-success-soft);' : '';
                         /* [v3.1] data-inj-line：开发者控制台据此排成带行号的差异视图（head / new / same）；旧外观不变 */
                         return isHeader
-                            ? `<div class="ls-item-meta" data-inj-line="head" style="color:var(--ls-success,#3fb950);font-weight:bold;margin-top:6px;">${text}</div>`
-                            : `<div class="ls-item-text" data-inj-line="${isNew ? 'new' : 'same'}" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span class="ls-inj-new" style="color:var(--ls-success,#3fb950);font-size:11px;">NEW</span>' : ''}</div>`;
+                            ? `<div class="ls-item-meta" data-inj-line="head" style="color:var(--ls-success);font-weight:bold;margin-top:6px;">${text}</div>`
+                            : `<div class="ls-item-text" data-inj-line="${isNew ? 'new' : 'same'}" style="padding-left:12px;${newStyle}">${text}${isNew ? ' <span class="ls-inj-new" style="color:var(--ls-success);font-size:11px;">NEW</span>' : ''}</div>`;
                     }).join('');
-                    const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success,#3fb950);"><i class="ls-ico" data-i="sparkles" data-tone="info" aria-hidden="true"></i>本轮新增 ${newCount} 行（绿色标注）</div>` : '';
+                    const diffNote = prevLines ? `<div class="ls-hint" style="color:var(--ls-success);"><i class="ls-ico" data-i="sparkles" data-tone="info" aria-hidden="true"></i>本轮新增 ${newCount} 行（绿色标注）</div>` : '';
                     body = head + diffNote + `<div class="ls-item" data-inj-payload="1">${bodyHtml}</div>`;
                 }
                 // [v3.215.0] R2-A：诊断读数**单独一格**，并明写它没有进上下文。
@@ -2198,7 +2198,7 @@
                 //   现在即便 `origin === 'dry-run'` 的读数出现在同一屏，也不会被误读成 AI 真实所见。
                 if (_dryRun && (_dryRun.origin === 'dry-run' || _dryRun.id === 'diagnostics')) {
                     const _dryOn = _dryRun.chars > 0;
-                    body += `<div class="ls-item" style="margin-top:8px;border-left:2px solid var(--ls-info,#58a6ff);"><div class="ls-item-meta"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>诊断 dry-run（不注入，只验证链路通）· ${_dryOn ? `${_dryRun.chars} 字符 / ${_dryRun.bytes} 字节` : '未产出载荷（召回为空或链路未通）'}</div><div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3,#6e7681);">这段内容**没有**进入 AI 上下文，不能当作「AI 真实所见」；它只回答「召回<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>注入这条链路通不通」。实际注入见上方。</div></div>`;
+                    body += `<div class="ls-item" style="margin-top:8px;border-left:2px solid var(--ls-info);"><div class="ls-item-meta"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>诊断 dry-run（不注入，只验证链路通）· ${_dryOn ? `${_dryRun.chars} 字符 / ${_dryRun.bytes} 字节` : '未产出载荷（召回为空或链路未通）'}</div><div class="ls-item-text" style="font-size:12px;color:var(--ls-text-3);">这段内容**没有**进入 AI 上下文，不能当作「AI 真实所见」；它只回答「召回<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="至"></i>注入这条链路通不通」。实际注入见上方。</div></div>`;
                 }
             }
 
@@ -2227,10 +2227,10 @@
                     try { return typeof s._inheritanceRosterLine === 'function' ? String(s._inheritanceRosterLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _inhHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>跨代传承<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_inhLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="archive" aria-hidden="true"></i>跨代传承<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(_inhLine)}</span></div>`;
                     const ruleText = '口径：四态是【已经发生的结果】；「还没传」是【未到结果】，两轴分列（遗失 ≠ 尚未发生）。秘密一律沿用既有知情名单判定：前代未公开的秘密不会自动给这一代看，判不了的单列（不当成「他不知道」）。声明只落在这次转场的既有记录上，可逐条撤销，撤销后回到按记录推导的结果。';
                     if (!_inh || _inh.ok !== true) {
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（不是「没有跨代物件」，是这个面没装上） · ${esc(String(_inh && _inh.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用（不是「没有跨代物件」，是这个面没装上） · ${esc(String(_inh && _inh.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _inh.counts || {};
                     if (!c.total) {
@@ -2241,8 +2241,8 @@
                     const FATES = [['accepted', '后辈接纳'], ['rejected', '拒绝继承'], ['reformed', '改造再造'], ['lost', '遗失于历史']];
                     const rows = (_inh.items || []).map(function (x) {
                         const isPend = x.fate === 'pending';
-                        const fateColor = x.fate === 'lost' ? 'var(--ls-danger,#f85149)'
-                            : (isPend ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-text,#e6edf3)');
+                        const fateColor = x.fate === 'lost' ? 'var(--ls-danger)'
+                            : (isPend ? 'var(--ls-text-3)' : 'var(--ls-text)');
                         const btns = FATES.map(function (f) {
                             return `<button class="ls-btn" data-inh-act="declare" data-inh-tr="${escAttr(String(x.transitionId || ''))}" data-inh-art="${escAttr(String(x.artifactId || ''))}" data-inh-fate="${f[0]}" style="padding:2px 8px;font-size:12px;">${f[1]}</button>`;
                         }).join(' ');
@@ -2250,13 +2250,13 @@
                             ? `<button class="ls-btn" data-inh-act="revoke" data-inh-tr="${escAttr(String(x.transitionId || ''))}" data-inh-art="${escAttr(String(x.artifactId || ''))}" style="padding:2px 8px;font-size:12px;"><i class="ls-ico" data-i="undo" aria-hidden="true"></i>撤销声明</button>`
                             : '';
                         const secretNote = x.isSecret
-                            ? `<div class="ls-item-meta" style="color:${x.visibleToSuccessor ? 'var(--ls-text-3,#6e7681)' : 'var(--ls-warn,#d29922)'};"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密 · ${x.visibleToSuccessor ? '这一代已知情（可进载荷）' : (x.secretBoundary === 'undecided' ? ('判不了（' + esc(String(x.secretBoundaryWhy || '')) + '），按不给看处置') : '这一代未获知（遮蔽，不自动继承）')}</div>`
+                            ? `<div class="ls-item-meta" style="color:${x.visibleToSuccessor ? 'var(--ls-text-3)' : 'var(--ls-warn)'};"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密 · ${x.visibleToSuccessor ? '这一代已知情（可进载荷）' : (x.secretBoundary === 'undecided' ? ('判不了（' + esc(String(x.secretBoundaryWhy || '')) + '），按不给看处置') : '这一代未获知（遮蔽，不自动继承）')}</div>`
                             : '';
                         return `<div class="ls-item"><div class="ls-item-meta"><span style="color:${fateColor};">${esc(String(x.fateLabel || x.fate || '?'))}</span> · ${esc(String(x.eraFrom || '?') + ' ' + String(x.eraTo || '?'))}${x.declarationsOnly ? ' · <em>人工声明</em>' : ''}</div><div class="ls-item-text">${esc(String(x.label || x.artifactId || ''))}</div><div class="ls-hint" style="font-size:11px;">成因：${esc(String(x.fateCauseText || x.fateCause || ''))}</div>${secretNote}<div style="margin-top:4px;">${btns} ${rev}</div></div>`;
                     }).join('');
-                    const sums = `接纳 ${c.accepted || 0} · 拒绝 ${c.rejected || 0} · 改造 ${c.reformed || 0} · <span style="color:var(--ls-danger,#f85149);">遗失 ${c.lost || 0}</span> · 还没传 ${c.pending || 0}${c.unknown ? (' · <span style="color:var(--ls-warn,#d29922);">判不了 ' + c.unknown + '</span>') : ''}`;
+                    const sums = `接纳 ${c.accepted || 0} · 拒绝 ${c.rejected || 0} · 改造 ${c.reformed || 0} · <span style="color:var(--ls-danger);">遗失 ${c.lost || 0}</span> · 还没传 ${c.pending || 0}${c.unknown ? (' · <span style="color:var(--ls-warn);">判不了 ' + c.unknown + '</span>') : ''}`;
                     const bd = (b.disclosed || b.withheld || b.undecided)
-                        ? `<div class="ls-hint"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密断代：这一代可知 ${b.disclosed || 0} · 遮蔽 ${b.withheld || 0}${b.undecided ? (' · <span style="color:var(--ls-warn,#d29922);">判不了 ' + b.undecided + '</span>') : ''}</div>`
+                        ? `<div class="ls-hint"><i class="ls-ico" data-i="lock" aria-hidden="true"></i>秘密断代：这一代可知 ${b.disclosed || 0} · 遮蔽 ${b.withheld || 0}${b.undecided ? (' · <span style="color:var(--ls-warn);">判不了 ' + b.undecided + '</span>') : ''}</div>`
                         : '';
                     return `<div class="ls-group">${head}<div class="ls-item-meta">${sums}${_inh.successorActorId ? (' · 这一代：' + esc(String(_inh.successorActorId))) : ' · 这一代未标注（秘密一律按判不了处置）'}</div>${bd}${rows}<div class="ls-hint" style="margin-top:6px;">${esc(ruleText)}</div></div>`;
                 })();
@@ -2278,20 +2278,20 @@
                     try { return typeof s._loreConclusionLine === 'function' ? String(s._loreConclusionLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _loreConcHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>设定换版与结论更新对照工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_loreConcLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>设定换版与结论更新对照工作台<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(_loreConcLine)}</span></div>`;
                     if (!_loreConc || _loreConc.ok !== true) {
                         if (_loreConc && _loreConc.state === 'no-docs') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未配置换版段落：当前设定资料尚未发生跨版更新。当设定资料更新后，系统将自动对比段落差异并找出受影响的陈旧结论。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_loreConc && _loreConc.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_loreConc && _loreConc.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _loreConc.counts || {};
                     const concRows = (_loreConc.conclusions || []).map(function (conc) {
                         const isStale = conc.status === 'stale';
-                        const badgeColor = isStale ? 'var(--ls-warn,#d29922)' : 'var(--ls-success,#3fb950)';
+                        const badgeColor = isStale ? 'var(--ls-warn)' : 'var(--ls-success)';
                         const statusLabel = isStale ? '陈旧待核验' : (conc.status === 'accepted' ? '已采纳新版' : (conc.status === 'kept_original' ? '保留人工结论' : '有效'));
-                        const manualTag = conc.isManuallyEdited ? ' · <span style="color:var(--ls-info,#58a6ff);"><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>人工校订保护</span>' : '';
-                        const draftHtml = isStale && conc.reconciledDraft ? `<div class="ls-hint" style="color:var(--ls-text-2,#8b949e);">新版建议草案：${esc(conc.reconciledDraft)}</div>` : '';
+                        const manualTag = conc.isManuallyEdited ? ' · <span style="color:var(--ls-info);"><i class="ls-ico" data-i="pencil" aria-hidden="true"></i>人工校订保护</span>' : '';
+                        const draftHtml = isStale && conc.reconciledDraft ? `<div class="ls-hint" style="color:var(--ls-text-2);">新版建议草案：${esc(conc.reconciledDraft)}</div>` : '';
                         return `<div class="ls-item">` +
                             `<div class="ls-item-meta"><span style="color:${badgeColor};font-weight:bold;">${esc(statusLabel)}</span>${manualTag} · 结论ID: ${esc(conc.conclusionId)}</div>` +
                             `<div class="ls-item-text">${esc(conc.text)}</div>` +
@@ -2320,12 +2320,12 @@
                     try { return typeof s._eraHandoffDraftLine === 'function' ? String(s._eraHandoffDraftLine() || '') : ''; } catch (e) { return ''; }
                 })();
                 const _eraHandoffHtml = (function () {
-                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>跨代传承交接草案工作台<span style="font-weight:400;color:var(--ls-text-3,#6e7681);font-size:11px;margin-left:8px;">${esc(_eraHandoffLine)}</span></div>`;
+                    const head = `<div class="ls-group-title" style="margin-top:14px;"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>跨代传承交接草案工作台<span style="font-weight:400;color:var(--ls-text-3);font-size:11px;margin-left:8px;">${esc(_eraHandoffLine)}</span></div>`;
                     if (!_eraHandoff || _eraHandoff.ok !== true) {
                         if (_eraHandoff && _eraHandoff.state === 'no-drafts') {
                             return `<div class="ls-group">${head}<div class="ls-hint">尚未登记跨代交接草案：上一代传承物可在此逐项指定继承人与取舍方案，草案未提交前零写入。</div></div>`;
                         }
-                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_eraHandoff && _eraHandoff.reason || 'module-unavailable'))}</div></div></div>`;
+                        return `<div class="ls-group">${head}<div class="ls-item"><div class="ls-item-text" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>不可用 · ${esc(String(_eraHandoff && _eraHandoff.reason || 'module-unavailable'))}</div></div></div>`;
                     }
                     const c = _eraHandoff.counts || {};
                     const dList = (_eraHandoff.drafts || []).map(d => {
@@ -2354,13 +2354,13 @@
                 const d = (typeof s.memoryCenterDescribe === 'function') ? s.memoryCenterDescribe() : null;
                 const bad = !d || d.complete !== true;
                 if (bad) {
-                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆控制中心不可用：'
+                    body = '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>记忆控制中心不可用：'
                         + esc(!d ? '模块未加载（memory-center.js）'
                             : (d.reason === 'module-unavailable' ? '模块未加载（memory-center.js）'
                                 : ((d.missing && d.missing.length) ? '依赖缺格：' + (d.missing || []).map((m) => m.key).join('、')
                                     : '界面字段与条件登记表不对齐'))) + '</div>';
                 } else if (typeof s.memoryCenterView !== 'function' || typeof s.memoryCenterSheet !== 'function') {
-                    body = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>宿主未接控制中心出口（memoryCenterView / memoryCenterSheet）</div>';
+                    body = '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>宿主未接控制中心出口（memoryCenterView / memoryCenterSheet）</div>';
                 } else {
                     const face = s.memoryCenterView(plugin._memoryCenterState || null, { availableHandlers: Object.keys(plugin._memoryCenterHandlers || {}) });
                     plugin._memoryCenterLastFace = face;
@@ -2378,7 +2378,7 @@
                 a.download = `lonsha-memory-report-${Date.now()}.md`;
                 a.click();
                 toast('记忆全景报告已导出', 'doc');
-                body = '<div class="ls-hint"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1,#0d1117);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
+                body = '<div class="ls-hint"><i class="ls-ico" data-i="check-circle" data-tone="success" aria-hidden="true"></i>报告已下载。包含：概览/主角档案/生活小档案/羁绊网/卷摘要/史记/群像/悬念/日记/物品/大纲/审计统计全部 12 个板块。</div><pre style="max-height:300px;overflow:auto;font-size:11px;background:var(--ls-bg-1);padding:10px;border-radius:8px;white-space:pre-wrap;">' + esc(md.substring(0, 1500)) + '…</pre>';
             }
 
             /* [v3.303.0 M-O2] 提示必须与**本面板真有可点条目**一致：本函数有 22 个视图，
@@ -2404,18 +2404,18 @@
                     html += `<div class="ls-hint">该条目暂无历史变动记录。</div>`;
                 } else {
                     html += r.lineage.map(step => `
-                        <div style="border-left:2px solid var(--ls-accent,#58a6ff);padding-left:8px;margin-bottom:8px;">
-                            <div style="font-size:11px;color:var(--ls-muted,#8b949e);">第 ${step.step} 步 · [${esc(step.kind)}] · ${step.at ? new Date(step.at).toLocaleTimeString() : '初始'} · 由 ${esc(step.by)} 触发</div>
+                        <div style="border-left:2px solid var(--ls-accent);padding-left:8px;margin-bottom:8px;">
+                            <div style="font-size:11px;color:var(--ls-muted);">第 ${step.step} 步 · [${esc(step.kind)}] · ${step.at ? new Date(step.at).toLocaleTimeString() : '初始'} · 由 ${esc(step.by)} 触发</div>
                             <div style="font-size:12px;margin:2px 0;">${esc(step.why)}</div>
-                            <div style="font-size:11px;color:var(--ls-muted,#8b949e);">${esc(step.diff?.summary || '')}</div>
-                            ${step.available === false ? `<div style="font-size:10px;color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>原始数据缺失（缺层: ${esc(step.missingLayer || '未知')}）</div>` : ''}
+                            <div style="font-size:11px;color:var(--ls-muted);">${esc(step.diff?.summary || '')}</div>
+                            ${step.available === false ? `<div style="font-size:10px;color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>原始数据缺失（缺层: ${esc(step.missingLayer || '未知')}）</div>` : ''}
                         </div>
                     `).join('');
                 }
                 html += `</div>`;
                 makeSheet('lonsha-lineage-overlay', '记忆沿革回放', html);
             };
-            const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent,#58a6ff);margin-bottom:6px;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
+            const opHint = /\sdata-opkind=/.test(body || '') ? '<div class="ls-hint" style="color:var(--ls-accent);margin-bottom:6px;"><i class="ls-ico" data-i="lightbulb" data-tone="info" aria-hidden="true"></i>点击条目可操作（删除 / 提升重要度 / 标记完成）</div>' : '';
             /* [L13-O3] **根节点**必须带机读态。此前状态只泄在空态那块 hint 上：
              *   满态（ok）根节点完全无属性、机器读不出「这一面是好的」；
              *   且 27 个视图各写各的，新增视图必然漏。这里统一包一层，
@@ -2471,7 +2471,7 @@
                     const terms = cfCall.terms || [];
                     const layers = cfCall.layers || {};
                     let rh = '<div class="ls-hint" data-ls-cf-face="ok" style="margin-bottom:4px;"><i class="ls-ico" data-i="search" aria-hidden="true"></i>假设：<b>「' + esc(String(factId)) + '」没有发生</b>（hypothetical · 未写回）</div>';
-                    rh += '<div style="font-size:11px;color:var(--ls-muted,#8b949e);margin-bottom:6px;">扫描 ' + esc(String(cfCall.poolsScanned)) + ' 个数据池 / ' + esc(String(cfCall.scannedCount)) + ' 条 · 锚词: '
+                    rh += '<div style="font-size:11px;color:var(--ls-muted);margin-bottom:6px;">扫描 ' + esc(String(cfCall.poolsScanned)) + ' 个数据池 / ' + esc(String(cfCall.scannedCount)) + ' 条 · 锚词: '
                         + terms.slice(0, 5).map(t => esc(t)).join('、') + '</div>';
                     rh += '<div style="font-size:12px;margin-bottom:6px;">受影响 <b>' + esc(String(cfCall.affected.length)) + '</b> 条'
                         + '（铁律层 ' + esc(String(layers.FACT_BOUND || 0)) + ' / 推演层 ' + esc(String(layers.PLAUSIBLE_DEDUCTION || 0)) + '）</div>';
@@ -2520,11 +2520,11 @@
                  *   颜色逐档区分。盲档的正文已在内核行构造时被换成位串；
                  *   这里**不重做剥离**，只把已遮蔽的标记显式化（不同图标与提示）。 */
                 const POV_TIER_STYLE = {
-                    knows:     { icon: '', color: 'var(--ls-accent,#58a6ff)' },
-                    suspects:  { icon: '', color: 'var(--ls-warn,#d29922)' },
-                    believes:  { icon: '', color: 'var(--ls-warn,#d29922)' },
-                    blind:     { icon: '', color: 'var(--ls-text-3,#6e7681)' },
-                    undecided: { icon: '—', color: 'var(--ls-text-3,#6e7681)' }
+                    knows:     { icon: '', color: 'var(--ls-accent)' },
+                    suspects:  { icon: '', color: 'var(--ls-warn)' },
+                    believes:  { icon: '', color: 'var(--ls-warn)' },
+                    blind:     { icon: '', color: 'var(--ls-text-3)' },
+                    undecided: { icon: '—', color: 'var(--ls-text-3)' }
                 };
                 const povRow = (row) => {
                     const st = POV_TIER_STYLE[row.tier] || POV_TIER_STYLE.undecided;
@@ -2560,7 +2560,7 @@
                         + '</div>';
                     /* 五档读数一行报齐——**四档不相加成一个数**。
                      *   「判不了」单独一格，与「不知道」同行但不同字。 */
-                    h += '<div style="font-size:12px;margin-bottom:6px;color:var(--ls-muted,#8b949e);">'
+                    h += '<div style="font-size:12px;margin-bottom:6px;color:var(--ls-muted);">'
                         + '有据 ' + esc(String(c.knows || 0))
                         + ' · 起疑 ' + esc(String(c.suspects || 0))
                         + ' · 他以为 ' + esc(String(c.believes || 0))
@@ -2568,7 +2568,7 @@
                         + ' · 判不了 ' + esc(String(c.undecided || 0))
                         + (c.masked ? ' · 已遮蔽 ' + esc(String(c.masked)) + ' 条正文' : '')
                         + '</div>';
-                    if (r.degraded) h += '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>内核自检已降级：这份投影不要拿去写正文。</div>';
+                    if (r.degraded) h += '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>内核自检已降级：这份投影不要拿去写正文。</div>';
                     for (const tier of ['knows', 'suspects', 'believes', 'blind', 'undecided']) {
                         const rows = (r.tiers && r.tiers[tier]) || [];
                         if (!rows.length) continue;
@@ -3111,8 +3111,8 @@
             if (auditCount > 0) {
                 const undoBtn = document.createElement('div');
                 undoBtn.className = 'ls-btn';
-                undoBtn.style.background = 'var(--ls-line,rgba(240,246,252,0.10))';
-                undoBtn.style.color = 'var(--ls-warn,#d29922)';
+                undoBtn.style.background = 'var(--ls-line)';
+                undoBtn.style.color = 'var(--ls-warn)';
                 undoBtn.style.marginBottom = '6px';
                 undoBtn.textContent = `撤销上次修改（剩余可撤销: ${auditCount}）`;
                 undoBtn.addEventListener('click', async () => {
@@ -3303,7 +3303,7 @@
                     ${ck('plotTimeline', '剧情时间线', '按故事时间线整理事件，优先唤醒当前日期临近的经历')}
                     <div class="ls-hint" style="padding:0 8px;">提取时会额外标注每个事件是客观事实(所有人可见)还是某角色的私密认知(POV)。</div>
                 </div>
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="book" aria-hidden="true"></i>更多故事细节（日记/场景/伏笔/手机联动）· 默认已配置好，展开可微调</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="book" aria-hidden="true"></i>更多故事细节（日记/场景/伏笔/手机联动）· 默认已配置好，展开可微调</summary>
 <div class="ls-group">
                     <div class="ls-group-title"><i class="ls-ico" data-i="book-closed" aria-hidden="true"></i>角色日记与心声</div>
                     ${ck('echoEnabled', '回响池', '召回过的记忆停留N轮，防同一记忆"这轮有下轮消失"的闪烁感')}
@@ -3364,7 +3364,7 @@
 `}
                 ${diag ? `
 <div class="ls-tab-pane" role="tabpanel" id="ls-pane-retrieval" data-tab-pane="retrieval">
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>进阶调整（可选）· 想微调记忆行为再展开，默认已配好</summary>
 <div class="ls-group">
                     <div class="ls-group-title"><i class="ls-ico" data-i="doc" aria-hidden="true"></i>故事脉络与章节归档</div>
                     ${ck('summaryFoldEnabled', '摘要自动折叠', '活跃摘要超阈值时合并成卷摘要，防长线膨胀')}
@@ -3510,7 +3510,7 @@
 </details>
 </div>
 <div class="ls-tab-pane active" role="tabpanel" id="ls-pane-advanced" data-tab-pane="advanced">
-<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
+<details style="margin:0 8px;"><summary style="cursor:pointer;color:var(--ls-accent);font-size:12px;font-weight:600;padding:8px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>底层算法实验室 · 内部推演参数，默认已全开并按最佳实践配好，普通玩家无需改动</summary>
 <div class="ls-lab-searchbar" role="search" aria-label="实验室设置搜索">
     <input type="search" id="ls-lab-search" class="ls-input ls-lab-search" placeholder="搜索：召回、向量、世界线、角色……" autocomplete="off" aria-controls="ls-pane-advanced">
     <button type="button" class="ls-btn ls-lab-clear" id="ls-lab-clear">清空</button>
@@ -3588,7 +3588,7 @@
                         <div class="ls-hint" id="ls-wl-affected-out" style="padding:0 0 4px;"></div>
                         <div class="ls-hint" id="ls-wl-rejects" style="padding:0 0 4px;"></div>
                         <details style="padding:2px 0 4px;">
-                            <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:11px;">原始文本（每行 楼层:层标记，可整段粘贴）</summary>
+                            <summary style="cursor:pointer;color:var(--ls-accent);font-size:11px;">原始文本（每行 楼层:层标记，可整段粘贴）</summary>
                             <textarea class="ls-textarea" id="ls-wl-jumps-raw" data-cfg-text="worldlineJumps" style="min-height:72px;" placeholder="例：1:现实&#10;20:梦境一层&#10;45:现实&#10;70:梦境二层">${esc(c.worldlineJumps || '')}</textarea>
                         </details>
                     </div>
@@ -3621,7 +3621,7 @@
                 </div>
 <div class="ls-group">
                     <details id="ls-advanced" style="padding:0 8px;">
-                        <summary style="cursor:pointer;color:var(--ls-accent,#58a6ff);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
+                        <summary style="cursor:pointer;color:var(--ls-accent);font-size:12px;font-weight:600;letter-spacing:1.2px;padding:6px 0;"><i class="ls-ico" data-i="flask" aria-hidden="true"></i>高级调参（展开调整召回预算/向量/摘要上限等内部参数）</summary>
                         <div class="ls-hint" style="padding:6px 0 2px;"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>这些参数影响资源消耗与召回精度。默认值经过长期验证，非必要不调；改出问题直接点「恢复默认」。</div>
                         <div class="ls-slider-label"><span>注入 token 预算</span><span class="ls-slider-val" id="ls-v-mtb">${c.memoryTokenBudget ?? 2700}</span></div>
                         <input type="range" class="ls-slider" min="200" max="6000" step="100" value="${c.memoryTokenBudget ?? 2700}" data-cfg-num="memoryTokenBudget">
@@ -3720,7 +3720,7 @@
 </details>
 </div>
 ` : ''}
-<div class="ls-settings-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));display:flex;flex-direction:column;gap:6px;">
+<div class="ls-settings-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--ls-line);display:flex;flex-direction:column;gap:6px;">
                     <!-- [v3.472.0 · L22 UI] 「保存」已搬到固定底栏（随时可见）；
                          这里只留会调 AI / 改存档的重操作，与常用保存分开。 -->
                     <details class="ls-player-details"><summary>找回漏记剧情 / 恢复存档</summary>
@@ -4288,31 +4288,31 @@
                     if (plainEl) {
                         const PLAIN = {
                             /* none：根本没登记跳线 => 整格保护不生效。刻意不写「安全」。 */
-                            none: '<b style="color:var(--ls-warn,#e3b341);">这段对话还没有世界线跳转记录，所以「跨世界线的记忆不串味」这道保护现在没有生效。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                            none: '<b style="color:var(--ls-warn);">这段对话还没有世界线跳转记录，所以「跨世界线的记忆不串味」这道保护现在没有生效。</b>'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '你现在看到的所有记忆，都按同一条线在用 —— 一旦故事里出现回档／换世界线／多层梦境，旧线的记忆会直接串进来。'
                                 + '不想管也可以不管，但别把眼前这个状态理解成「已经护住了」。要开启：上面加一条 <code>1:当前层名字</code>。</div>',
                             /* gap：登记了但前史那一段判不了 => 信息缺失。 */
-                            gap: '<b style="color:var(--ls-warn,#e3b341);">开头有 ' + esc(String(gap ? gap.count : '?')) + ' 楼（第 '
+                            gap: '<b style="color:var(--ls-warn);">开头有 ' + esc(String(gap ? gap.count : '?')) + ' 楼（第 '
                                 + esc(String(gap ? gap.from : '?')) + '–' + esc(String(gap ? gap.to : '?'))
                                 + ' 楼）分不清属于哪条世界线。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '那批记忆会被判成「判不了」—— 当成信息缺失处理，既不会硬当成本线的事实，也不会被当成「可以随便用」。'
                                 + '想让它变干净：把首跳登记在第 1 楼（<code>1:当前层名字</code>），或给那些条目补上楼层。</div>',
                             /* ok：首跳在第 1 楼，前史全覆盖。 */
-                            ok: '<b style="color:var(--ls-success,#3fb950);">首跳登记在第 ' + esc(String(draft.firstFloor)) + ' 楼，开头那段也算得清世界线。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                            ok: '<b style="color:var(--ls-success);">首跳登记在第 ' + esc(String(draft.firstFloor)) + ' 楼，开头那段也算得清世界线。</b>'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '每条记忆都能按「它属于哪条线」判一次：同线的可以当事实，异线的按你的策略（'
                                 + esc(String((st && st.adjacentPolicy) || 'hold')) + '）处置。</div>',
                             /* 另外两档：冲突 / 写坏 —— 这两档不是「没生效」也不是「安全」，是「现在算错了」。 */
-                            conflict: '<b style="color:var(--ls-danger,#f85149);">你填的层标记与跳线表算出来的对不上。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                            conflict: '<b style="color:var(--ls-danger);">你填的层标记与跳线表算出来的对不上。</b>'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '这多半是少登记了一次回跳，或上面的层标记该更新了。先修好这一格，再谈保护有没有生效。</div>',
-                            bad: '<b style="color:var(--ls-danger,#f85149);">有行写坏了，闸会直接丢掉它们。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                            bad: '<b style="color:var(--ls-danger);">有行写坏了，闸会直接丢掉它们。</b>'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '被丢掉的那几行等于没登记 —— 于是保护范围比你想要的窄。下面点名了是哪几行。</div>',
-                            unwired: '<b style="color:var(--ls-danger,#f85149);">解析器没接上。</b>'
-                                + '<div style="font-size:11px;color:var(--ls-text-3,#6e7681);margin-top:2px;">'
+                            unwired: '<b style="color:var(--ls-danger);">解析器没接上。</b>'
+                                + '<div style="font-size:11px;color:var(--ls-text-3);margin-top:2px;">'
                                 + '这一面没装上，所以既说不出「有没有生效」，也说不出「影响哪几条」。</div>',
                         };
                         const plain = PLAIN[stateMark] || PLAIN.none;
@@ -4355,7 +4355,7 @@
                         for (const inp of el.querySelectorAll('input')) {
                             const st = String(inp.getAttribute('style') || '');
                             const cleaned = st.replace(/border-color:[^;]*;?/g, '');
-                            inp.setAttribute('style', isBad ? (cleaned + 'border-color:var(--ls-danger,#f87171);') : cleaned);
+                            inp.setAttribute('style', isBad ? (cleaned + 'border-color:var(--ls-danger);') : cleaned);
                         }
                     }
                     readout();
@@ -4401,10 +4401,10 @@
                         const del = '<button type="button" class="ls-btn ls-wl-del" data-wl-del="' + i + '" style="margin:0;padding:6px 8px;font-size:12px;flex:0 0 auto;"><i class="ls-ico" data-i="xmark" aria-hidden="true"></i></button>';
                         if (m.t === 'bad') {
                             parts.push('<div class="ls-wl-row' + (bad ? ' ls-wl-row-bad' : '') + '" data-wl-line="' + no + '" style="display:flex;gap:4px;align-items:center;margin:3px 0;">'
-                                + '<div style="flex:1;min-width:0;color:var(--ls-danger,#f87171);font-size:12px;word-break:break-all;"><i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>第 ' + no + ' 行「' + esc(m.text) + '」</div>' + del + '</div>');
+                                + '<div style="flex:1;min-width:0;color:var(--ls-danger);font-size:12px;word-break:break-all;"><i class="ls-ico" data-i="nosign" data-tone="error" aria-hidden="true"></i>第 ' + no + ' 行「' + esc(m.text) + '」</div>' + del + '</div>');
                             return;
                         }
-                        const bc = bad ? 'border-color:var(--ls-danger,#f87171);' : '';
+                        const bc = bad ? 'border-color:var(--ls-danger);' : '';
                         parts.push('<div class="ls-wl-row' + (bad ? ' ls-wl-row-bad' : '') + '" data-wl-line="' + no + '" style="display:flex;gap:4px;align-items:center;margin:3px 0;">'
                             + '<input type="text" class="ls-input ls-wl-floor" data-wl-i="' + i + '" data-wl-k="floor" value="' + escA(m.floor) + '" placeholder="楼层" style="width:64px;flex:0 0 64px;' + bc + '">'
                             + '<input type="text" class="ls-input ls-wl-line" data-wl-i="' + i + '" data-wl-k="lineId" value="' + escA(m.lineId) + '" placeholder="层标记（如 梦境一层）" style="flex:1;min-width:0;' + bc + '">'
@@ -4498,19 +4498,19 @@
                         }
                         const und = Array.isArray(r.undecided) ? r.undecided : [];
                         const blk = Array.isArray(r.blocked) ? r.blocked : [];
-                        const line = (x) => '<div style="padding:2px 0;border-bottom:1px dashed var(--ls-line,rgba(255,255,255,0.06));">'
-                            + '<span style="color:var(--ls-text-3,#6e7681);">' + (x.floor === null || x.floor === undefined ? '无楼层' : ('第 ' + esc(String(x.floor)) + ' 楼')) + '</span>'
+                        const line = (x) => '<div style="padding:2px 0;border-bottom:1px dashed var(--ls-line);">'
+                            + '<span style="color:var(--ls-text-3);">' + (x.floor === null || x.floor === undefined ? '无楼层' : ('第 ' + esc(String(x.floor)) + ' 楼')) + '</span>'
                             + ' · ' + esc(String(x.text || '（空）'))
-                            + (x.why ? ' <span style="color:var(--ls-warn,#e3b341);">[' + esc(String(x.why)) + ']</span>' : '')
+                            + (x.why ? ' <span style="color:var(--ls-warn);">[' + esc(String(x.why)) + ']</span>' : '')
                             + '</div>';
                         const parts = [];
                         parts.push('<b>判不了 ' + und.length + ' 条</b>（信息缺失：缺楼层/缺纪元，不是「安全」）');
-                        parts.push(und.length ? und.slice(0, 30).map(line).join('') : '<div style="color:var(--ls-text-3,#6e7681);">没有。</div>');
+                        parts.push(und.length ? und.slice(0, 30).map(line).join('') : '<div style="color:var(--ls-text-3);">没有。</div>');
                         if (blk.length) {
                             parts.push('<b style="display:block;margin-top:6px;">被挡下 ' + blk.length + ' 条</b>（本来就不该当本线事实）');
                             parts.push(blk.slice(0, 30).map(line).join(''));
                         }
-                        parts.push('<div style="margin-top:6px;color:var(--ls-text-3,#6e7681);font-size:11px;">共 ' + esc(String(r.count))
+                        parts.push('<div style="margin-top:6px;color:var(--ls-text-3);font-size:11px;">共 ' + esc(String(r.count))
                             + ' 条参与判定 · 只读，不改任何记忆</div>');
                         affOut.innerHTML = parts.join('');
                     });
@@ -4984,9 +4984,9 @@
             const body = `
                 <div class="ls-home-status">
                     <div class="ls-home-status-main">
-                        <span class="ls-home-dot" style="background:${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};box-shadow:0 0 8px ${running && hasApi ? 'var(--ls-success,#34d399)' : 'var(--ls-warn,#fbbf24)'};"></span>
+                        <span class="ls-home-dot" style="background:${running && hasApi ? 'var(--ls-success)' : 'var(--ls-warn)'};box-shadow:0 0 8px ${running && hasApi ? 'var(--ls-success)' : 'var(--ls-warn)'};"></span>
                         <div>
-                            <div style="font-size:15px;font-weight:600;color:var(--ls-text,#f1f5f9);">${running && hasApi ? '自动记忆已开启' : (running ? '请先填写专用接口' : '自动记忆已暂停')}</div>
+                            <div style="font-size:15px;font-weight:600;color:var(--ls-text);">${running && hasApi ? '自动记忆已开启' : (running ? '请先填写专用接口' : '自动记忆已暂停')}</div>
                             <div class="ls-hint" style="margin:2px 0 0;">已记住 ${memoryCount} 段剧情 · 接口 ${apiLabel}</div>
                         </div>
                     </div>
@@ -5004,7 +5004,7 @@
                     if (!sus.length) return '';
                     return `<div class="ls-home-section">
                         <div class="ls-home-title" style="display:flex;justify-content:space-between;align-items:center;"><span><i class="ls-ico" data-i="people" aria-hidden="true"></i>未完约定与悬念</span><span class="ls-home-more" data-home-jump="suspense" style="font-size:12px;cursor:pointer;">${sus.length} 条约定 ›</span></div>
-                        ${sus.slice(0, 3).map(item => `<div class="ls-home-event" data-home-jump="suspense" style="cursor:pointer;border-left:3px solid var(--ls-accent,#58a6ff);"><span style="font-weight:600;">「${esc(item.title || item.text || '')}」</span><span class="ls-home-event-meta">${item.floor ? '第 ' + item.floor + ' 楼起' : '履约中'}</span></div>`).join('')}
+                        ${sus.slice(0, 3).map(item => `<div class="ls-home-event" data-home-jump="suspense" style="cursor:pointer;border-left:3px solid var(--ls-accent);"><span style="font-weight:600;">「${esc(item.title || item.text || '')}」</span><span class="ls-home-event-meta">${item.floor ? '第 ' + item.floor + ' 楼起' : '履约中'}</span></div>`).join('')}
                     </div>`;
                 })()}
                 <div class="ls-home-section">
@@ -5018,7 +5018,7 @@
                     <button class="ls-btn ls-btn-primary" data-home-act="settings"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>设置</button>
                     <button class="ls-btn" data-home-act="workbench"><i class="ls-ico" data-i="book" aria-hidden="true"></i>记忆工作台</button>
                 </div>
-                <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="flag" aria-hidden="true"></i>时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3,#64748b);"><i class="ls-ico" data-i="refresh" aria-hidden="true"></i>检查更新</span></div>
+                <div class="ls-hint" style="text-align:center;margin-top:12px;"><span class="lsm-item" data-act="ckpt" style="cursor:pointer;color:var(--ls-text-3);"><i class="ls-ico" data-i="flag" aria-hidden="true"></i>时间检查点</span> · <span class="lsm-item" data-act="update" style="cursor:pointer;color:var(--ls-text-3);"><i class="ls-ico" data-i="refresh" aria-hidden="true"></i>检查更新</span></div>
             `;
             const ov = makeSheet('lonsha-home-overlay', '记忆', body);
             const profileWrite = (profile) => {
@@ -5107,7 +5107,7 @@
                         + '用来「动手之前先留一手」，也可以两份并排对照看差了什么。</div>'
                         + SAVE_BTN;
                 }
-                return '<div style="padding:2px 8px 6px;color:var(--ls-text-2,#9da7b3);font-size:11px;">'
+                return '<div style="padding:2px 8px 6px;color:var(--ls-text-2);font-size:11px;">'
                     + '本会话已存 ' + String((menu.match(/class="lsm-item"/g) || []).length) + ' 份（最多 5 份，超限淘汰最旧）</div>'
                     + menu
                     + '<div style="display:flex;gap:6px;margin:10px 0 0;">'
@@ -5115,7 +5115,7 @@
                     + '<button class="ls-btn" style="flex:1;" id="ls-ckpt-diff"><i class="ls-ico" data-i="swap" aria-hidden="true"></i>并排对照</button>'
                     + '</div>'
                     + '<button class="ls-btn ls-btn-danger" id="ls-ckpt-drop"><i class="ls-ico" data-i="trash" aria-hidden="true"></i>删除某一份…</button>'
-                    + '<div style="padding:4px 8px;color:var(--ls-text-3,#6e7681);font-size:11px;">'
+                    + '<div style="padding:4px 8px;color:var(--ls-text-3);font-size:11px;">'
                     + '点一行 = 看「恢复后会差什么」（只预览，不执行）；删除必须报出名字，不做批量清空。</div>';
             };
             const wire = (ov) => {
@@ -5193,11 +5193,11 @@
             const menu = document.createElement('div');
             menu.id = 'lonsha-snap-menu';
             menu.innerHTML = `
-                <div style="padding:6px 14px;color:var(--ls-text-2,#9da7b3);font-size:11px;border-bottom:1px solid var(--ls-line,rgba(240,246,252,0.10));"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>快照还原（选择要恢复的楼层）</div>
+                <div style="padding:6px 14px;color:var(--ls-text-2);font-size:11px;border-bottom:1px solid var(--ls-line);"><i class="ls-ico" data-i="clock" aria-hidden="true"></i>快照还原（选择要恢复的楼层）</div>
                 ${body}
                 <!-- [v3.238.0] R4-D：恢复是**破坏性动作**，故在这里给「先留一手」的入口 —— 检查点面板 -->
-                <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line,rgba(240,246,252,0.10));"><i class="ls-ico" data-i="bookmark" aria-hidden="true"></i>先存一份检查点再恢复…</div>
-                <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: var(--ls-bg-1,#0d1117); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line,rgba(240,246,252,0.10)); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 260px; max-height: 60vh; overflow-y: auto; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }</style>`;
+                <div class="lsm-item" id="ls-ckpt-from-snap" style="border-top:1px solid var(--ls-line);"><i class="ls-ico" data-i="bookmark" aria-hidden="true"></i>先存一份检查点再恢复…</div>
+                <style>#lonsha-snap-menu { position: fixed; bottom: 200px; right: 20px; background: var(--ls-bg-1); backdrop-filter: var(--ls-blur,none); -webkit-backdrop-filter: var(--ls-blur,none); border: 1px solid var(--ls-line); border-radius: var(--ls-r-lg,16px); padding: 6px; z-index: 10001; box-shadow: var(--ls-sh-2,0 12px 32px rgba(1,4,9,0.6)); min-width: 260px; max-height: 60vh; overflow-y: auto; animation: ls-menu-in var(--ls-t-med,200ms) var(--ls-ease,ease); }</style>`;
             menu.querySelectorAll('.lsm-item').forEach(item => {
                 item.addEventListener('click', async () => {
                     const floor = Number(item.dataset.floor);
@@ -5242,7 +5242,7 @@
         plugin._memToast = function(msg, ok = true) {
             const t = document.createElement("div");
             t.className = "ls-toast";
-            t.style.background = ok ? "var(--ls-success,#3fb950)" : "var(--ls-danger,#f85149)";
+            t.style.background = ok ? "var(--ls-success)" : "var(--ls-danger)";
             t.setAttribute("data-kind", ok ? "success" : "error"); t.innerHTML = '<i class="ls-ico" data-i="' + (ok ? "check-circle" : "warning") + '" aria-hidden="true"></i>' + String(msg).replace(/&/g, "&amp;").replace(/</g, "&lt;");   /* v3.1：前导图标随 ok 走，消息里不再带 emoji */
             document.body.appendChild(t);
             setTimeout(() => t.remove(), 1800);
@@ -5302,12 +5302,12 @@
             const render = (plan) => {
                 last = plan;
                 if (!plan || plan.ok !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>'
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>'
                         + esc2('提案不可用：' + ((plan && plan.reason) || 'unknown')) + '</div>';
                     return;
                 }
                 if (plan.scoped !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>范围未圈定（'
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>范围未圈定（'
                         + esc2(plan.scope && plan.scope.reason) + '）<i class="ls-ico ls-ico-inline" data-i="arrow-right" role="img" aria-label="因此"></i>**不产全量提案**：'
                         + esc2(plan.why) + '</div>';
                     return;
@@ -5344,7 +5344,7 @@
                 const src = (typeof s.correctionSourceFacts === 'function') ? s.correctionSourceFacts(rng) : { ok: false, reason: 'host-absent', facts: [] };
                 const nf = (typeof s.correctionReextractFacts === 'function') ? s.correctionReextractFacts({ range: rng, newFacts: sd.newFacts }) : { ok: false, reason: 'host-absent', facts: [] };
                 if (nf.ok !== true) {
-                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn,#d29922);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取不到新提取结果（'
+                    out.innerHTML = '<div class="ls-hint" style="color:var(--ls-warn);"><i class="ls-ico" data-i="warning" data-tone="warn" aria-hidden="true"></i>取不到新提取结果（'
                         + esc2(nf.reason) + '）—— **不拿旧账冒充新结果**。夹具可经 newFacts 直给。</div>';
                     return;
                 }
