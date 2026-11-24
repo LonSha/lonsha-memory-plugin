@@ -1160,55 +1160,124 @@
             ${rows}${texts}`;
     }
 
-    /* ---------- 体检：就地跑 engine.selfCheck()，不跳旧面板 ---------- */
+    /* ---------- 体检：四张便签，各有三态 ----------
+       改造前这一页是「一张大卡 + 一个容器」，跑完只换容器内容，页面说不出
+       「这张卡现在是没数据、还是根本测不了」。改造后与开发者页同一套骨架：
+       每个读数都是独立组件，自己回答 ready / empty / absent。
+       顺序即阅读顺序：先按钮，再总体，再链路，最后异常。 */
     let lastDiag = null;
     let diagBusy = false;
-    function diagBodyHTML() {
-        if (diagBusy) return '<p class="lmp-note">正在跑…（真机上大约一秒）</p>';
+    /* 严重度只用来填徽标，不用来改 state —— state 只有 ready/empty/absent 三种，
+       把「注意」硬塞进 state 会让三态语义失效，门禁探针也会立刻发现。 */
+    function diagSev() {
         const r = lastDiag;
-        if (!r) return '<p class="lmp-note">还没跑过。点上面的「跑一次体检」。</p>';
-        if (r.fatal) return `<p class="lmp-note">体检本身没跑起来：${esc(r.fatal)}</p>`;
-        const kv = (k, v) => `<div class="lmp-frow"><span class="lmp-frow-k">${esc(k)}</span><span class="lmp-frow-v lmp-ro">${esc(v)}</span></div>`;
-        const stats = (r.stats || []).map((s) => kv(s.k, s.v)).join('');
-        const line = (tone, title, text, hint) => `<div class="lmp-frow" data-tone="${tone}">
-            <span class="lmp-frow-k">${esc(title)}<em>${esc(text)}</em>${hint ? `<em>${esc(hint)}</em>` : ''}</span>
-            <span class="lmp-frow-v lmp-ro">${tone === 'ok' ? '正常' : (tone === 'crit' ? '严重' : '注意')}</span>
-        </div>`;
-        const p = r.pipeline;
-        const pipe = p ? (p.ok
-            ? line('ok', '召回管线', `${p.ms}ms · 查询 ${p.queryLen} 字 → 命中 [${(p.routes || []).join(' ')}] → 合并 ${p.merged} 条 → 注入 ${p.injLen} 字`)
-            : line('warn', '召回管线', p.note || '管线异常', p.hint)) : '';
-        const sc = r.schema;
-        const schema = sc ? (sc.ok
-            ? line('ok', '存档结构', '完整（非空：' + ((sc.nonEmpty || []).join('、') || '暂无数据') + '）')
-            : line('crit', '存档结构', '缺字段：' + (sc.missing || []).join('、'), sc.hint)) : '';
-        /* 报错条目单独一种行：消息里有英文调用栈片段（this.checkEmbeddedMigration
-           is not a function — 【内部引用空指针】……），横排右对齐必然挤到卡外，
-           所以标签在上、消息在下、整行左对齐、允许任意处断行。 */
-        const errRow = (title, msg) => `<div class="lmp-frow lmp-frow-stack">
-            <span class="lmp-frow-k">${esc(title)}</span>
-            <span class="lmp-frow-v lmp-err-msg">${esc(msg)}</span>
-        </div>`;
-        const errs = (r.errors || []).slice(-8).reverse().map((e) => errRow(
-            '[' + (e.tag || '?') + '] ' + new Date(e.t).toLocaleTimeString(),
-            String(e.msg || '').slice(0, 300) + (e.hint ? ' — ' + e.hint : '')
-        )).join('') || kv('最近错误', '无');
-        return `<div class="lmp-card">
-                <span class="lmp-card-t">${esc(r.time || '')}</span>
-                <span class="lmp-card-s">引擎版本 ${esc(r.version || '—')}</span>
-                ${stats}
-            </div>
-            ${(pipe || schema) ? `<div class="lmp-card"><span class="lmp-card-t">链路</span>${pipe}${schema}</div>` : ''}
-            <div class="lmp-card"><span class="lmp-card-t">最近错误</span>${errs}</div>`;
+        if (!r || r.fatal) return null;
+        if (r.schema && r.schema.ok === false) return ['严重', 'crit'];
+        if ((r.errors || []).length || (r.pipeline && r.pipeline.ok === false)) return ['注意', 'warn'];
+        return ['正常', 'ok'];
     }
+    const diagKV = (k, v) => `<div class="lmp-frow"><span class="lmp-frow-k">${esc(k)}</span><span class="lmp-frow-v lmp-ro">${esc(v)}</span></div>`;
+    const diagLine = (tone, title, text, hint) => `<div class="lmp-frow" data-tone="${tone}">
+        <span class="lmp-frow-k">${esc(title)}<em>${esc(text)}</em>${hint ? `<em>${esc(hint)}</em>` : ''}</span>
+        <span class="lmp-frow-v lmp-ro">${tone === 'ok' ? '正常' : (tone === 'crit' ? '严重' : '注意')}</span>
+    </div>`;
+    /* 报错条目单独一种行：消息里有英文调用栈片段（this.checkEmbeddedMigration
+       is not a function — 【内部引用空指针】……），横排右对齐必然挤到卡外，
+       所以标签在上、消息在下、整行左对齐、允许任意处断行。 */
+    const diagErrRow = (title, msg) => `<div class="lmp-frow lmp-frow-stack">
+        <span class="lmp-frow-k">${esc(title)}</span>
+        <span class="lmp-frow-v lmp-err-msg">${esc(msg)}</span>
+    </div>`;
+
+    const DIAG_COMPS = [
+        {
+            id: 'run',
+            title: '跑一次体检',
+            sub: '只读：不会写入档，也不会改你的配置。真机上大约一秒。',
+            probe() {
+                const e = engOf();
+                if (!e || typeof e.selfCheck !== 'function') {
+                    return { state: 'absent', why: '这个版本的引擎没有 selfCheck —— 体检跑不了，下面几张卡也就都没有读数。' };
+                }
+                if (diagBusy) return { state: 'empty', badge: '正在跑', why: '已经发出去了，等引擎回话（真机上大约一秒）。' };
+                if (!lastDiag) return { state: 'empty', badge: '还没跑', why: '这一版面板打开后还没跑过 —— 点一次就知道引擎现在怎么样。' };
+                if (lastDiag.fatal) return { state: 'empty', badge: '没跑起来', why: '体检本身抛了：' + lastDiag.fatal + '。这不是「一切正常」，是这次没测成。' };
+                const sev = diagSev();
+                return { state: 'ready', badge: sev ? sev[0] : '已跑' };
+            },
+            acts: (st) => (diagBusy ? [] : [['selfcheck', st === 'ready' ? '再跑一次' : '跑一次体检']]),
+            body: () => '',
+        },
+        {
+            id: 'stat',
+            title: '档案概览',
+            sub: '这一档现在有多少条、引擎是哪个版本 —— 体检顺带读回来的。',
+            probe() {
+                if (!lastDiag) return { state: 'empty', badge: '还没跑', why: '体检还没跑过，没有读数可看。' };
+                if (lastDiag.fatal) return { state: 'empty', badge: '没测成', why: '这次体检抛了错，概览读不到。' };
+                const n = (lastDiag.stats || []).length;
+                if (!n) return { state: 'empty', badge: '0 项', why: '这次体检没带统计项（stats 是空的）—— 多半是这个版本的引擎没实现这一项。' };
+                return { state: 'ready', badge: n + ' 项' };
+            },
+            acts: () => [],
+            body() {
+                const r = lastDiag;
+                return diagKV('跑的时间', r.time || '—')
+                    + diagKV('引擎版本', r.version || '—')
+                    + (r.stats || []).map((s) => diagKV(s.k, s.v)).join('');
+            },
+        },
+        {
+            id: 'pipe',
+            title: '链路',
+            sub: '召回管线与存档结构。管线异常会写明卡在哪一步。',
+            probe() {
+                if (!lastDiag) return { state: 'empty', badge: '还没跑', why: '体检还没跑过，链路没测到。' };
+                if (lastDiag.fatal) return { state: 'empty', badge: '没测成', why: '这次体检抛了错，链路没测到。' };
+                const p = lastDiag.pipeline;
+                const sc = lastDiag.schema;
+                if (!p && !sc) return { state: 'absent', why: '这次体检既没带 pipeline 也没带 schema —— 这个版本的引擎没有这两项读数，判不了链路好坏。' };
+                const sev = diagSev();
+                return { state: 'ready', badge: sev ? sev[0] : '部分' };
+            },
+            acts: () => [],
+            body() {
+                const p = lastDiag.pipeline;
+                const sc = lastDiag.schema;
+                const pipe = p ? (p.ok
+                    ? diagLine('ok', '召回管线', `${p.ms}ms · 查询 ${p.queryLen} 字 → 命中 [${(p.routes || []).join(' ')}] → 合并 ${p.merged} 条 → 注入 ${p.injLen} 字`)
+                    : diagLine('warn', '召回管线', p.note || '管线异常', p.hint)) : '';
+                const schema = sc ? (sc.ok
+                    ? diagLine('ok', '存档结构', '完整（非空：' + ((sc.nonEmpty || []).join('、') || '暂无数据') + '）')
+                    : diagLine('crit', '存档结构', '缺字段：' + (sc.missing || []).join('、'), sc.hint)) : '';
+                return pipe + schema;
+            },
+        },
+        {
+            id: 'err',
+            title: '最近错误',
+            sub: '引擎自己记的报错，最多显示最近 8 条。反馈问题时连这段一起贴。',
+            probe() {
+                if (!lastDiag) return { state: 'empty', badge: '还没跑', why: '体检还没跑过，错误清单也跟着没读出来。' };
+                if (lastDiag.fatal) return { state: 'empty', badge: '没测成', why: '这次体检抛了错。' };
+                const n = (lastDiag.errors || []).length;
+                if (!n) return { state: 'empty', badge: '0 条', why: '跑过了，引擎一条错都没记 —— 这是「没有」，不是「没查到」。' };
+                return { state: 'ready', badge: n + ' 条' };
+            },
+            acts: () => [],
+            body() {
+                return (lastDiag.errors || []).slice(-8).reverse().map((e) => diagErrRow(
+                    '[' + (e.tag || '?') + '] ' + new Date(e.t).toLocaleTimeString(),
+                    String(e.msg || '').slice(0, 300) + (e.hint ? ' — ' + e.hint : '')
+                )).join('');
+            },
+        },
+    ];
+    const diagCompsHTML = () => DIAG_COMPS.map((c) => compHTML(c)).join('');
     function laneDiagHTML() {
         return `${lanesHTML()}${laneHintHTML()}
-            <div class="lmp-card">
-                <span class="lmp-card-t">跑一次体检</span>
-                <span class="lmp-card-s">只读：不会写入档，也不会改你的配置。</span>
-                <button type="button" class="lmp-btn" data-act="selfcheck">跑一次体检</button>
-            </div>
-            <div data-diag-out>${diagBodyHTML()}</div>`;
+            <div data-diag-out>${diagCompsHTML()}</div>
+            <p class="lmp-note">这一页只读：跑一次体检不会写档、不会改配置。上面每张卡都自己回答「有数据 / 真没有 / 判不了」，不会把两者压成一句「暂无」。</p>`;
     }
 
     /* ---------- 开发者：柏宝书式组件 ----------
@@ -1351,7 +1420,7 @@
     ];
 
     /* 组件工厂：骨架只有这一份。三态在这里分支，组件自己只管「答状态 / 给内容」。 */
-    function devCompHTML(c) {
+    function compHTML(c) {
         let r;
         try {
             const x = c.probe();
@@ -1376,6 +1445,9 @@
             ${acts.map((a) => `<button type="button" class="lmp-btn" data-act="${esc(a[0])}">${esc(a[1])}</button>`).join('')}
         </section>`;
     }
+    /* 旧名保留：探针与既有调用点都按 devCompHTML 取，改一行别名比改十处调用安全。 */
+    const devCompHTML = compHTML;
+
     function laneDevHTML() {
         return `${lanesHTML()}${laneHintHTML()}
             ${DEV_COMPS.map(devCompHTML).join('')}
@@ -1788,7 +1860,7 @@
         const eng = safe(() => window.LonShaMemory.engine, null);
         if (!eng || typeof eng.selfCheck !== 'function') { toast('这个版本没有自检接口'); return; }
         diagBusy = true;
-        const paint = () => { const o = root && root.querySelector('[data-diag-out]'); if (o) o.innerHTML = diagBodyHTML(); };
+        const paint = () => { const o = root && root.querySelector('[data-diag-out]'); if (o) o.innerHTML = diagCompsHTML(); };
         paint();
         Promise.resolve()
             .then(() => eng.selfCheck())
