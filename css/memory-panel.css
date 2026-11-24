@@ -390,14 +390,6 @@ html[data-lonsha-theme="dark"] .lmp {
 }
 
 /* 档位分段：等分、同一高度、只有一圈底 */
-.lmp-group {
-    margin: 8px 0 0;
-    padding: 14px 0 0;
-    border-top: 1px solid var(--p-line);
-}
-
-
-
 .lmp-seg {
     display: flex;
     flex: 1 1 auto;
@@ -535,10 +527,8 @@ html[data-lonsha-theme="dark"] .lmp {
     background-position: right 10px center;
     background-size: 16px 16px;
 }
-/* 面板内 [hidden] 兜底：.lmp-card 等自带 display，
-   UA 的 [hidden]{display:none} 特异性不够、会被类规则盖掉，
+/* 面板内 [hidden] 兜底：UA 的 [hidden]{display:none} 特异性不够、会被类规则盖掉，
    导致「关掉开关该消失的提示」消失不掉。这里按 0,2,0 补一条。 */
-.lmp-card[hidden],
 .lmp-note[hidden],
 .lmp-lane-hint[hidden],
 .lmp-inline[hidden],
@@ -546,37 +536,21 @@ html[data-lonsha-theme="dark"] .lmp {
     display: none;
 }
 
-.lmp-card {
-    display: block;
-    margin: 14px 0 0;
-    padding: 14px;
-    border: 1px solid var(--p-line);
-    border-radius: var(--p-r);
-    background: var(--p-wash);
-}
-.lmp-card > .lmp-card-t {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 17px;
-}
-.lmp-card > .lmp-card-s {
-    display: block;
-    margin-bottom: 10px;
-    color: var(--p-ink-3);
-    font-size: 13.5px;
-    line-height: 1.55;
-}
-.lmp-card > .lmp-input + .lmp-input,
-.lmp-card > .lmp-input + .lmp-ta,
-.lmp-card > .lmp-ta + .lmp-input {
+/* 输入框之间的呼吸位。
+   v6.13 起所有卡片都是 .lmp-comp，旧的 `.lmp-card > .lmp-input + .lmp-input`
+   限定符跟着 .lmp-card 一起没了 —— 选择器一挂，输入框直接贴成一坨。
+   所以改成不限容器的相邻兄弟规则：面板内相邻输入框都该有这 8px。 */
+.lmp-input + .lmp-input,
+.lmp-input + .lmp-ta,
+.lmp-ta + .lmp-input {
     margin-top: 8px;
 }
-.lmp-card > .lmp-inline {
+.lmp-inline {
     display: flex;
     gap: 8px;
     margin-top: 8px;
 }
-.lmp-card > .lmp-inline > .lmp-input {
+.lmp-inline > .lmp-input {
     flex: 1 1 auto;
     min-width: 0;
 }

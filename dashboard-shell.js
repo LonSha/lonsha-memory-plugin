@@ -1091,73 +1091,182 @@
             `<option value="${esc(v)}"${String(cur === v) === 'true' || (cur == null && v === '') ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
     }
 
-    /* ---------- 接口 ---------- */
-    function laneConnHTML(c) {
-        const custom = !!c.apiProviderCustom;
-        return `${lanesHTML()}${laneHintHTML()}
-            <div class="lmp-card">
-                <span class="lmp-card-t">用哪个接口</span>
-                <span class="lmp-card-s">默认跟着你当前对话走，不用配。想用别的（比如更便宜的模型）再打开下面这个开关。</span>
-                ${frow('使用自己的接口', custom ? '已开启，填下面的地址与密钥' : '关着 = 借用当前对话的接口', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-cfg="apiProviderCustom"${custom ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
-            </div>
-            <div class="lmp-card" data-conn-fields>
-                <span class="lmp-card-t">地址与密钥</span>
-                <span class="lmp-card-s">兼容 OpenAI 格式。地址填到 base 就行，会自动补 /chat/completions。<span data-conn-warn${custom ? ' hidden' : ''}>现在开关是关着的，填了也先不用；想用就打开上面那个开关。</span></span>
-                ${textIn('apiUrl', 'https://api.xxx.com/v1', c.apiUrl)}
-                ${pwdIn('apiKey', 'sk-…（只存在你自己的配置里）', c.apiKey)}
-                <div class="lmp-inline">
-                    ${textIn('apiModel', '模型名，如 gpt-4o-mini', c.apiModel)}
-                    <button type="button" class="lmp-mini" data-act="fetch-models">抓取</button>
-                </div>
-                <p class="lmp-lane-hint" data-model-status></p>
-            </div>
-            <div class="lmp-card">
-                <span class="lmp-card-t">语义检索接口（可选）</span>
-                <span class="lmp-card-s">不配也能用，走字面匹配。配了按含义找回忆更准，要挑支持 embeddings 的接口。</span>
-                ${textIn('embeddingUrl', 'https://api.xxx.com/v1', c.embeddingUrl)}
-                ${pwdIn('embeddingKey', '密钥（和上面主接口可以不同）', c.embeddingKey)}
-                ${textIn('embeddingModel', '模型名，如 text-embedding-ada-002', c.embeddingModel)}
-            </div>
-            <div class="lmp-card">
-                <span class="lmp-card-t">精排接口（可选）</span>
-                <span class="lmp-card-s">召回之后再排一次序。记忆很多（几百条以上）时才值得配。</span>
-                ${textIn('rerankApiUrl', 'https://api.xxx.com/v1', c.rerankApiUrl)}
-                ${pwdIn('rerankApiKey', '密钥', c.rerankApiKey)}
-                ${textIn('rerankModel', '模型名', c.rerankModel)}
-            </div>`;
+    /* ---------- 设置页的四个表单 lane：同一套组件骨架 ----------
+       表单类组件有一条硬纪律：state 恒为 ready。
+       理由是可编辑性 —— 工厂只在 ready 时渲染 body，若把「还没填」做成 empty，
+       用户就看不到输入框、也就没法填了。所以「填没填」写在徽标和一句话里。
+       真正该用 absent 的只有一种情况：cfg() 读不到配置对象 —— 那时填什么都存不下来。 */
+    /* cfg() 会把「读不到」兜底成 {}，所以不能用它判断配置在不在 ——
+       空配置（新用户第一次打开）和"引擎没挂上"是两回事，前者必须能填。
+       判据直接看 engine.config.config 这个对象是否真的存在。 */
+    const cfgOK = () => {
+        const s = safe(() => window.LonShaMemory.engine, null);
+        const box = s && s.config;
+        const c = box && box.config;
+        return (c && typeof c === 'object') ? c : null;
+    };
+    const CONN_COMPS = [
+        {
+            id: 'provider',
+            title: '用哪个接口',
+            sub: '默认跟着你当前对话走，不用配。想用别的（比如更便宜的模型）再打开下面这个开关。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到引擎的配置对象（cfg() 是空的）—— 这一页填什么都存不下来。' };
+                return { state: 'ready', badge: c.apiProviderCustom ? '自己的接口' : '跟随对话' };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                const custom = !!c.apiProviderCustom;
+                return frow('使用自己的接口', custom ? '已开启，填下面的地址与密钥' : '关着 = 借用当前对话的接口',
+                    `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-cfg="apiProviderCustom"${custom ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`);
+            },
+        },
+        {
+            id: 'endpoint',
+            title: '地址与密钥',
+            sub: '兼容 OpenAI 格式。地址填到 base 就行，会自动补 /chat/completions。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到配置对象，地址与密钥没有落点。' };
+                if (!c.apiProviderCustom) return { state: 'ready', badge: '不用填', why: '上面开关关着，这一格先不生效；想用自己的接口再打开开关。' };
+                const n = [c.apiUrl, c.apiKey, c.apiModel].filter((v) => String(v || '').trim()).length;
+                return { state: 'ready', badge: n === 3 ? '已填齐' : '缺 ' + (3 - n) + ' 项' };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                const custom = !!c.apiProviderCustom;
+                return `<div data-conn-fields>
+                        ${textIn('apiUrl', 'https://api.xxx.com/v1', c.apiUrl)}
+                        ${pwdIn('apiKey', 'sk-…（只存在你自己的配置里）', c.apiKey)}
+                        <div class="lmp-inline">
+                            ${textIn('apiModel', '模型名，如 gpt-4o-mini', c.apiModel)}
+                            <button type="button" class="lmp-mini" data-act="fetch-models">抓取</button>
+                        </div>
+                        ${custom ? '' : '<span data-conn-warn>现在开关是关着的，填了也先不用；想用就打开上面那个开关。</span>'}
+                        <p class="lmp-lane-hint" data-model-status></p>
+                    </div>`;
+            },
+        },
+        {
+            id: 'embedding',
+            title: '语义检索接口（可选）',
+            sub: '不配也能用，走字面匹配。配了按含义找回忆更准，要挑支持 embeddings 的接口。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到配置对象，语义检索这格没有落点。' };
+                const n = [c.embeddingUrl, c.embeddingKey, c.embeddingModel].filter((v) => String(v || '').trim()).length;
+                if (!n) return { state: 'ready', badge: '没配', why: '三项都空着 = 走字面匹配，功能不残；想更准再填。' };
+                return { state: 'ready', badge: n === 3 ? '已填齐' : '已填 ' + n + '/3' };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                return textIn('embeddingUrl', 'https://api.xxx.com/v1', c.embeddingUrl)
+                    + pwdIn('embeddingKey', '密钥（和上面主接口可以不同）', c.embeddingKey)
+                    + textIn('embeddingModel', '模型名，如 text-embedding-ada-002', c.embeddingModel);
+            },
+        },
+        {
+            id: 'rerank',
+            title: '精排接口（可选）',
+            sub: '召回之后再排一次序。记忆很多（几百条以上）时才值得配。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到配置对象，精排这格没有落点。' };
+                const n = [c.rerankApiUrl, c.rerankApiKey, c.rerankModel].filter((v) => String(v || '').trim()).length;
+                if (!n) return { state: 'ready', badge: '没配', why: '三项都空着 = 不做精排，照常召回；记忆攒到几百条以上再考虑。' };
+                return { state: 'ready', badge: n === 3 ? '已填齐' : '已填 ' + n + '/3' };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                return textIn('rerankApiUrl', 'https://api.xxx.com/v1', c.rerankApiUrl)
+                    + pwdIn('rerankApiKey', '密钥', c.rerankApiKey)
+                    + textIn('rerankModel', '模型名', c.rerankModel);
+            },
+        },
+    ];
+    function laneConnHTML() {
+        return `${lanesHTML()}${laneHintHTML()}${CONN_COMPS.map((x) => compHTML(x)).join('')}`;
     }
 
-    /* ---------- 怎么记 ---------- */
-    function laneHowHTML(c) {
-        const prof = c.extractionProfile || 'balanced';
-        const profLabel = (PROFILE_OPTS.find((p) => p[0] === prof) || PROFILE_OPTS[1])[1];
-        return `${lanesHTML()}${laneHintHTML()}
-            <div class="lmp-card">
-                <span class="lmp-card-t">记忆档位</span>
-                <span class="lmp-card-s">只影响平淡楼的攒批频率。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽。</span>
-                ${choiceIn('extractionProfile', PROFILE_OPTS, prof)}
-            </div>
-            <div class="lmp-group">
-                ${frow('单条摘要长度', '超长会截断', numIn('maxSummaryLength', c.maxSummaryLength, 50, 2000, 10))}
-                ${frow('召回条数', '每次回忆带几条进上下文', numIn('vectorTopK', c.vectorTopK, 1, 30, 1))}
-            </div>
-            <p class="lmp-note">当前档位：${esc(profLabel)}。</p>`;
+/* ---------- 怎么记 ---------- */
+    const HOW_COMPS = [
+        {
+            id: 'profile',
+            title: '记忆档位',
+            sub: '只影响平淡楼的攒批频率。身份、承诺、物品、关系、事件这五类关键信号，任何档位都当场抽。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到配置对象，档位改了也存不下来。' };
+                const prof = c.extractionProfile || 'balanced';
+                const p = PROFILE_OPTS.find((x) => x[0] === prof) || PROFILE_OPTS[1];
+                return { state: 'ready', badge: p[1] };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                return choiceIn('extractionProfile', PROFILE_OPTS, c.extractionProfile || 'balanced');
+            },
+        },
+        {
+            id: 'numbers',
+            title: '长度与条数',
+            sub: '两项最常改的数值，其余在「微调」页。',
+            probe() {
+                const c = cfgOK();
+                if (!c) return { state: 'absent', why: '读不到配置对象，这两项改了也存不下来。' };
+                return { state: 'ready', badge: '2 项' };
+            },
+            acts: () => [],
+            body() {
+                const c = cfgOK() || {};
+                return frow('单条摘要长度', '超长会截断', numIn('maxSummaryLength', c.maxSummaryLength, 50, 2000, 10))
+                    + frow('召回条数', '每次回忆带几条进上下文', numIn('vectorTopK', c.vectorTopK, 1, 30, 1));
+            },
+        },
+    ];
+    function laneHowHTML() {
+        return `${lanesHTML()}${laneHintHTML()}${HOW_COMPS.map((x) => compHTML(x)).join('')}`;
     }
 
-    /* ---------- 微调：旧面板 60 个数值键 + 14 个文本键，全部表驱动 ---------- */
-    function laneLabHTML(c) {
-        const rows = LAB_GROUPS.map((g) => `<div class="lmp-card">
-                <span class="lmp-card-t">${g.t}</span>
-                ${g.rows.map((r) => frow(r[1], r[0], numIn(r[0], c[r[0]], r[2], r[3], r[4]))).join('')}
-            </div>`).join('');
-        const texts = `<div class="lmp-card">
-                <span class="lmp-card-t">世界线与联动</span>
-                <span class="lmp-card-s">后面几条是列表 / JSON。写错引擎会当成没写（不报错也不生效），改完记得看一眼引擎是否认。</span>
-                ${LAB_TEXTS.map(([k, l]) => frow(l, k, textIn(k, '留空 = 用默认', c[k]))).join('')}
-            </div>`;
+/* ---------- 微调：旧面板 60 个数值键 + 14 个文本键，全部表驱动 ----------
+       LAB_GROUPS 是键名的唯一真源（校验见 checkLabCoverage），这里只把它翻成组件，
+       所以「加一个数值键」仍然只改表、不改渲染：LAB_COMPS 是 map 出来的。 */
+    const LAB_COMPS = LAB_GROUPS.map((g, gi) => ({
+        id: 'lab-' + (gi + 1),
+        title: g.t,
+        sub: '',
+        probe() {
+            if (!cfgOK()) return { state: 'absent', why: '读不到配置对象，这一组数值改了也存不下来。' };
+            return { state: 'ready', badge: g.rows.length + ' 项' };
+        },
+        acts: () => [],
+        body() {
+            const c = cfgOK() || {};
+            return g.rows.map((r) => frow(r[1], r[0], numIn(r[0], c[r[0]], r[2], r[3], r[4]))).join('');
+        },
+    })).concat([{
+        id: 'lab-texts',
+        title: '世界线与联动',
+        sub: '后面几条是列表 / JSON。写错引擎会当成没写（不报错也不生效），改完记得看一眼引擎是否认。',
+        probe() {
+            if (!cfgOK()) return { state: 'absent', why: '读不到配置对象，这几条文本改了也存不下来。' };
+            return { state: 'ready', badge: LAB_TEXTS.length + ' 项' };
+        },
+        acts: () => [],
+        body() {
+            const c = cfgOK() || {};
+            return LAB_TEXTS.map(([k, l]) => frow(l, k, textIn(k, '留空 = 用默认', c[k]))).join('');
+        },
+    }]);
+    function laneLabHTML() {
         return `${lanesHTML()}${laneHintHTML()}
             <p class="lmp-note">改一项、聊几楼、看效果。一次改一堆出问题就不知道是哪一项。</p>
-            ${rows}${texts}`;
+            ${LAB_COMPS.map((x) => compHTML(x)).join('')}`;
     }
 
     /* ---------- 体检：四张便签，各有三态 ----------
@@ -1442,7 +1551,7 @@
                 <span class="lmp-comp-t">${esc(c.title)}</span>
                 <span class="lmp-comp-badge">${esc(badge)}</span>
             </div>
-            <p class="lmp-comp-s">${esc(c.sub)}</p>
+            ${c.sub ? `<p class="lmp-comp-s">${esc(c.sub)}</p>` : ''}
             ${r.why ? `<p class="lmp-note">${esc(r.why)}</p>` : ''}
             ${body}
             ${acts.map((a) => `<button type="button" class="lmp-btn" data-act="${esc(a[0])}">${esc(a[1])}</button>`).join('')}
@@ -1457,24 +1566,46 @@
             <p class="lmp-note">这一页只有「补提取」会写档，其余都只读。补提取要调接口、费 token，所以点之前会再问一次。</p>`;
     }
 
-    /* ---------- 界面：主题 / 配色 / 开发者模式 ---------- */
+/* ---------- 界面：主题 / 配色 / 开发者模式 ---------- */
+    /* dev 是函数参数（来自 store 的开发者开关），组件表是 const 拿不到，
+       所以在 laneUiHTML 里先落到模块级变量，组件 probe 再读它。 */
+    let uiDevOn = false;
+    const UI_COMPS = [
+        {
+            id: 'theme',
+            title: '主题',
+            sub: '面板自己的底色。默认跟随酒馆，也可以在这里钉死一种。',
+            probe() {
+                const pref = store.get(LS_KEYS.theme, 'auto');
+                const label = { auto: '跟随酒馆', light: '浅色', dark: '深色' }[pref] || '跟随酒馆';
+                return { state: 'ready', badge: label };
+            },
+            acts: () => [],
+            body() {
+                const pref = store.get(LS_KEYS.theme, 'auto');
+                const src = store.get(LS_KEYS.themeSource, 'brand');
+                const seg = `<div class="lmp-lanes" role="radiogroup" aria-label="主题">
+                    ${[['auto', '跟随酒馆'], ['light', '浅色'], ['dark', '深色']].map(([v, l]) => `<button type="button" class="lmp-lane" role="radio" data-dash-theme="${v}" aria-selected="${pref === v}">${l}</button>`).join('')}
+                </div>`;
+                return seg + frow('配色跟随酒馆', '面板底色与文字色取自当前 SillyTavern 主题',
+                    `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-themesrc${src === 'st' ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`);
+            },
+        },
+        {
+            id: 'devmode',
+            title: '开发者模式',
+            sub: '打开后「微调」「体检」两页常驻（这两页在这一版里本来就都在，这个开关只影响旧入口是否显示开发者面）。',
+            probe: () => ({ state: 'ready', badge: uiDevOn ? '已打开' : '关着' }),
+            acts: () => [],
+            body() {
+                return frow('开发者模式', uiDevOn ? '已打开' : '关着',
+                    `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-dev${uiDevOn ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`);
+            },
+        },
+    ];
     function laneUiHTML(dev) {
-        const pref = store.get(LS_KEYS.theme, 'auto');
-        const src = store.get(LS_KEYS.themeSource, 'brand');
-        const seg = `<div class="lmp-lanes" role="radiogroup" aria-label="主题">
-            ${[['auto', '跟随酒馆'], ['light', '浅色'], ['dark', '深色']].map(([v, l]) => `<button type="button" class="lmp-lane" role="radio" data-dash-theme="${v}" aria-selected="${pref === v}">${l}</button>`).join('')}
-        </div>`;
-        return `${lanesHTML()}${laneHintHTML()}
-            <div class="lmp-card">
-                <span class="lmp-card-t">主题</span>
-                ${seg}
-                ${frow('配色跟随酒馆', '面板底色与文字色取自当前 SillyTavern 主题', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-themesrc${src === 'st' ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
-            </div>
-            <div class="lmp-card">
-                <span class="lmp-card-t">开发者模式</span>
-                <span class="lmp-card-s">打开后「微调」「体检」两页常驻（现在这两页在这版里本来就都在，这个开关只影响旧入口是否显示开发者面）。</span>
-                ${frow('开发者模式', dev ? '已打开' : '关着', `<label class="lmp-switch lmp-switch-inrow"><input type="checkbox" data-dash-dev${dev ? ' checked' : ''}><span class="lmp-track" aria-hidden="true"></span></label>`)}
-            </div>`;
+        uiDevOn = !!dev;
+        return `${lanesHTML()}${laneHintHTML()}${UI_COMPS.map((x) => compHTML(x)).join('')}`;
     }
 
     function settingsHTML(st) {
