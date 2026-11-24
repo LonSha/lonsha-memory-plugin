@@ -1,0 +1,563 @@
+/* ============================================================
+   LonSha · 控件皮肤层（Paper & Ink Controls）v6
+   ------------------------------------------------------------
+   这一层只做一件事：把**旧外壳里那些控件**统一成纸墨手札的样子。
+   （v6 面板 .lmp 自带皮肤，不读这里；旧外壳 = .lonsha-overlay > .lonsha-sheet）
+
+   为什么需要单独一层，而不是继续往 settings-ui.js 的注入样式里写：
+   注入样式是运行时 appendChild 的，**永远排在最后**；同特异性下它一定赢。
+   所以这一层用「三重根类名」抬特异性：
+     .lonsha-overlay.lonsha-overlay.lonsha-overlay        = (0,3,0)
+     ... .lonsha-sheet input[type="checkbox"]             = (0,4,1)
+   高于注入副本的 `.ls-row input[type=checkbox]`(0,2,1) 与
+   `.lonsha-overlay .lonsha-sheet .ls-btn`(0,3,0)，且与加载顺序无关。
+   仍不写 !important —— 注入副本里那几条带 !important 的按钮规则读的就是
+   --ls-*（已被 css/lonsha-design.css v6 翻成纸墨），所以颜色不用抢。
+
+   控件语法取材：baibai-git/ST-BaiBai-Book（src/styles/base.css + BbsSelect /
+   Collapsible / ModalMask）。学的是四条纪律，不是抄它的类名：
+     ① 组件零字面量颜色，一律取 token；
+     ② 状态不只靠颜色：开关靠拇指位移、选中靠 3px 左缘、悬停靠描边；
+     ③ 触摸目标 ≥44px，视觉尺寸可以更小（.ls-hit）；
+     ④ 折叠/弹窗用同一套「一条细线 + 一个箭头」的收口方式。
+   ============================================================ */
+
+/* ---------- 0. 根作用域：一句别名，免得下文每行都写三遍 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet {
+    color-scheme: light;
+}
+
+/* ---------- 1. 窗口外壳：纸、墨线、极浅墨影 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet {
+    max-width: 560px;
+    max-height: 88dvh;
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-lg) var(--ls-r-lg) 0 0;
+    background: var(--ls-bg-1);
+    background-image: none;
+    box-shadow: var(--ls-sh-3);
+    color: var(--ls-text);
+}
+
+@media (min-width: 600px) {
+    .lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet {
+        border-radius: var(--ls-r-lg);
+        max-height: 84dvh;
+    }
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet-header {
+    min-height: 54px;
+    padding: var(--ls-sp-3) var(--ls-sp-5);
+    background: var(--ls-bg-2);
+    border-bottom: 1px solid var(--ls-line);
+    color: var(--ls-text);
+    font-size: var(--ls-fs-headline);
+    font-weight: 600;
+    letter-spacing: 0;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet-body {
+    padding: var(--ls-sp-4) var(--ls-sp-5) var(--ls-sp-8);
+    color: var(--ls-text);
+}
+
+/* 关闭键回到 44px 触摸区（视觉仍是一个小叉，靠 padding 撑） */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--ls-hit);
+    min-height: var(--ls-hit);
+    margin: calc(var(--ls-sp-2) * -1) calc(var(--ls-sp-3) * -1);
+    padding: 0;
+    border-radius: var(--ls-r-sm);
+    color: var(--ls-text-3);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .lonsha-sheet-close:hover {
+    background: var(--ls-danger-soft);
+    color: var(--ls-danger);
+}
+
+/* ---------- 2. 分组标题：一条 3px 青瓷竖条代替发光的点 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-group-title {
+    gap: var(--ls-sp-2);
+    margin: var(--ls-sp-5) 0 var(--ls-sp-2);
+    color: var(--ls-text-2);
+    font-family: var(--ls-font);
+    font-size: var(--ls-fs-footnote);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-group-title::before {
+    width: 3px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--ls-accent);
+    box-shadow: none;
+}
+
+/* ---------- 3. 行式设置项：一行一件事，行与行之间只留一条墨线 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row {
+    min-height: 56px;
+    padding: var(--ls-sp-3) var(--ls-sp-2);
+    gap: var(--ls-sp-3);
+    border-bottom: 1px solid var(--ls-line-subtle);
+    border-radius: 0;
+    font-size: var(--ls-fs-subhead);
+    color: var(--ls-text);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row:hover {
+    background: var(--ls-accent-softer);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-hint {
+    font-size: var(--ls-fs-footnote);
+    line-height: 1.5;
+    color: var(--ls-text-3);
+    padding: 2px var(--ls-sp-1);
+}
+
+/* ---------- 4. 开关：把原生方框画成 44×26 的胶囊，状态靠拇指位置 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-pill);
+    background-color: var(--ls-bg-3);
+    appearance: none;
+    -webkit-appearance: none;
+    position: relative;
+    cursor: pointer;
+    transition: background-color var(--ls-t-fast) var(--ls-ease),
+                border-color var(--ls-t-fast) var(--ls-ease);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 50%;
+    background-color: var(--ls-bg-1);
+    box-shadow: var(--ls-sh-1);
+    transform: none;
+    transition: transform var(--ls-t-med) var(--ls-ease);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"]:checked {
+    background-color: var(--ls-accent);
+    border-color: var(--ls-accent-strong);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"]:checked::after {
+    left: 2px;
+    top: 2px;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    background-color: var(--ls-bg-1);
+    transform: translateX(18px);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"]:focus-visible {
+    outline: var(--ls-focus-outline);
+    outline-offset: 3px;
+}
+
+/* ---------- 5. 滑杆：一条 6px 墨轨 + 纸面拇指 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-slider {
+    height: 32px;
+    margin: var(--ls-sp-1) 0;
+    accent-color: var(--ls-accent);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: var(--ls-r-pill);
+    background: var(--ls-bg-4);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -7px;
+    border-radius: 50%;
+    border: 2px solid var(--ls-accent);
+    background: var(--ls-bg-1);
+    box-shadow: var(--ls-sh-1);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-slider-label {
+    font-size: var(--ls-fs-footnote);
+    color: var(--ls-text-2);
+    padding: var(--ls-sp-2) var(--ls-sp-1) 0;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-slider-val {
+    color: var(--ls-accent);
+    font-family: var(--ls-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 6. 输入：纸槽 + 墨线，聚焦只换描边 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-input,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-textarea {
+    min-height: 44px;
+    padding: var(--ls-sp-3) var(--ls-sp-3);
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-sm);
+    background: var(--ls-bg-1);
+    color: var(--ls-text);
+    font-size: var(--ls-fs-callout);
+    box-shadow: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-input::placeholder,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-textarea::placeholder {
+    color: var(--ls-text-4);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-input:focus,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-textarea:focus {
+    outline: none;
+    border-color: var(--ls-accent);
+    box-shadow: 0 0 0 3px var(--ls-accent-softer);
+}
+
+/* ---------- 7. 按钮：46px 一行一个，主按钮实心青瓷 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-btn {
+    min-height: 46px;
+    padding: var(--ls-sp-3) var(--ls-sp-4);
+    margin: var(--ls-sp-2) 0;
+    border-radius: var(--ls-r-sm);
+    font-size: var(--ls-fs-callout);
+    font-weight: 500;
+    letter-spacing: 0;
+    box-shadow: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-btn-primary {
+    font-weight: 600;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-btn:active {
+    transform: translateY(1px);
+    box-shadow: none;
+}
+
+/* ---------- 8. 条目：卡片退成「行 + 左缘强调」 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-item {
+    margin: var(--ls-sp-2) 0;
+    padding: var(--ls-sp-3) var(--ls-sp-4);
+    border: 1px solid var(--ls-line);
+    border-left: 3px solid var(--ls-accent-line);
+    border-radius: var(--ls-r-sm);
+    background: var(--ls-bg-1);
+    box-shadow: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-item.ls-clickable:hover {
+    border-left-color: var(--ls-accent);
+    background: var(--ls-accent-softer);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-item-meta {
+    font-size: var(--ls-fs-caption);
+    color: var(--ls-text-3);
+    font-family: var(--ls-mono);
+    letter-spacing: 0.02em;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-item-text {
+    font-size: var(--ls-fs-subhead);
+    line-height: 1.6;
+    color: var(--ls-text);
+}
+
+/* ---------- 9. 三格数字：等宽、等分、无渐变光带 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--ls-sp-2);
+    margin: var(--ls-sp-3) 0;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-card {
+    padding: var(--ls-sp-4) var(--ls-sp-1);
+    border: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-sm);
+    background: var(--ls-bg-1);
+    box-shadow: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-card::before {
+    content: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-card:hover {
+    transform: none;
+    border-color: var(--ls-accent-line);
+    box-shadow: var(--ls-sh-1);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-num {
+    font-size: var(--ls-fs-title2);
+    font-weight: 600;
+    color: var(--ls-text);
+    font-family: var(--ls-mono);
+    letter-spacing: -0.02em;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-stat-label {
+    margin-top: var(--ls-sp-1);
+    font-size: var(--ls-fs-caption);
+    color: var(--ls-text-3);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+/* ---------- 10. 页签：分段芯片（选中靠实心纸 + 描边，不靠发光） ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-tabs-nav {
+    gap: var(--ls-sp-1);
+    padding: var(--ls-sp-1);
+    margin-bottom: var(--ls-sp-4);
+    border: 1px solid var(--ls-line);
+    border-bottom: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-md);
+    background: var(--ls-bg-2);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-tab-btn {
+    padding: var(--ls-sp-2) var(--ls-sp-3);
+    border: 1px solid transparent;
+    border-radius: var(--ls-r-sm);
+    background: transparent;
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-footnote);
+    font-weight: 500;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-tab-btn:hover {
+    background: var(--ls-bg-3);
+    border-color: transparent;
+    color: var(--ls-text);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-tab-btn.active {
+    background: var(--ls-bg-1);
+    border-color: var(--ls-line-strong);
+    color: var(--ls-text);
+    font-weight: 600;
+    box-shadow: var(--ls-sh-1);
+}
+
+/* ---------- 11. 折叠：一条墨线 + 一个会转的箭头（BaiBai 的 Collapsible 口径） ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details {
+    border-top: 1px solid var(--ls-line-subtle);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--ls-sp-2);
+    min-height: var(--ls-hit);
+    padding: var(--ls-sp-2) var(--ls-sp-1);
+    cursor: pointer;
+    color: var(--ls-text-2);
+    font-size: var(--ls-fs-footnote);
+    list-style: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details > summary::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 0.8em;
+    height: 0.8em;
+    background: var(--ls-text-3);
+    -webkit-mask: var(--ls-chevron-mask) center / contain no-repeat;
+    mask: var(--ls-chevron-mask) center / contain no-repeat;
+    transition: transform var(--ls-t-med) var(--ls-ease);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details[open] > summary {
+    color: var(--ls-text);
+}
+
+/* ---------- 12. 底栏：纸面 + 墨线，无模糊 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-dirtybar {
+    padding: var(--ls-sp-2) var(--ls-sp-4) calc(var(--ls-sp-2) + env(safe-area-inset-bottom, 0px));
+    background: var(--ls-bg-2);
+    border-top: 1px solid var(--ls-line);
+    box-shadow: none;
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-dirty-count {
+    font-size: var(--ls-fs-footnote);
+    color: var(--ls-text-2);
+}
+
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-dirtybar[data-dirty="1"] .ls-dirty-count {
+    color: var(--ls-warn);
+    font-weight: 600;
+}
+
+/* ---------- 13. 提示条：纸面浅浮，不压住内容 ---------- */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-confirm-inline {
+    padding: var(--ls-sp-2) var(--ls-sp-4);
+    background: var(--ls-warn-soft);
+    border-top: 1px solid var(--ls-gold-line);
+    color: var(--ls-text);
+    font-size: var(--ls-fs-footnote);
+}
+
+/* ---------- 14. 面板外的两件常用控件：楼层徽章与 toast ---------- */
+.ls-mem-badge.ls-mem-badge {
+    min-height: 28px;
+    padding: var(--ls-sp-1) var(--ls-sp-3);
+    border: 1px solid var(--ls-line);
+    border-radius: var(--ls-r-pill);
+    background: var(--ls-bg-1);
+    color: var(--ls-text-3);
+    font-size: var(--ls-fs-caption);
+}
+
+.ls-mem-badge.ls-mem-badge:hover {
+    border-color: var(--ls-accent-line);
+    color: var(--ls-accent);
+    opacity: 1;
+}
+
+.ls-toast.ls-toast {
+    bottom: calc(var(--ls-sp-16) + env(safe-area-inset-bottom, 0px));
+    padding: var(--ls-sp-2) var(--ls-sp-5);
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-pill);
+    background: var(--ls-bg-1);
+    color: var(--ls-text);
+    font-size: var(--ls-fs-footnote);
+    font-weight: 500;
+    letter-spacing: 0;
+    box-shadow: var(--ls-sh-2);
+}
+
+/* ---------- 15. 降级：减少动效时不播位移 ---------- */
+@media (prefers-reduced-motion: reduce) {
+    .lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-row input[type="checkbox"]::after,
+    .lonsha-overlay.lonsha-overlay.lonsha-overlay .ls-player-details > summary::before {
+        transition: none;
+    }
+}
+
+/* ---------- 16. 原生表单控件兜底（真机实测漏网的最后一处） ----------
+   症状：剧情时间线里的下拉框、记忆审计「楼层范围」的 from / to 输入框，
+   其余面板已全纸白，只有这两个还是纯黑底 + 白字。
+   根因不是配色失败，是**没被选中**：它们是裸 <select> / 裸 <input>，
+   不带 .ls-input 类，于是走浏览器原生外观；宿主页面 color-scheme 是深色，
+   原生件就按深色画。前面 1–14 节全按类名上色，它们自然漏网。
+
+   处置：对旧外壳内所有**非开关类**表单控件兜底 —— 纸底、墨字、墨线，
+   连 <option> 一起（否则点开下拉，候选列表仍是黑的）。
+   checkbox / range / radio 排除：它们已被画成胶囊开关与墨轨滑杆。
+
+   为什么这里可以不用 !important（前一版误以为必须，已核对推翻）：
+     原猜测是「深色底有一部分由 JS 行内写死」，于是加了 5 条 !important。
+     核对 settings-ui.js 全文件：`setProperty(` 零处、`.style.background`
+     与 `.style.color` 零处；这两处控件的行内 style 只有 `width:70px`
+     和 `flex:1`。也就是说**没有任何行内声明需要抢**，!important 纯属多余，
+     白白让设计债棘轮 +9。改用四重根类名把特异性提到 (0,4,0)，
+     足以压过注入副本里的 `.ls-input`（0,1,0）与宿主主题的 `#chat input`（1,0,1 不含 !important 时失效）。
+   作用域限死在 .lonsha-overlay，v6 面板 .lmp 与宿主其它 UI 都不受影响。 */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay input:not([type="checkbox"]):not([type="range"]):not([type="radio"]),
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay select,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay textarea,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay option {
+    color-scheme: light;
+    background-color: var(--ls-bg-1);
+    background-image: none;
+    color: var(--ls-text);
+    -webkit-text-fill-color: var(--ls-text);
+    border: 1px solid var(--ls-line-strong);
+    border-radius: var(--ls-r-sm);
+    min-height: 44px;
+    padding: var(--ls-sp-3) var(--ls-sp-3);
+    font-size: var(--ls-fs-callout);
+    font-family: var(--ls-font);
+    opacity: 1;
+}
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay input:not([type="checkbox"]):not([type="range"]):not([type="radio"])::placeholder,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay textarea::placeholder {
+    color: var(--ls-text-4);
+    -webkit-text-fill-color: var(--ls-text-4);
+}
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay select:focus,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay input:not([type="checkbox"]):not([type="range"]):not([type="radio"]):focus,
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay textarea:focus {
+    outline: none;
+    border-color: var(--ls-accent);
+    box-shadow: 0 0 0 3px var(--ls-accent-softer);
+}
+
+/* ---------- 17. 两个「换完底还是不对劲」的残留 ----------
+   16 节把底/字/线都换掉了，但真机上仍看得出两处没真正变成纸：
+   a) 注入副本 settings-ui.js:110 的 .ls-input / .ls-textarea 带
+      `box-shadow: inset 0 1px 2px rgba(0,0,0,0.4)` —— 这是**深色内阴影**，
+      在纸白底上表现为顶部一条脏灰带，看起来就像"没变白"。
+      16 节只改了 background/color/border，没碰 box-shadow，所以它活下来了。
+      这里换成本层统一的浅墨内陷（color-mix 现场混，不写死颜色）。
+   b) 裸 <select> 不设 appearance:none 时，Android WebView 用**系统控件**
+      画右侧下拉箭头，颜色跟系统主题走（深色），纸底上就留一块深色小三角。
+      改成自绘：appearance:none + 墨色箭头背景图 + 右侧留出空间。
+      展开的候选列表属原生 popup，CSS 改不到；但本层祖先已声明
+      `color-scheme: light`，Chromium 的原生 popup 会跟着走浅色。
+      真正要完全自控下拉，得上柏宝书 BbsSelect 那种自绘（原生 select 上不了
+      伪元素），那是 60 行 JS 的事，等真要动再单开一轮。 */
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay input:not([type="checkbox"]):not([type="range"]):not([type="radio"]),
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay textarea {
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ls-text) 8%, transparent);
+}
+.lonsha-overlay.lonsha-overlay.lonsha-overlay.lonsha-overlay select {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 34px;
+    /* 箭头是 data URI，颜色只能写死成字面量 —— 取 --ls-text-3 (#8a806c)。
+       记一笔：本层因此 +1 colors，仍在基线 555 之内，棘轮不红。 */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 9.5 12 15.5 18 9.5' fill='none' stroke='%238a806c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 16px 16px;
+}
+
+/* ---------- 18. 面板打开时压掉立绘层（用户点了两次名的那只「宠物」） ----------
+   这不是本插件的元素。它是 SillyTavern / TT 的角色立绘层（#expression-wrapper），
+   z-index 高于本面板的 10002，所以会浮在纸面上。
+   用户原话「我实际上不想要这个，但是又找不到哪里删」—— 找不到是因为它不在
+   插件三件套里（三个入口文件 `<img` 计数均为 0、CSS 无位图引用），
+   删插件里的东西永远删不掉它。
+   处置：**只在面板打开期间**把它藏起来，关掉面板立刻恢复 —— 不动宿主配置、
+   不改用户设置、不误伤聊天时的立绘。用 :has() 做条件，无需任何 JS。
+   :has() 在 Chromium 105+ 可用；TT 的 WebView 远高于此。
+   若哪天用户想保留立绘从纸面上方飘过，删掉这一段即可，无其它牵连。 */
+body:has(.lonsha-overlay) #expression-wrapper {
+    visibility: hidden;
+}

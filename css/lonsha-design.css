@@ -1,63 +1,77 @@
 /* ============================================================
-   LonSha 记忆引擎 · 设计系统 Token（Design Tokens）v3.5
+   LonSha 记忆引擎 · 设计系统 Token（Design Tokens）v6
    单一事实源：全部 UI 颜色 / 阴影 / 圆角 / 间距 / 动效 / 深度质感
-   设计语言：黑曜石星轨·记忆精密档案室（Obsidian Chrono-Archive）
-   美学特征：冷黛钛灰底 + 极光冰蓝微光 + 历史刻印金石点睛 + 精密物理倒角
+   设计语言：纸墨手札 · 青瓷点朱（Paper & Ink, Celadon Accent）
+
+   [v6] 换皮：本文件此前是「黑曜石星轨·记忆精密档案室」——冷黛近黑底 +
+   冰蓝 #38bdf8 强调，整套 token 全是深色。真机上的后果是：
+   只要某个控件没被 v6 面板接管（二级子面板、旧弹层、楼层徽章…），
+   它读到的就是这套近黑，于是「主面板纸白、点进去又变蓝」。
+   这次把**真源**整份翻成纸墨：暖纸底 + 墨字 + 青瓷强调 + 金石点缀，
+   与 .lmp（css/memory-panel.css）现场混出来的 --p-* 同族。
+   改的是取值，**一个变量名都没动** —— 其余十几层 CSS 与 JS 里的
+   var(--ls-*) 一处都不用改；tests/audit/scan_undefined_css_tokens.mjs
+   的基线因此照旧成立。
+
+   取材：baibai-git/ST-BaiBai-Book 的 src/styles/theme.css——
+   同一套思路（明暗由 token 切换、组件零字面量、强调色配对比度达标的前景字），
+   但我们不引入它的 --bbs-* 前缀，也不引 oklch()：本仓要能在旧 WebView 上跑，
+   hex + rgba + color-mix 是安全子集。
    加载顺序：须在 style.css / visualizer.css / settings-ui 之前
    ============================================================ */
 
 :root {
-    /* ---- 核心主色：极光冰蓝（深邃、清冽、精密仪器感，告别廉价饱和蓝） ---- */
-    --ls-accent:        #38bdf8;
-    --ls-accent-strong: #0284c7;   /* 实心主按钮底 */
-    --ls-accent-hover:  #7dd3fc;
-    --ls-accent-soft:   rgba(56, 189, 248, 0.10);  /* 强调底 */
-    --ls-accent-softer: rgba(56, 189, 248, 0.05);
-    --ls-accent-line:   rgba(56, 189, 248, 0.28);  /* 强调微光描边 */
-    --ls-on-accent:     #04121e;
+    /* ---- 核心主色：青瓷（沉、冷、暖纸底上够深，白字压得住） ---- */
+    --ls-accent:        #2f6f63;
+    --ls-accent-strong: #245b52;   /* 实心主按钮底 */
+    --ls-accent-hover:  #3d8478;
+    --ls-accent-soft:   rgba(47, 111, 99, 0.10);   /* 强调底 */
+    --ls-accent-softer: rgba(47, 111, 99, 0.05);
+    --ls-accent-line:   rgba(47, 111, 99, 0.28);   /* 强调描边 */
+    --ls-on-accent:     #fbf7f0;
 
-    /* ---- 叙事专属辅色：历史刻印金（金石铭文、传承、重大检查点） ---- */
-    --ls-gold:          #fbbf24;
-    --ls-gold-soft:     rgba(251, 191, 36, 0.10);
-    --ls-gold-line:     rgba(251, 191, 36, 0.30);
-    --ls-gold-hover:    #fde68a;
+    /* ---- 叙事专属辅色：金石（传承、检查点、脏计数） ---- */
+    --ls-gold:          #a9762f;
+    --ls-gold-soft:     rgba(169, 118, 47, 0.10);
+    --ls-gold-line:     rgba(169, 118, 47, 0.28);
+    --ls-gold-hover:    #c08a3e;
 
-    /* ---- 中性阶梯（黑曜石冷黛色阶，赋予深邃景深） ---- */
-    --ls-bg-0:   #06080d;   /* 底层空间（画布底/极深暗室） */
-    --ls-bg-1:   #0a0f18;   /* 档案面板主背景（冷黛灰透隐幽微光） */
-    --ls-bg-2:   #111827;   /* 卡片/输入框/槽位底色 */
-    --ls-bg-3:   #1b2436;   /* 常态按键/悬浮块底色 */
-    --ls-bg-4:   #27334a;   /* 交互 hover/选中态 */
-    --ls-bg-glass: rgba(10, 15, 24, 0.88); /* 毛玻璃混配底 */
+    /* ---- 中性阶梯：纸（越往后越沉，用于分区而不是发光） ---- */
+    --ls-bg-0:   #f2ece0;   /* 画布底（比纸更沉一档，托住面板） */
+    --ls-bg-1:   #fbf7f0;   /* 面板主背景 = 纸 */
+    --ls-bg-2:   #f5efe4;   /* 卡片/输入框/槽位底 */
+    --ls-bg-3:   #ede5d7;   /* 常态按键/悬浮块底 */
+    --ls-bg-4:   #e2d8c6;   /* 交互 hover/选中态 */
+    --ls-bg-glass: rgba(251, 247, 240, 0.94);   /* 半透明纸（无模糊） */
 
-    /* ---- 描边与微物理结构（精密机械切割倒角） ---- */
-    --ls-line:        rgba(255, 255, 255, 0.07);
-    --ls-line-strong: rgba(255, 255, 255, 0.14);
-    --ls-line-subtle: rgba(255, 255, 255, 0.04);
-    --ls-inner-rim:   inset 0 1px 0 rgba(255, 255, 255, 0.10), inset 0 -1px 0 rgba(0, 0, 0, 0.40); /* 双向精密金属倒角 */
-    --ls-inner-glow:  inset 0 0 16px rgba(56, 189, 248, 0.04);
+    /* ---- 描边与微结构：墨线，不是白光 ---- */
+    --ls-line:        rgba(36, 31, 24, 0.12);
+    --ls-line-strong: rgba(36, 31, 24, 0.20);
+    --ls-line-subtle: rgba(36, 31, 24, 0.06);
+    --ls-inner-rim:   inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(36, 31, 24, 0.05);
+    --ls-inner-glow:  inset 0 0 0 rgba(0, 0, 0, 0);
 
-    /* ---- 排版与文字层次（微高对比度、清晰字阶） ---- */
-    --ls-text:    #f1f5f9;   /* 极浅钛白主字 */
-    --ls-text-2:  #94a3b8;   /* 亚光冷灰副字 */
-    --ls-text-3:  #64748b;   /* 刻度/注释暗字 */
-    --ls-text-4:  #475569;   /* 禁用/背景微痕 */
-    --ls-inverse: #06080d;   /* 亮底反差字 */
+    /* ---- 排版与文字层次：墨的四档 ---- */
+    --ls-text:    #241f18;   /* 主墨 */
+    --ls-text-2:  #5b5344;   /* 次墨 */
+    --ls-text-3:  #8a806c;   /* 注释墨 */
+    --ls-text-4:  #a99e88;   /* 占位/禁用 */
+    --ls-inverse: #fbf7f0;   /* 墨底上的字 */
 
-    /* ---- 语义状态色（冷峻克制、不刺目） ---- */
-    --ls-success:      #34d399;   /* 翡翠绿 */
-    --ls-success-soft: rgba(52, 211, 153, 0.10);
-    --ls-warn:         #fbbf24;   /* 琥珀金 */
-    --ls-warn-soft:    rgba(251, 191, 36, 0.10);
-    --ls-danger:       #f87171;   /* 胭脂朱红 */
-    --ls-danger-soft:  rgba(248, 113, 113, 0.12);
-    --ls-danger-line:  rgba(248, 113, 113, 0.30);
-    --ls-info:         #38bdf8;
-    --ls-info-soft:    rgba(56, 189, 248, 0.10);
+    /* ---- 语义状态色（纸墨体系里一律压暗，不用荧光） ---- */
+    --ls-success:      #2f7d4f;
+    --ls-success-soft: rgba(47, 125, 79, 0.12);
+    --ls-warn:         #a9762f;
+    --ls-warn-soft:    rgba(169, 118, 47, 0.12);
+    --ls-danger:       #b3402f;
+    --ls-danger-soft:  rgba(179, 64, 47, 0.10);
+    --ls-danger-line:  rgba(179, 64, 47, 0.26);
+    --ls-info:         #2f6f63;
+    --ls-info-soft:    rgba(47, 111, 99, 0.10);
 
-    /* ---- 精密微圆角（告别大片臃肿大圆角，采用紧凑坚毅的精密半径） ---- */
+    /* ---- 圆角：手札不用大圆角，用紧凑半径 ---- */
     --ls-r-xs: 4px;
-    --ls-r-sm: 6px;
+    --ls-r-sm: 8px;
     --ls-r-md: 10px;
     --ls-r-lg: 14px;
     --ls-r-xl: 18px;
@@ -106,37 +120,38 @@
     /* ---- 焦点 / 遮罩 / 命中区（[v3.476] 补登，原文件同样缺） ----
      * 逐个按调用点的**语法位置**反推取值，而不是猜：
      *   · outline: var(--ls-focus-outline) —— 需整条 outline 简写，故给 2px 实线 + 强调描边色；
-     *   · background: var(--ls-overlay)     —— 需一个颜色，取 bg-0 的 72% 不透明度（与 --ls-bg-glass 同族）；
+     *   · background: var(--ls-overlay)     —— 需一个颜色，取墨的 26%（纸面上一眼能看出「被压住」）；
      *   · min-height: var(--ls-hit)        —— 需一个长度，取 iOS 最小可达尺寸 44px（与 --ls-r-pill 同源规范）；
-     *   · 未给 --ls-on-accent-strong 之外的值：accent-strong 是 #0284c7 深蓝，其上的字必须取浅色，
-     *     故复用 --ls-text 的 #f1f5f9 —— 这一条属**设计判断**，已标待设计确认。 */
+     *   · --ls-on-accent-strong：青瓷深底上必须是纸色字。 */
     --ls-focus-outline: 2px solid var(--ls-accent-line);
-    --ls-overlay: rgba(6, 8, 13, 0.72);
+    --ls-overlay: rgba(36, 31, 24, 0.26);
     --ls-hit: 44px;
-    --ls-on-accent-strong: #f1f5f9;   /* TODO(design): 待设计确认；当前取 --ls-text 同值，保证深蓝底上可读 */
+    --ls-on-accent-strong: #fbf7f0;
 
-    /* ---- 多层景深光影系统（物理仪器暗室分层） ---- */
-    --ls-sh-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
-    --ls-sh-2: 0 4px 20px -2px rgba(0, 0, 0, 0.65), 0 12px 32px -4px rgba(2, 6, 23, 0.55);
-    --ls-sh-3: 0 20px 50px -10px rgba(0, 0, 0, 0.85), 0 10px 24px -5px rgba(0, 0, 0, 0.65);
-    --ls-sh-accent: 0 2px 14px rgba(56, 189, 248, 0.28);
-    --ls-sh-accent-lg: 0 6px 28px rgba(56, 189, 248, 0.38);
-    --ls-glow-gold: 0 2px 14px rgba(251, 191, 36, 0.25);
+    /* ---- 光影：纸面上只用极浅的墨影，不再有发光 ---- */
+    --ls-sh-1: 0 1px 2px rgba(36, 31, 24, 0.06), 0 4px 10px rgba(36, 31, 24, 0.05);
+    --ls-sh-2: 0 8px 24px -8px rgba(36, 31, 24, 0.16), 0 2px 6px rgba(36, 31, 24, 0.05);
+    --ls-sh-3: 0 24px 56px -26px rgba(36, 31, 24, 0.28), 0 6px 18px -8px rgba(36, 31, 24, 0.10);
+    --ls-sh-accent: 0 2px 10px rgba(47, 111, 99, 0.18);
+    --ls-sh-accent-lg: 0 6px 22px rgba(47, 111, 99, 0.24);
+    --ls-glow-gold: 0 2px 10px rgba(169, 118, 47, 0.16);
 
-    /* ---- 动态曲线：精密机械阻尼回弹，去除机械死板移动 ---- */
+    /* ---- 动态曲线 ---- */
     --ls-t-fast: 140ms;
     --ls-t-med:  220ms;
     --ls-t-slow: 360ms;
-    --ls-ease:   cubic-bezier(0.16, 1, 0.3, 1); /* Apple/Linear 风格丝滑阻尼 */
+    --ls-ease:   cubic-bezier(0.16, 1, 0.3, 1);
     --ls-ease-out: cubic-bezier(0, 0, 0.2, 1);
 
-    /* ---- 高阶字体混排序列（字偶紧凑、数字等宽微调） ---- */
+    /* ---- 字体混排序列（字偶紧凑、数字等宽微调） ---- */
     --ls-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
     --ls-mono: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
 
-    /* ---- 毛玻璃与环境光晕 ---- */
-    --ls-blur: saturate(160%) blur(20px);
-    --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08) 0%, transparent 75%);
+    /* ---- 无玻璃、无环境光 ----
+     * 纸墨体系里毛玻璃是错的语义：纸不会透。而 backdrop-filter 在设计债门禁里
+     * 单列一项（只降不升），把 --ls-blur 设成 none 比删几十处声明省事且更彻底。 */
+    --ls-blur: none;
+    --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.6) 0%, transparent 72%);
 }
 
 /* 降低动效保护：系统开启减少动效时彻底关停过渡，极佳的可访问性支持 */

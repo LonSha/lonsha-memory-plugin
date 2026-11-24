@@ -503,3 +503,210 @@ html.lmp-lock {
     letter-spacing: 0.04em;
     vertical-align: middle;
 }
+
+/* ============================================================
+   v6.1 · 二级子面板（旧 makeSheet 外壳）也换成同一套纸墨
+   ------------------------------------------------------------
+   症状：主面板已是纸白（.lmp），但点进「故事时间线 / 人物 /
+   约定与悬念 / 检查点」等二级页，仍旧是近黑底 + 冰蓝字。
+   这些页不是 .lmp 画的 —— 它们由 settings-ui.js 的 makeSheet 生成，
+   外壳固定是 `.lonsha-overlay > .lonsha-sheet`，配色读 `--ls-*`。
+
+   为什么不在 settings-ui.js 里就地改（它自己已经有一份纸墨副本）：
+   那份副本是**注入样式**，在真机上有两种让纸墨失效的路径 ——
+   ① TT 前端缓存让旧副本（近黑 + 冰蓝）继续跑，新副本根本没被请求；
+   ② 宿主主题在 :root 层改写同名变量。
+   两者都表现为「主面板对了、二级页还是蓝的」，且都发生在运行时，
+   源码改得再对也读不出来。所以修在**确定性会刷新的那一层**：
+   本文件由 css/style.css `@import`，与 .lmp 同一次部署。
+
+   为什么这样能赢：`.lonsha-overlay.lonsha-overlay` 是 (0,2,0)，
+   高于注入副本的单类名 (0,1,0)，**与谁先加载无关**。
+   为什么不用 !important：设计债棘轮对 !important 计数是只降不升的。
+
+   配色一律用 color-mix 现场混（与 .lmp 同配方），不新增任何字面量色值 ——
+   否则 check:design 的写死颜色计数会涨，这一刀就过不了门禁。
+   ============================================================ */
+.lonsha-overlay.lonsha-overlay,
+#lonsha-memory-fab#lonsha-memory-fab {
+    color-scheme: light;
+
+    /* 纸与墨：与 .lmp 逐字相同的配方，二级页不另起一套色 */
+    --p-paper: color-mix(in srgb, var(--lt-sys-white) 96%, var(--lt-sys-orange) 4%);
+    --p-ink: color-mix(in srgb, var(--lt-sys-black) 84%, var(--lt-sys-brown));
+    --p-ink-2: color-mix(in srgb, var(--p-ink) 76%, var(--p-paper));
+    --p-ink-3: color-mix(in srgb, var(--p-ink) 54%, var(--p-paper));
+    --p-line: color-mix(in srgb, var(--p-ink) 12%, var(--p-paper));
+    --p-line-2: color-mix(in srgb, var(--p-ink) 20%, var(--p-paper));
+    --p-wash: color-mix(in srgb, var(--p-ink) 5%, var(--p-paper));
+    --p-wash-2: color-mix(in srgb, var(--p-ink) 9%, var(--p-paper));
+    --p-accent: color-mix(in srgb, var(--lt-sys-teal) 42%, var(--p-ink));
+    --p-ok: color-mix(in srgb, var(--lt-sys-green) 52%, var(--p-ink));
+    --p-warn: color-mix(in srgb, var(--lt-sys-orange) 62%, var(--p-ink));
+    --p-danger: color-mix(in srgb, var(--lt-sys-red) 62%, var(--p-ink));
+
+    /* --ls-* 重映射：旧五层那几百条规则一条都不改，改的是它们读到的值 */
+    --ls-accent: var(--p-accent);
+    --ls-accent-strong: color-mix(in srgb, var(--p-accent) 88%, var(--p-ink));
+    --ls-accent-hover: color-mix(in srgb, var(--p-accent) 70%, var(--p-paper));
+    --ls-accent-soft: color-mix(in srgb, var(--p-accent) 12%, transparent);
+    --ls-accent-softer: color-mix(in srgb, var(--p-accent) 6%, transparent);
+    --ls-accent-line: color-mix(in srgb, var(--p-accent) 32%, transparent);
+    --ls-on-accent: var(--p-paper);
+    --ls-gold: var(--p-warn);
+    --ls-gold-soft: color-mix(in srgb, var(--p-warn) 12%, transparent);
+    --ls-gold-line: color-mix(in srgb, var(--p-warn) 30%, transparent);
+    --ls-gold-hover: color-mix(in srgb, var(--p-warn) 70%, var(--p-paper));
+    --ls-bg-0: color-mix(in srgb, var(--p-ink) 4%, var(--p-paper));
+    --ls-bg-1: var(--p-paper);
+    --ls-bg-2: var(--p-wash);
+    --ls-bg-3: var(--p-wash-2);
+    --ls-bg-4: color-mix(in srgb, var(--p-ink) 14%, var(--p-paper));
+    --ls-bg-glass: color-mix(in srgb, var(--p-paper) 94%, transparent);
+    --ls-line: var(--p-line);
+    --ls-line-strong: var(--p-line-2);
+    --ls-line-subtle: color-mix(in srgb, var(--p-ink) 6%, var(--p-paper));
+    --ls-inner-rim: inset 0 1px 0 color-mix(in srgb, var(--lt-sys-white) 82%, transparent);
+    --ls-inner-glow: inset 0 0 0 transparent;
+    --ls-text: var(--p-ink);
+    --ls-text-2: var(--p-ink-2);
+    --ls-text-3: var(--p-ink-3);
+    --ls-text-4: color-mix(in srgb, var(--p-ink) 34%, var(--p-paper));
+    --ls-inverse: var(--p-paper);
+    --ls-success: var(--p-ok);
+    --ls-success-soft: color-mix(in srgb, var(--p-ok) 12%, transparent);
+    --ls-warn: var(--p-warn);
+    --ls-warn-soft: color-mix(in srgb, var(--p-warn) 12%, transparent);
+    --ls-danger: var(--p-danger);
+    --ls-danger-soft: color-mix(in srgb, var(--p-danger) 10%, transparent);
+    --ls-danger-line: color-mix(in srgb, var(--p-danger) 26%, transparent);
+    --ls-info: var(--p-accent);
+    --ls-info-soft: color-mix(in srgb, var(--p-accent) 10%, transparent);
+    --ls-sh-1: 0 1px 2px color-mix(in srgb, var(--p-ink) 8%, transparent);
+    --ls-sh-2: 0 8px 24px -8px color-mix(in srgb, var(--p-ink) 18%, transparent);
+    --ls-sh-3: 0 24px 56px -26px color-mix(in srgb, var(--p-ink) 30%, transparent);
+    --ls-sh-accent: 0 2px 10px color-mix(in srgb, var(--p-accent) 20%, transparent);
+    --ls-sh-accent-lg: 0 6px 22px color-mix(in srgb, var(--p-accent) 26%, transparent);
+    --ls-glow-gold: 0 2px 10px color-mix(in srgb, var(--p-warn) 18%, transparent);
+    --ls-blur: none;
+    --ls-radial-glow: none;
+    --ls-overlay: color-mix(in srgb, var(--p-ink) 26%, transparent);
+    --ls-focus-outline: 2px solid var(--ls-accent-line);
+}
+
+/* 遮罩与纸张：底色/描边改读纸墨，压掉旧层的冰蓝泛光。
+   不加 backdrop-filter：本层的旧声明读的就是 --ls-blur，上面已把它设成 none；
+   而设计债门禁把 backdrop-filter 计入毛玻璃指标（只降不升），多写一行就过不了门禁。 */
+.lonsha-overlay.lonsha-overlay {
+    background: var(--ls-overlay);
+}
+
+.lonsha-overlay.lonsha-overlay .lonsha-sheet {
+    background-color: var(--p-paper);
+    background-image: none;
+    color: var(--p-ink);
+    border-color: var(--p-line-2);
+}
+
+.lonsha-overlay.lonsha-overlay .lonsha-sheet-header {
+    background: var(--p-wash);
+    color: var(--p-ink);
+    border-bottom-color: var(--p-line);
+}
+
+.lonsha-overlay.lonsha-overlay .lonsha-sheet-body {
+    color: var(--p-ink);
+}
+
+.lonsha-overlay.lonsha-overlay .ls-item,
+.lonsha-overlay.lonsha-overlay .ls-stat-card,
+.lonsha-overlay.lonsha-overlay .ls-health-card,
+.lonsha-overlay.lonsha-overlay .ls-input,
+.lonsha-overlay.lonsha-overlay .ls-textarea {
+    background-color: var(--p-wash);
+    border-color: var(--p-line);
+}
+
+.lonsha-overlay.lonsha-overlay .ls-item-text,
+.lonsha-overlay.lonsha-overlay .ls-stat-num,
+.lonsha-overlay.lonsha-overlay .ls-row,
+.lonsha-overlay.lonsha-overlay .ls-slider-label {
+    color: var(--p-ink);
+}
+
+.lonsha-overlay.lonsha-overlay .ls-item-meta,
+.lonsha-overlay.lonsha-overlay .ls-hint,
+.lonsha-overlay.lonsha-overlay .ls-stat-label {
+    color: var(--p-ink-3);
+}
+
+/* 旧层对页签选中态写死过冰蓝泛光（box-shadow 里的字面量），这里只换光、不换形 */
+.lonsha-overlay.lonsha-overlay .ls-tab-btn.active {
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--p-accent) 26%, transparent);
+}
+/* 主按钮的底色/字色由注入副本用 inline !important 钉死，本层不写 !important
+   （门禁只降不升），所以这里不覆盖它 —— 它读的 --ls-accent-strong 已被上面
+   重映射成青瓷，字色本来就是白，纸墨体系下依然可读。
+   故意留这段说明，免得下一个人以为「忘了处理主按钮」。 */
+
+/* ============================================================
+   v6.1 · 纸墨 token 的**缓存穿透副本**（:root 层）
+   ------------------------------------------------------------
+   单一事实源仍是 css/lonsha-design.css（v6 起整份是纸墨）。这里再抄一份到 :root，
+   理由只有一条，且是实测出来的：TT 前端按 URL 缓存 CSS，`./lonsha-design.css`
+   这个 URL 不带版本号，改内容不保证被重新请求；而本文件是
+   `@import url("memory-panel.css?v=6.1")` —— 带版本号的通道，改内容必被重取。
+   于是最坏情况是：design.css 还是旧的近黑，但本文件是新的，:root 上的声明
+   因「同特异性、后加载者胜」照样落到纸墨。
+
+   纪律：**这里的值与 lonsha-design.css 逐字相同，改名/改值必须两边一起改。**
+   本块只声明自定义属性（--x: …），设计债门禁里这类行不计颜色，也不会涨计数。
+   ============================================================ */
+:root {
+    --ls-accent:        #2f6f63;
+    --ls-accent-strong: #245b52;
+    --ls-accent-hover:  #3d8478;
+    --ls-accent-soft:   rgba(47, 111, 99, 0.10);
+    --ls-accent-softer: rgba(47, 111, 99, 0.05);
+    --ls-accent-line:   rgba(47, 111, 99, 0.28);
+    --ls-on-accent:     #fbf7f0;
+    --ls-gold:          #a9762f;
+    --ls-gold-soft:     rgba(169, 118, 47, 0.10);
+    --ls-gold-line:     rgba(169, 118, 47, 0.28);
+    --ls-gold-hover:    #c08a3e;
+    --ls-bg-0:   #f2ece0;
+    --ls-bg-1:   #fbf7f0;
+    --ls-bg-2:   #f5efe4;
+    --ls-bg-3:   #ede5d7;
+    --ls-bg-4:   #e2d8c6;
+    --ls-bg-glass: rgba(251, 247, 240, 0.94);
+    --ls-line:        rgba(36, 31, 24, 0.12);
+    --ls-line-strong: rgba(36, 31, 24, 0.20);
+    --ls-line-subtle: rgba(36, 31, 24, 0.06);
+    --ls-inner-rim:   inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(36, 31, 24, 0.05);
+    --ls-inner-glow:  inset 0 0 0 rgba(0, 0, 0, 0);
+    --ls-text:    #241f18;
+    --ls-text-2:  #5b5344;
+    --ls-text-3:  #8a806c;
+    --ls-text-4:  #a99e88;
+    --ls-inverse: #fbf7f0;
+    --ls-success:      #2f7d4f;
+    --ls-success-soft: rgba(47, 125, 79, 0.12);
+    --ls-warn:         #a9762f;
+    --ls-warn-soft:    rgba(169, 118, 47, 0.12);
+    --ls-danger:       #b3402f;
+    --ls-danger-soft:  rgba(179, 64, 47, 0.10);
+    --ls-danger-line:  rgba(179, 64, 47, 0.26);
+    --ls-info:         #2f6f63;
+    --ls-info-soft:    rgba(47, 111, 99, 0.10);
+    --ls-sh-1: 0 1px 2px rgba(36, 31, 24, 0.06), 0 4px 10px rgba(36, 31, 24, 0.05);
+    --ls-sh-2: 0 8px 24px -8px rgba(36, 31, 24, 0.16), 0 2px 6px rgba(36, 31, 24, 0.05);
+    --ls-sh-3: 0 24px 56px -26px rgba(36, 31, 24, 0.28), 0 6px 18px -8px rgba(36, 31, 24, 0.10);
+    --ls-sh-accent: 0 2px 10px rgba(47, 111, 99, 0.18);
+    --ls-sh-accent-lg: 0 6px 22px rgba(47, 111, 99, 0.24);
+    --ls-glow-gold: 0 2px 10px rgba(169, 118, 47, 0.16);
+    --ls-overlay: rgba(36, 31, 24, 0.26);
+    --ls-blur: none;
+    --ls-radial-glow: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.6) 0%, transparent 72%);
+}
+
