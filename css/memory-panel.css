@@ -1179,3 +1179,24 @@ html[data-lonsha-theme="dark"] .lonsha-overlay.lonsha-overlay {
 .lmp-comp[data-state="absent"] .lmp-comp-s {
     color: color-mix(in srgb, var(--p-ink-3) 78%, var(--p-paper));
 }
+/* ---------- ⑤ ready 里再分三档（tone）：只换徽标与状态点，不动 data-state ----------
+   state 回答「有没有数据」，tone 回答「数据本身好不好」。两件事混在一起，
+   三态语义就废了（「注意」不是第四种态，它是一份有数据但不好看的读数）。
+   --p-danger 只在部分主题块里声明，所以这里一律带 var(--p-warn) 兜底。 */
+.lmp-comp[data-state="ready"][data-tone="warn"] .lmp-comp-badge {
+    border-color: color-mix(in srgb, var(--p-warn) 52%, var(--p-line));
+    background: color-mix(in srgb, var(--p-warn) 14%, transparent);
+    color: color-mix(in srgb, var(--p-warn) 76%, var(--p-ink));
+}
+.lmp-comp[data-state="ready"][data-tone="warn"] .lmp-comp-mark {
+    background: var(--p-warn);
+}
+.lmp-comp[data-state="ready"][data-tone="crit"] .lmp-comp-badge {
+    border-color: color-mix(in srgb, var(--p-danger, var(--p-warn)) 58%, var(--p-line));
+    background: color-mix(in srgb, var(--p-danger, var(--p-warn)) 15%, transparent);
+    color: color-mix(in srgb, var(--p-danger, var(--p-warn)) 80%, var(--p-ink));
+    font-weight: 600;
+}
+.lmp-comp[data-state="ready"][data-tone="crit"] .lmp-comp-mark {
+    background: var(--p-danger, var(--p-warn));
+}

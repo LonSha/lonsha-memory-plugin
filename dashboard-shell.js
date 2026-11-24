@@ -1203,7 +1203,7 @@
                 if (!lastDiag) return { state: 'empty', badge: '还没跑', why: '这一版面板打开后还没跑过 —— 点一次就知道引擎现在怎么样。' };
                 if (lastDiag.fatal) return { state: 'empty', badge: '没跑起来', why: '体检本身抛了：' + lastDiag.fatal + '。这不是「一切正常」，是这次没测成。' };
                 const sev = diagSev();
-                return { state: 'ready', badge: sev ? sev[0] : '已跑' };
+                return { state: 'ready', badge: sev ? sev[0] : '已跑', tone: sev ? sev[1] : '' };
             },
             acts: (st) => (diagBusy ? [] : [['selfcheck', st === 'ready' ? '再跑一次' : '跑一次体检']]),
             body: () => '',
@@ -1238,7 +1238,7 @@
                 const sc = lastDiag.schema;
                 if (!p && !sc) return { state: 'absent', why: '这次体检既没带 pipeline 也没带 schema —— 这个版本的引擎没有这两项读数，判不了链路好坏。' };
                 const sev = diagSev();
-                return { state: 'ready', badge: sev ? sev[0] : '部分' };
+                return { state: 'ready', badge: sev ? sev[0] : '部分', tone: sev ? sev[1] : '' };
             },
             acts: () => [],
             body() {
@@ -1262,7 +1262,7 @@
                 if (lastDiag.fatal) return { state: 'empty', badge: '没测成', why: '这次体检抛了错。' };
                 const n = (lastDiag.errors || []).length;
                 if (!n) return { state: 'empty', badge: '0 条', why: '跑过了，引擎一条错都没记 —— 这是「没有」，不是「没查到」。' };
-                return { state: 'ready', badge: n + ' 条' };
+                return { state: 'ready', badge: n + ' 条', tone: 'warn' };
             },
             acts: () => [],
             body() {
@@ -1433,7 +1433,10 @@
         /* 判不了的时候不给按钮：给了也点不出东西，只会变成第二个「点了没反应」的按钮。 */
         const acts = state === 'absent' ? [] : (safe(() => c.acts(state), []) || []);
         const body = state === 'ready' ? safe(() => c.body(r), '') : '';
-        return `<section class="lmp-comp" data-comp="${esc(c.id)}" data-state="${state}">
+        /* tone 与 state 是两件事：state 答「有没有数据」，tone 答「数据本身好不好」。
+           把「注意 / 严重」塞进 state 会让三态语义失效，所以单开一个属性。 */
+        const tone = r.tone ? ` data-tone="${esc(r.tone)}"` : '';
+        return `<section class="lmp-comp" data-comp="${esc(c.id)}" data-state="${state}"${tone}>
             <div class="lmp-comp-hd">
                 <span class="lmp-comp-mark" aria-hidden="true"></span>
                 <span class="lmp-comp-t">${esc(c.title)}</span>
