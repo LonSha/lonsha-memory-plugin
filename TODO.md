@@ -104,6 +104,30 @@
 > · [拓展九项](.agents/notes/proposed/feature/2026-11-16-product-expansion-v22.md)。
 > 下方第二十一期记录（L21 十八项，已于 v3.465.2 全部交付）保留为历史。
 
+> **最近更新：v3.483.0**（**从第三方 `lena13144/lorecodex`（酒馆扩展，安装名 `st-tree-lore`，MIT、零依赖）借两处纪律缝进召回主链**。
+> 它自己的机制是 PageIndex 式的「卷→篇→幕」目录树 + 本地 IndexedDB 引擎 + `read_scene` 工具往返，**整棵不搬**（目录树与
+> 本仓 `scene-book` 打架；IndexedDB 会丢掉「随会话隔离」这个本仓地基）。只取两条与本仓形状相容的**纪律**：
+> ① **进度门（防剧透锁）**：lorecodex 在目录、grep、读取**三处统一设闸**，超前的章节根本不返回，而不是返回后靠提示词叮嘱「别看」。
+> 本仓修前三个召回文件里 `maxOrder` / `spoiler` 出现次数为 **0** —— 演员在第 120 楼，第 400 楼的摊牌原话照样会被注入，
+> 这是**方向性错误**（把未来当过去讲），不是「多注入一点」。新模块 `recall-progress-gate.js`（纯函数，八导出，四态
+> `ok/ahead/no_progress/not_seated`，**只拦 ahead**），接在 `engine-recall.js` 的 **symphony 之后、`_finalize` 之前**
+> （此处 `finalMerged` 已定型，LLM 精排只对 `slice(0, candN)` 重排并从同一批候补补齐长度，**不会把已剔除的条目加回来**，
+> 故剔一次即终局）。判不了就放行：无 `floor` 的通用设定、进度取不到的轮次一律不拦 —— 拦错比不拦贵得多。
+> ② **注入可追（来源台账）**：lorecodex 能要求「未读原文不注入」是因为它自己有检索模型与 `read_scene` 往返作凭证；
+> 本仓召回是纯本地算分，**没有「读取」这个动作可作凭证**，硬造「读过」状态等于自己骗自己。故只做**等价可达的一半**：
+> 不要求「读过」，但要求「**指得出**」（有 floor 或稳定 id）。新模块 `recall-provenance-ledger.js`（三态
+> `traceable/untraceable/empty`），默认**只记账不过滤**（用户记忆不因缺个字段就消失），严格模式要 `recallProvenanceStrict === true`
+> 显式开。措辞纪律：只说「指不出来源」，**不判真伪** —— 说人家「编造」是超出证据的指控。
+> **两个最易犯的错，都有判据守着**：`0` 是**合法进度**（写成 `if (!p)` 会把「还没开始」当成「判不了」，开局首轮完全不设闸）；
+> `-1` **不是合法楼层**（`index.js` 构造期初值 `this._currentFloor = -1` 表示「还没进楼层」，三档取数都要 `>= 0` 才采纳）。
+> **判据**：`tests/v3483_recall_progress_and_provenance.test.mjs` 九段式 **127 条**，含「0 是合法进度」「三态不混同」
+> 「判不了就放行」「畸形输入不抛」「关掉开关后超前条目必须回来」；**5 组负控制全部真变红**（改 `isAllowed` 恒真 → 1f 红；
+> `normalizeProgress` 写成 `if (p)` → 2a 红；拆掉 `splice` → 7b 红；`untraceable` 改判 `traceable` → 3d 红；空文本不再单列 → 3e 红）。
+> **两条「不做」写清理由**：别名下沉**不做**（实测 `index.js:6530` 的 `buildQuery()` 早就在 `buildAliasMap()`，本仓已有）；
+> 「检索前判定要不要查」**不做**（lorecodex 的 README 自承每轮检索要调一次模型、增加延迟与花费，本仓定位不接受这个代价）。
+> **诚实边界**：本版**没有真机点过**，只在 Node 里跑纯函数判据 + 端到端冒烟（7 条数据：3 条过去/本楼 + 2 条未来 30/99 楼 +
+> 2 条无楼层 ⇒ 注入 5 条、拦 2 条、`notSeated=2`、台账 `traceable 4 / untraceable 1 / empty 0`）；全量实跑**尚未全绿**，读数见下段。）
+>
 > **最近更新：v3.482.0**（**呈现层 stage-2：LoreCodex 工作台接上本仓数据面**。副本 stage-1 早已进来（`ui/vendor/lorecodex/**` 10 文件 5,815 行、md5 漂移闸守着），但壳里读的是上游的 REST 契约
 > 这个说明符整份重定向到 `ui/mem-workbench-api.js`（660 行 / **21 个同名同形只读适配器**），**上游 JS 字节一行未改**；
 > 唯一被改的 `index.html` 登记进 `UPSTREAM.json` 的 `forks[]`（fork 后 md5 + 上游原 md5 + 注入位置 + 升级重贴法）。

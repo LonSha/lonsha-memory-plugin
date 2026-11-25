@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-23T19:55:04.121Z",
-  "extra_js_count": 455,
-  "host_injected_count": 252,
-  "total_modules": 456,
+  "generated_at": "2026-11-25T17:22:00.475Z",
+  "extra_js_count": 457,
+  "host_injected_count": 254,
+  "total_modules": 458,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 456,
+  "active_count": 458,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -1832,7 +1832,8 @@
     "dashboard-shell.js": {
       "module": "dashboard-shell.js",
       "surface": [
-        "LonShaDashboardShell"
+        "LonShaDashboardShell",
+        "LonShaPanel"
       ],
       "prod_call_sites": 8,
       "business_call_sites": 8,
@@ -4530,15 +4531,15 @@
         "LonShaMemory",
         "lonsha_memory_bridge_v1"
       ],
-      "prod_call_sites": 73,
-      "business_call_sites": 73,
+      "prod_call_sites": 85,
+      "business_call_sites": 85,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "dashboard-shell.js",
-          "count": 4,
+          "count": 16,
           "type": "exclusive_global"
         },
         {
@@ -5301,15 +5302,15 @@
       "surface": [
         "LonShaIcons"
       ],
-      "prod_call_sites": 7,
-      "business_call_sites": 7,
+      "prod_call_sites": 10,
+      "business_call_sites": 10,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "dashboard-shell.js",
-          "count": 4,
+          "count": 7,
           "type": "exclusive_global"
         },
         {
@@ -8390,6 +8391,54 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "recall-progress-gate.js": {
+      "module": "recall-progress-gate.js",
+      "surface": [
+        "recall-progress-gate"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "recall-provenance-ledger.js": {
+      "module": "recall-provenance-ledger.js",
+      "surface": [
+        "recall-provenance-ledger"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
     },
     "recall-quality-bench.js": {
       "module": "recall-quality-bench.js",

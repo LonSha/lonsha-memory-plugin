@@ -46,7 +46,11 @@ test('实验室每个配置键恰好出现一次', () => {
   const nums = [...lab.matchAll(/data-cfg-num="([^"]+)"/g)].map(m => m[1]);
   const texts = [...lab.matchAll(/data-cfg-text="([^"]+)"/g)].map(m => m[1]);
   const keys = [...checks, ...nums, ...texts];
-  assert.equal(keys.length, 101, '实验室控件总数变化：' + keys.length + '（预期 60 开关 + 31 数值 + 10 文本）');
+  /* [v3.483.0 重绑 101→104] 本版在第四个分组（角色、系统与底层开关）新增三个真开关
+   *   recallProgressGate / recallProvenanceLedger / recallProvenanceStrict（缝合 lorecodex 的
+   *   「超前不返回」与「注入可追」两处纪律）。三键均被 engine-recall.js 真读、且各自在
+   *   settings-ui 有唯一控件 —— 唯一性断言（下一行）仍逐键守住「不许重复覆盖」。 */
+  assert.equal(keys.length, 104, '实验室控件总数变化：' + keys.length + '（预期 63 开关 + 31 数值 + 10 文本）');
   assert.equal(new Set(keys).size, keys.length, '实验室存在重复配置键：' + keys.filter((k, i) => keys.indexOf(k) !== i).join(','));
 });
 

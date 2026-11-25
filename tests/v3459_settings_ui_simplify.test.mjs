@@ -70,7 +70,12 @@ test('学术参数默认折叠、开箱即用文案在场、控件契约零丢�
     assert.ok(advPane.length > 0, '高级 pane 必须在场');
     assert.ok(/实验室/.test(advPane), '学术参数必须归入实验室（措辞可变，实验室语义必须在）');
     assert.ok(/<details/.test(advPane), '学术参数必须默认折叠（advanced pane 内必须有 details 折叠区）');
-    assert.equal((body.match(/\bck\('/g) || []).length, 131, '复选框控件数不得变化');
+    /* [v3.483.0 重绑 131→134] 本版把 lorecodex 的两处纪律缝进召回主链，随之在「角色、系统与底层开关」
+     *   组新增三个真开关：recallProgressGate / recallProvenanceLedger / recallProvenanceStrict。
+     *   这三个键不是装饰 —— 每一个都被 engine-recall.js 真读（v3161 的[1]「每个声明键都必须可设置」
+     *   要求它们有控件或白名单位，否则翻红）。故钉数随真功能面重绑，非放宽：
+     *   断言仍钉死总数，未来任何无对应判据的增删仍会当场翻红。 */
+    assert.equal((body.match(/\bck\('/g) || []).length, 134, '复选框控件数不得变化');
     /* [v3.467.0 重绑 82→83] 新增 gameplayPreset 的 data-cfg-text 控件（可达性补全，
  *   v3160/v3161/v34355 三红同源修复的 UI 落点）。钉数随真功能面重绑，非放宽：
  *   断言仍钉死总数，未来任何无对应判据的增删仍会当场翻红。 */

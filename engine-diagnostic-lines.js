@@ -223,8 +223,61 @@
             _symbolicEvolutionLib: _symbolicEvolutionLib,
             _testimonyBoardLib: _testimonyBoardLib,
             _worldlineMemoryLib: _worldlineMemoryLib,
+            /* [v3.483.0] 两条新诊断行（装配面自有，不在分片里；台账 core_functions 已登记）。 */
+            _recallProgressGateLine: _recallProgressGateLine,
+            _recallProvenanceLedgerLine: _recallProvenanceLedgerLine,
             errLog: errLog
         };
+    }
+    /* [v3.483.0 · 缝合 lorecodex] 两条新诊断行住在装配面，不放分片。
+     *   为什么：分片受 `tests/audit/diag_split_verbatim.json` 的**逐字节 sha256**约束
+     *   （那张表记的是「拆前 5915 行里每个函数体」的原样，用来证明拆分只搬家不改写）。
+     *   把 v3.483.0 新写的函数塞进分片，就等于让它出现在「拆前就有」的名录里 ——
+     *   台账从「拆前证据」变成「随便什么都能往里塞」，那张表就不再证明任何事了。
+     *   故它们落在装配面，并在同一张台账的 core_functions（**装配面函数名录**）里
+     *   如实登记：判据按「聚合面函数名 − 拆前搬运 = 装配面函数名」做封闭集检查，
+     *   登记了才算数，未登记就往分片里塞会被 C1/C2 当场点名。
+     *
+     *   口径：「未跑」「跑了但一条没拦」「拦了 N 条」三态不同形 —— 前两者读数都是 0，
+     *   混同就分不清「机制没接上」与「这轮本来就没有超前条目」（本仓 R2-A 治的同族）。 */
+    function _recallProgressGateLine(engine) {
+        try {
+            var st = engine ? engine._lastRecallProgressGate : null;
+            if (!st) return '【召回进度门】未激活（本轮无召回）';
+            if (st.active === false) return '【召回进度门】已跳过（原因：' + (st.reason || '未启用') + '）';
+            var p = (st.progress === null || st.progress === undefined) ? '判不了' : ('第' + st.progress + '楼');
+            var base = '【召回进度门】进度' + p + ' · 检查' + (st.checked || 0) + '条';
+            if (!st.dropped) return base + ' · 无超前条目（本轮未拦）';
+            var floors = (st.droppedItems || []).map(function (d) { return d.floor; })
+                .filter(function (f) { return f !== null && f !== undefined; });
+            return base + ' · **拦下超前' + st.dropped + '条**（' + floors.slice(0, 6).join('、') + '楼）· 通用设定放行'
+                + (st.notSeated || 0) + '条';
+        } catch (e) {
+            errLog(e, 'engine._recallProgressGateLine');
+            return '—（召回进度门诊断异常）';
+        }
+    }
+    /* 措辞纪律：只说「指不出来源」，**不判真伪** —— 本仓的召回是纯本地算分，
+     *   没有「读取原文」这个动作可作凭证（那是 lorecodex 有的东西，本仓没有）。
+     *   说人家「编造」是超出证据的指控，故措辞只到「指不出来源」为止。 */
+    function _recallProvenanceLedgerLine(engine) {
+        try {
+            var st = engine ? engine._lastRecallProvenanceLedger : null;
+            if (!st) return '【召回来源台账】未激活（本轮无召回）';
+            if (st.active === false) return '【召回来源台账】已跳过（原因：' + (st.reason || '未启用') + '）';
+            var c = st.counts || {};
+            var parts = ['【召回来源台账】注入' + (c.checked || 0) + '条 · 可追' + (c.traceable || 0) + '条'];
+            var bad = (c.untraceable || 0);
+            var empty = (c.empty || 0);
+            if (bad) parts.push('**指不出来源' + bad + '条**');
+            if (empty) parts.push('空条目' + empty + '条');
+            if (st.strictDropped) parts.push('严格模式拦下' + st.strictDropped + '条');
+            if (!bad && !empty) parts.push('全部可追');
+            return parts.join(' · ');
+        } catch (e) {
+            errLog(e, 'engine._recallProvenanceLedgerLine');
+            return '—（召回来源台账诊断异常）';
+        }
     }
     function _installParts() {
         var parts = _collectParts();
@@ -239,6 +292,11 @@
     }
 
     var _coreApi = { bindDeps: bindDeps };
+    /* [v3.483.0] 两条新诊断行挂在 `_coreApi`（装配面自有实现）：index.js 的诊断行委托桩
+     *   走 `M._recallProgressGateLine(this, ...)`，所以它们必须出现在冻结后的 api 上。
+     *   放进 `_coreApi` 而不是 `_partApi`，是因为它们不属于任何分片（见上方长注释）。 */
+    _coreApi._recallProgressGateLine = _recallProgressGateLine;
+    _coreApi._recallProvenanceLedgerLine = _recallProvenanceLedgerLine;
     _coreApi.RULE_TIERS = RULE_TIERS;
     _coreApi.RULE_STATUSES = RULE_STATUSES;
     _coreApi.EVIDENCE_IMPACT_VERDICTS = EVIDENCE_IMPACT_VERDICTS;

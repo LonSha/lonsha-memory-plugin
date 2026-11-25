@@ -74,6 +74,8 @@ public-interface.js	yes	yes	none	host-seam
 ledger-replay.js	yes	yes	none	host-seam
 scene-book.js	yes	yes	material-pack.js	host-seam
 summary-provenance.js	yes	yes	none	host-seam
+recall-progress-gate.js	yes	yes	none	host-seam
+recall-provenance-ledger.js	yes	yes	none	host-seam
 branch-guard.js	yes	yes	none	host-seam
 crosslink.js	yes	yes	none	host-seam
 node-rollup.js	yes	yes	engine-diagnostic-lines-part-a.js	host-seam

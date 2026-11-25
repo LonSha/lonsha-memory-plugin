@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.482.0';
+    const VERSION = '3.483.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2223,6 +2223,10 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _resonanceLib: _resonanceLib,
                         _memorySymphonyLib: _memorySymphonyLib,
                         _antiConfusionLib: _antiConfusionLib,
+                        /* [v3.483.0 · 缝合 lorecodex] 召回进度门 + 来源台账两个库口。
+                         *   注入式传参（与本文件其余 libs 同款），Node 单测走 require 回退。 */
+                        _recallProgressGateLib: _recallProgressGateLib,
+                        _recallProvenanceLedgerLib: _recallProvenanceLedgerLib,
                         _psychologicalDefenseLib: _psychologicalDefenseLib,
                         _hypergraphCausalHubLib: _hypergraphCausalHubLib,
                         _memoryHealingImmunityLib: _memoryHealingImmunityLib,
@@ -3162,6 +3166,11 @@ function relativeTimeLabel(eventTime, nowTime) {
         _autobiographicalRestatementLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._autobiographicalRestatementLine(this, ...args) : ''; }
         _resonanceConsolidationLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._resonanceConsolidationLine(this, ...args) : ''; }
         _cognitiveHorizonLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._cognitiveHorizonLine(this, ...args) : ''; }
+        /* [v3.483.0 · 缝合 lorecodex] 两条新诊断行的宿主委托桩：面板按 `s._xxxLine()` 调，
+         *   与上面同族（`s` 是 engine 实例）。实现在 engine-diagnostic-lines.js 装配面 —
+         *   不放分片是因为分片受「拆前逐字节」台账约束（见该文件同处注释）。 */
+        _recallProgressGateLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._recallProgressGateLine(this, ...args) : ''; }
+        _recallProvenanceLedgerLine(...args) { const M = _moduleLib(() => window.LonShaDiagnosticLines, 'engine-diagnostic-lines.js'); return M ? M._recallProvenanceLedgerLine(this, ...args) : ''; }
         async onMessageReceived(message, messageId = null) {
             // [v3.10] 生成结束（新回复落层=本轮生成闭环），复位生成标志
             this._generationActive = false;
@@ -10288,6 +10297,14 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   现在把「来源」本身变成可查的字段，六态判定把「旧档」与「真失效」分开。
     function _summaryProvenanceLib() {
         return _moduleLib(() => window.LonShaSummaryProvenance, 'summary-provenance.js');
+    }
+    // [v3.483.0 · 缝合 lorecodex maxOrder] 召回进度门库口 → recall-progress-gate.js
+    function _recallProgressGateLib() {
+        return _moduleLib(() => window.LonShaRecallProgressGate, 'recall-progress-gate.js');
+    }
+    // [v3.483.0 · 缝合 lorecodex readScenes] 来源台账库口 → recall-provenance-ledger.js
+    function _recallProvenanceLedgerLib() {
+        return _moduleLib(() => window.LonShaRecallProvenanceLedger, 'recall-provenance-ledger.js');
     }
     // [v3.445.0 · L14-O8] 跨楼来源定位与改绑内核。
     function _evidenceSourceLocatorLib() {

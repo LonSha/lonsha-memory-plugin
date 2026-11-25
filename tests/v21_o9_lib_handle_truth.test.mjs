@@ -222,9 +222,9 @@ test('B2 非 _moduleLib 形态必须与四档缺口分开报（取库原语不�
         '真仓应无「形态不是 _moduleLib」的取库口；若有，本档单列而不混入四档缺口');
 });
 
-test('B3 真仓读数与实测一致：171 声明 / 0 同名 / 0 缺文件 / 0 挂载名不符', () => {
-    assert.equal(REAL.total, 171, '取库口声明总数应为 171，实际 ' + REAL.total);
-    assert.equal(REAL.uniqueNames, 171);
+test('B3 真仓读数与实测一致：173 声明 / 0 同名 / 0 缺文件 / 0 挂载名不符', () => {
+    assert.equal(REAL.total, 173, '取库口声明总数应为 173，实际 ' + REAL.total);
+    assert.equal(REAL.uniqueNames, 173);
     assert.equal(REAL.duplicate.length, 0);
     assert.equal(REAL.missingFile.length, 0);
     assert.equal(REAL.globalNotMounted.length, 0);

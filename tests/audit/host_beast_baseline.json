@@ -1,7 +1,7 @@
 {
   "file": "index.js（+ 宿主面外提模块，合并面）",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
-  "measured_at": "v3.482.0",
+  "measured_at": "v3.483.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3602,6 +3602,44 @@
         "本版只量不拆：未拆任何宿主巨兽成员"
       ],
       "not_done": "本版交付 LoreCodex 工作台 stage-2（21 个导出的数据面适配器 + importmap 接线 + 14 条判据 + 主页入口）；未拆宿主巨兽成员，MemoryEngine 与 LonShaMemoryPlugin 仍在入口；全量实跑未全绿（27 条既有红，逐条在干净快照上确认 HEAD 就有），故 doc_readings 仍停 v3.475.0、未重绑 —— 不把陈旧写成已验"
+    },
+    "v3.483.0": {
+      "reason": "[v3.483.0] 缝合第三方（lorecodex / st-tree-lore）两处纪律：①召回进度门（超出当前楼层的「未来」条目本轮不注入，判不了进度就放行）；②召回来源台账（逐条标 traceable / untraceable / empty，默认只记账不过滤）。宿主只增两个库口（17 行，含 bindDeps 两个注入项），无业务方法内联。",
+      "readings": {
+        "total_lines": 13243,
+        "surface_lines": 37751,
+        "member_count": 1380,
+        "duplicate_member_names": 214,
+        "top5_lines": 9489,
+        "top5_pct": 25.1,
+        "top40_lines": 19970,
+        "top40_pct": 52.9,
+        "prefix_rule_coverage_lines": 5221,
+        "prefix_rule_coverage_pct": 13.8,
+        "unclassified_lines": 31387,
+        "seam_distinct_modules": 225,
+        "seam_reference_sites": 583,
+        "seam_call_shape_sites": 771,
+        "members_over_80_lines": 53,
+        "low_coupling_members": 17,
+        "high_coupling_members": 19,
+        "entry_lines": 13243
+      },
+      "unchanged": [
+        "既有召回路径零行为变更：两个新机制默认只新增「剔除超前条目」与「记一笔台账」两步，其余 15 个来源数组、排序、注入格式一字未改",
+        "未新增任何存储键、未改动 extensionSettings / chatMetadata 结构（新模块是纯函数，不持状态）",
+        "本版只量不拆：未拆任何宿主巨兽成员"
+      ],
+      "not_done": "本版交付两个纯函数模块 + 召回主链接线 + 三个配置开关 + 面板两条读数行 + 127 条判据；未拆宿主巨兽成员；lorecodex 的「卷→篇→幕目录树」与 IndexedDB 引擎按评估不搬（与 scene-book 打架 / 会丢随会话隔离）；其「检索前判定要不要查」也不做（需每轮多调一次模型，本仓定位不接受这个代价）；全量实跑尚余既有红未清",
+      "delta_from": "v3.482.0",
+      "delta": {
+        "total_lines": 17,
+        "surface_lines": 211,
+        "member_count": 6,
+        "top40_lines": 129,
+        "top5_pct": -0.2,
+        "top40_pct": 0
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3615,52 +3653,52 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13226,
-    "surface_lines": 37540,
-    "member_count": 1374,
-    "duplicate_member_names": 212,
-    "top5_lines": 9482,
-    "top5_pct": 25.3,
-    "top40_lines": 19841,
+    "total_lines": 13243,
+    "surface_lines": 37751,
+    "member_count": 1380,
+    "duplicate_member_names": 214,
+    "top5_lines": 9489,
+    "top5_pct": 25.1,
+    "top40_lines": 19970,
     "top40_pct": 52.9,
-    "prefix_rule_coverage_lines": 5046,
-    "prefix_rule_coverage_pct": 13.4,
-    "unclassified_lines": 31353,
-    "seam_distinct_modules": 223,
-    "seam_reference_sites": 579,
-    "seam_call_shape_sites": 765,
+    "prefix_rule_coverage_lines": 5221,
+    "prefix_rule_coverage_pct": 13.8,
+    "unclassified_lines": 31387,
+    "seam_distinct_modules": 225,
+    "seam_reference_sites": 583,
+    "seam_call_shape_sites": 771,
     "members_over_80_lines": 53,
-    "low_coupling_members": 18,
+    "low_coupling_members": 17,
     "high_coupling_members": 19,
-    "entry_lines": 13226
+    "entry_lines": 13243
   },
   "domains": [
     {
       "domain": "（未归类）",
       "members": 1294,
-      "lines": 31353,
-      "lines_pct": 83.5,
-      "outside_refs": 31990,
-      "internal_refs": 11015,
-      "outside_ref_share_pct": 74.4
+      "lines": 31387,
+      "lines_pct": 83.1,
+      "outside_refs": 32265,
+      "internal_refs": 11049,
+      "outside_ref_share_pct": 74.5
     },
     {
       "domain": "诊断与导出",
       "members": 22,
       "lines": 2068,
       "lines_pct": 5.5,
-      "outside_refs": 3624,
+      "outside_refs": 3743,
       "internal_refs": 6,
       "outside_ref_share_pct": 99.8
     },
     {
       "domain": "召回与注入",
-      "members": 25,
-      "lines": 1615,
-      "lines_pct": 4.3,
-      "outside_refs": 152,
-      "internal_refs": 87,
-      "outside_ref_share_pct": 63.6
+      "members": 31,
+      "lines": 1790,
+      "lines_pct": 4.7,
+      "outside_refs": 189,
+      "internal_refs": 95,
+      "outside_ref_share_pct": 66.5
     },
     {
       "domain": "宿主事件接线",
@@ -3694,9 +3732,9 @@
       "members": 9,
       "lines": 55,
       "lines_pct": 0.1,
-      "outside_refs": 214,
+      "outside_refs": 218,
       "internal_refs": 10,
-      "outside_ref_share_pct": 95.5
+      "outside_ref_share_pct": 95.6
     },
     {
       "domain": "事件链/完整性",
@@ -3721,7 +3759,7 @@
       "members": 3,
       "lines": 12,
       "lines_pct": 0,
-      "outside_refs": 47,
+      "outside_refs": 50,
       "internal_refs": 0,
       "outside_ref_share_pct": 100
     },
@@ -3751,7 +3789,7 @@
     {
       "name": "install",
       "file": "engine-execution-pipeline.js",
-      "lines": 1967,
+      "lines": 1974,
       "outside_refs": 14
     },
     {
@@ -3764,7 +3802,7 @@
       "name": "selfCheck",
       "file": "index-helpers.js",
       "lines": 1577,
-      "outside_refs": 370
+      "outside_refs": 377
     },
     {
       "name": "applyExtractedPayload",
@@ -3775,8 +3813,8 @@
     {
       "name": "recallMemory",
       "file": "engine-self-check.js",
-      "lines": 1036,
-      "outside_refs": 37
+      "lines": 1154,
+      "outside_refs": 41
     },
     {
       "name": "restoreFromPayload",
@@ -3804,14 +3842,14 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 526,
+      "lines": 530,
       "outside_refs": 0
     },
     {
       "name": "exportMemoryReport",
       "file": "memory-core.js",
       "lines": 396,
-      "outside_refs": 15
+      "outside_refs": 18
     },
     {
       "name": "registerEvents",
@@ -3823,7 +3861,7 @@
       "name": "collectExport",
       "file": "engine-repair-ops.js",
       "lines": 307,
-      "outside_refs": 54
+      "outside_refs": 57
     },
     {
       "name": "onMessageReceived",
@@ -3954,7 +3992,7 @@
       "name": "backfillFloors",
       "file": "index.js",
       "lines": 111,
-      "outside_refs": 1
+      "outside_refs": 5
     },
     {
       "name": "maybeFold",
@@ -3976,7 +4014,7 @@
   "split_candidates": {
     "threshold_lines": 80,
     "total_over_threshold": 53,
-    "low_coupling_non_lifecycle": 18,
+    "low_coupling_non_lifecycle": 17,
     "high_coupling_non_lifecycle": 19,
     "low_coupling_examples": [
       {
@@ -3989,7 +4027,7 @@
       {
         "name": "_assembleComponents",
         "file": "index.js",
-        "lines": 526,
+        "lines": 530,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -4050,17 +4088,17 @@
         "is_host_lifecycle": false
       },
       {
-        "name": "backfillFloors",
-        "file": "index.js",
-        "lines": 111,
-        "outside_refs": 1,
-        "is_host_lifecycle": false
-      },
-      {
         "name": "storyCanonAdoptConfirm",
         "file": "index.js",
         "lines": 106,
         "outside_refs": 0,
+        "is_host_lifecycle": false
+      },
+      {
+        "name": "typedFactsBlocks",
+        "file": "index.js",
+        "lines": 104,
+        "outside_refs": 2,
         "is_host_lifecycle": false
       }
     ],
@@ -4082,7 +4120,7 @@
       {
         "name": "install",
         "file": "engine-execution-pipeline.js",
-        "lines": 1967,
+        "lines": 1974,
         "outside_refs": 14,
         "is_host_lifecycle": false
       },
@@ -4097,14 +4135,14 @@
         "name": "selfCheck",
         "file": "index-helpers.js",
         "lines": 1577,
-        "outside_refs": 370,
+        "outside_refs": 377,
         "is_host_lifecycle": false
       },
       {
         "name": "recallMemory",
         "file": "engine-self-check.js",
-        "lines": 1036,
-        "outside_refs": 37,
+        "lines": 1154,
+        "outside_refs": 41,
         "is_host_lifecycle": false
       },
       {
@@ -4124,14 +4162,14 @@
         "name": "exportMemoryReport",
         "file": "memory-core.js",
         "lines": 396,
-        "outside_refs": 15,
+        "outside_refs": 18,
         "is_host_lifecycle": false
       },
       {
         "name": "collectExport",
         "file": "engine-repair-ops.js",
         "lines": 307,
-        "outside_refs": 54,
+        "outside_refs": 57,
         "is_host_lifecycle": false
       },
       {
@@ -4194,7 +4232,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13392,
     "maxSlack": 400,
-    "note": "[v3.482.0] L26 十八项接线后的当版重绑：入口 index.js 13226 行（+46）、成员数 1374；行上界**不抬，仍为 13392**（余量 166 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37540 行，TOP5 占 25.3%，TOP40 占 52.9%。增量全部来自 L26 的 18 个 engine 槽装配块（每槽 3 行守卫 + 1 行注释），不是死代码回流。",
+    "note": "[v3.483.0] 缝合 lorecodex 两处纪律后的当版重绑：入口 index.js 13243 行（+17）、成员数 1380；行上界**不抬，仍为 13392**（余量 149 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37751 行，TOP5 占 25.1%，TOP40 占 52.9%。增量全部来自入口那两个库口（_recallProgressGateLib / _recallProvenanceLedgerLib，各 3 行含 1 行注释）与 bindDeps 的两个注入项（各 1 行），不是死代码回流。",
     "history": [
       {
         "ceiling": 15000,
@@ -4694,30 +4732,42 @@
         "member_ceiling": 1404,
         "milestone_version": "v3.482.0",
         "reason": "[v3.482.0] L26 十八项接线后的当版重绑：入口 index.js 13226 行（+46）、成员数 1374；行上界**不抬，仍为 13392**（余量 166 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37540 行，TOP5 占 25.3%，TOP40 占 52.9%。增量全部来自 L26 的 18 个 engine 槽装配块（每槽 3 行守卫 + 1 行注释），不是死代码回流。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.483.0",
+        "reason": "[v3.483.0] 缝合 lorecodex 两处纪律后的当版重绑：入口 index.js 13238 行（+12）、成员数 1378；行上界**不抬，仍为 13392**（余量 154 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37728 行，TOP5 占 25.3%，TOP40 占 53%。增量全部来自入口那两个库口（_recallProgressGateLib / _recallProvenanceLedgerLib，各 3 行含 1 行注释）与 bindDeps 的两个注入项（各 1 行），不是死代码回流。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.483.0",
+        "reason": "[v3.483.0] 缝合 lorecodex 两处纪律后的当版重绑：入口 index.js 13243 行（+17）、成员数 1380；行上界**不抬，仍为 13392**（余量 149 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 37751 行，TOP5 占 25.1%，TOP40 占 52.9%。增量全部来自入口那两个库口（_recallProgressGateLib / _recallProvenanceLedgerLib，各 3 行含 1 行注释）与 bindDeps 的两个注入项（各 1 行），不是死代码回流。"
       }
     ],
     "member_ceiling": 1404,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13226,
-  "member_count": 1374,
+  "total_lines": 13243,
+  "member_count": 1380,
   "index_total_lines": 13082,
   "index_line_ceiling": 12096,
-  "entry_lines": 13226,
-  "surface_lines": 37540,
+  "entry_lines": 13243,
+  "surface_lines": 37751,
   "members_by_file": {
-    "index.js": 893,
+    "index.js": 895,
     "engine-diagnostic-lines.js": 1,
     "engine-evidence-center.js": 1,
     "engine-execution-pipeline.js": 1,
-    "engine-injection-pipeline.js": 44,
+    "engine-injection-pipeline.js": 46,
     "engine-persistence-ops.js": 54,
     "engine-qa-tools.js": 26,
     "engine-recall.js": 20,
     "engine-repair-ops.js": 42,
     "engine-report.js": 49,
-    "engine-self-check.js": 24,
+    "engine-self-check.js": 26,
     "engine-story-annual.js": 28,
     "memory-core.js": 4,
     "index-helpers.js": 12,
@@ -4766,7 +4816,7 @@
     {
       "name": "install",
       "file": "engine-execution-pipeline.js",
-      "lines": 1967,
+      "lines": 1974,
       "outside_refs": 14
     },
     {
@@ -4779,7 +4829,7 @@
       "name": "selfCheck",
       "file": "index-helpers.js",
       "lines": 1577,
-      "outside_refs": 370
+      "outside_refs": 377
     },
     {
       "name": "applyExtractedPayload",
@@ -4790,8 +4840,8 @@
     {
       "name": "recallMemory",
       "file": "engine-self-check.js",
-      "lines": 1036,
-      "outside_refs": 37
+      "lines": 1154,
+      "outside_refs": 41
     },
     {
       "name": "restoreFromPayload",
@@ -4819,14 +4869,14 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 526,
+      "lines": 530,
       "outside_refs": 0
     },
     {
       "name": "exportMemoryReport",
       "file": "memory-core.js",
       "lines": 396,
-      "outside_refs": 15
+      "outside_refs": 18
     },
     {
       "name": "registerEvents",
@@ -4838,7 +4888,7 @@
       "name": "collectExport",
       "file": "engine-repair-ops.js",
       "lines": 307,
-      "outside_refs": 54
+      "outside_refs": 57
     },
     {
       "name": "onMessageReceived",
@@ -4969,7 +5019,7 @@
       "name": "backfillFloors",
       "file": "index.js",
       "lines": 111,
-      "outside_refs": 1
+      "outside_refs": 5
     },
     {
       "name": "maybeFold",

@@ -86,6 +86,17 @@
         if (_libs._summaryProvenanceLib) return _libs._summaryProvenanceLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaSummaryProvenance : null), 'summary-provenance.js');
     }
+    /* [v3.483.0 · 缝合 lorecodex maxOrder] 召回进度门取库口。
+     *   判据本体在 recall-progress-gate.js（纯函数、可单测）；此处只负责取数与留痕。 */
+    function _recallProgressGateLib() {
+        if (_libs._recallProgressGateLib) return _libs._recallProgressGateLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallProgressGate : null), 'recall-progress-gate.js');
+    }
+    /* [v3.483.0 · 缝合 lorecodex readScenes] 召回来源台账取库口（只记账，默认不过滤）。 */
+    function _recallProvenanceLedgerLib() {
+        if (_libs._recallProvenanceLedgerLib) return _libs._recallProvenanceLedgerLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallProvenanceLedger : null), 'recall-provenance-ledger.js');
+    }
 
     function _newRelativeTimeHelper() {
         return {
@@ -1179,6 +1190,124 @@
             } catch (e) {
                 errLog(e, 'recallMemory.memorySymphony');
                 engine._lastSymphonyTrace = { active: false, reason: 'threw:' + String(e?.message || e) };
+            }
+
+            /* [v3.483.0 · 缝合 lorecodex 的 maxOrder / readScenes 两处纪律]
+             * ---------------------------------------------------------------
+             * ① 进度门（防剧透）：lorecodex 在目录、grep、读取**三处统一设闸**，超前的章节
+             *    根本不返回，而不是返回后靠提示词叮嘱「别看」。本仓修前三个召回文件里
+             *    maxOrder / spoiler 出现次数为 0 —— 演员在第 120 楼，第 400 楼的摊牌原话
+             *    照样会被注入。这是**方向性错误**（把未来当过去讲），不是「多注入一点」。
+             * ② 来源台账（注入可追）：lorecodex 能要求「未读过原文不注入」是因为它自己跑
+             *    检索模型、有 read_scene 工具往返作凭证；本仓召回是纯本地算分，没有「读取」
+             *    这个动作可作凭证，硬造「读过」状态等于自己骗自己。故只做**等价可达的一半**：
+             *    不要求「读过」，但要求「指得出」（有 floor 或稳定 id）。
+             *
+             * 位置纪律：**symphony 之后、_finalize 之前**。此处 finalMerged 已是最终注入名单
+             *   （intentRerank / fuseCandidates / resonance / symphony 全部落位），而后面的
+             *   LLM 精排只对 candidates = finalMerged.slice(0, candN) 重排、并从**同一批**
+             *   候补里补齐长度 —— 它不会把已剔除的条目加回来，故这里剔一次即终局。
+             *
+             * 只记账、不偷偷改主路径：进度门剔除的条目**只影响本轮注入**，条目本身仍在库里
+             *   （删是 SummarySystem / GC 的职责）；台账默认**不过滤**，只给读数与逐条明细，
+             *   严格模式（requireTraceable）要调用方显式开。
+             * 判不了就放行：无 floor 的通用设定、无 progress 的开局首轮，一律不拦。 */
+            try {
+                /* 当前进度：优先宿主 currentStoryFloor()（本仓既有的剧情时点真源，
+                 *   取 chat 末位 = chat.length-1）；其次 _currentFloor；最后自己读 chat。
+                 *   **-1 不是合法楼层**（index.js 构造期初值，表示「还没进楼层」），
+                 *   故三处都要求 >= 0，否则落到 null = 判不了 → 放行。 */
+                let _progress = null;
+                try {
+                    if (typeof engine.currentStoryFloor === 'function') {
+                        const _n = Number(engine.currentStoryFloor());
+                        if (Number.isFinite(_n) && _n >= 0) _progress = _n;
+                    }
+                } catch (e) { errLog(e, 'recallMemory.progressGate.currentStoryFloor'); }
+                if (_progress === null) {
+                    const _n = Number(engine._currentFloor);
+                    if (Number.isFinite(_n) && _n >= 0) _progress = _n;
+                }
+                if (_progress === null) {
+                    /* 第三档：自己读 chat 末位。**必须先做存在性守卫**，不许靠 try/catch 兜
+                     *   —— 非浏览器环境（Node / 单测 harness / 宿主没挂 SillyTavern）里 `window`
+                     *   是 ReferenceError，落进 catch 会调 errLog，把「本机没有宿主」报成**错误**。
+                     *   这不是异常，是「这一档取不到」：判不了就放行，不该留日志噪声。
+                     *   （v3.483.0 实测：v3249【A3】用「errLog 一旦被调即失败」守这条，
+                     *   原写法在那里必红 —— 判据是对的，它抓到的是我把可预期分支当成了异常。） */
+                    const _hasHost = (typeof window !== 'undefined') && window && typeof window.SillyTavern === 'object' && window.SillyTavern;
+                    if (_hasHost) {
+                        try {
+                            const _chat = window.SillyTavern.getContext?.()?.chat;
+                            if (Array.isArray(_chat) && _chat.length) _progress = _chat.length - 1;
+                        } catch (e) { errLog(e, 'recallMemory.progressGate.chatLen'); }
+                    }
+                }
+
+                /* ① 进度门：只拦 ahead。读数**无条件**落地（含 0 剔除的一轮）——
+                 *   「这轮跑了但一条没拦」与「这轮根本没跑」必须可分辨。 */
+                if (engine.config.config.recallProgressGate !== false) {
+                    const G = _recallProgressGateLib();
+                    if (G && typeof G.pick === 'function') {
+                        const _g = G.pick(finalMerged, _progress);
+                        if (_g.counts.dropped) finalMerged.splice(0, finalMerged.length, ..._g.kept);
+                        engine._lastRecallProgressGate = {
+                            active: true,
+                            progress: _progress,
+                            checked: Number(_g.counts.checked) || 0,
+                            kept: Number(_g.counts.kept) || 0,
+                            dropped: Number(_g.counts.dropped) || 0,
+                            notSeated: Number(_g.counts.not_seated) || 0,
+                            noProgress: Number(_g.counts.no_progress) || 0,
+                            droppedItems: (_g.dropped || []).slice(0, 20),
+                        };
+                        if (_g.counts.dropped && engine.config.config.debugMode) {
+                            console.log('[' + PLUGIN_NAME + '] 进度门: ' + _g.counts.dropped + ' 条超出第 ' + _progress + ' 楼的记忆未注入（第'
+                                + (_g.dropped || []).map(d => d.floor).join('、') + '楼）');
+                        }
+                    } else {
+                        /* 模块缺席不伪装成「已设闸」：诊断行会据此说原因。 */
+                        engine._lastRecallProgressGate = { active: false, reason: 'module-missing', progress: _progress };
+                    }
+                } else {
+                    engine._lastRecallProgressGate = { active: false, reason: 'disabled', progress: _progress };
+                }
+
+                /* ② 来源台账：给注入名单逐条标 traceable / untraceable / empty。
+                 *   默认**只记账不过滤**（用户记忆不因缺个字段就消失）；
+                 *   严格模式由 config.recallProvenanceStrict 显式开启，开启时仍保留 empty 之外的判断口径。 */
+                if (engine.config.config.recallProvenanceLedger !== false) {
+                    const L = _recallProvenanceLedgerLib();
+                    if (L && typeof L.build === 'function') {
+                        const _acc = L.build(finalMerged);
+                        if (engine.config.config.recallProvenanceStrict === true && typeof L.requireTraceable === 'function') {
+                            const _s = L.requireTraceable(finalMerged);
+                            if (_s.dropped.length) finalMerged.splice(0, finalMerged.length, ..._s.kept);
+                            _acc.strictDropped = _s.dropped.length;
+                        }
+                        engine._lastRecallProvenanceLedger = {
+                            active: true,
+                            counts: _acc.counts,
+                            untraceable: (_acc.untraceable || []).slice(0, 20),
+                            strictDropped: _acc.strictDropped || 0,
+                            line: (typeof L.summary === 'function') ? L.summary(_acc) : '',
+                        };
+                        /* untraceable 非空且 debug 才提醒：它是「可能被当摘要编」的那类，
+                         *   不是「假的」。措辞必须只说指不出来源，不判真伪。 */
+                        if (_acc.counts.untraceable && engine.config.config.debugMode) {
+                            console.log('[' + PLUGIN_NAME + '] 来源台账: ' + _acc.counts.untraceable + ' 条注入条目标不出来源');
+                        }
+                    } else {
+                        engine._lastRecallProvenanceLedger = { active: false, reason: 'module-missing' };
+                    }
+                } else {
+                    engine._lastRecallProvenanceLedger = { active: false, reason: 'disabled' };
+                }
+            } catch (e) {
+                errLog(e, 'recallMemory.progressGate');
+                /* 异常不静默：留一个可读的原因，诊断面据此说明「这一轮没设闸」。 */
+                engine._lastRecallProgressGate = { active: false, reason: 'threw:' + String(e?.message || e) };
+                engine._lastRecallProvenanceLedger = { active: false, reason: 'threw:' + String(e?.message || e) };
             }
 
             const _finalize = () => {

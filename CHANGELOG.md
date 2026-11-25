@@ -1,3 +1,69 @@
+## v3.483.0
+**缝合 lorecodex 两处纪律：召回进度门（防剧透锁）+ 召回来源台账（注入可追）**
+
+- **为什么做这两件，而不是照搬整棵树**：`lena13144/lorecodex`（安装名 `st-tree-lore`）的核心不是「检索」，
+  是 PageIndex 思路 —— 用 LLM 建「卷→篇→幕」三级目录树，每轮由检索模型自己沿树翻（`list_series` → `list_arcs` →
+  `get_arc_scenes` → `read_scene`），**只有真正读过原文的场景才能进注入**，并用 `maxOrder` 做防剧透锁。
+  整棵树不搬：本仓已有 `scene-book` 与多套记忆器官，两棵树会打架；IndexedDB 纯前端引擎不搬：
+  本仓数据在 `extensionSettings` / `chatMetadata`，强行迁移会丢「随会话隔离」；UI 工作台不搬：
+  与 `settings-ui.js` 职责重叠（而且它的 stage-1/stage-2 副本 v3.482.0 已经进来过了）。
+  **只搬两处机制纪律**，因为它们补的是本仓**真缺的那一维**。
+- **修前实测（不是估计）**：`engine-recall.js` / `scene-book.js` / `recall-explain.js` 三处
+  `maxOrder` 与 `spoiler` 的出现次数为 **0**。后果不是「多注入一点」，是**方向性错误** ——
+  演员在第 120 楼演到「刚认识」，第 400 楼才会发生的摊牌原话照样被注入，模型据此提前说漏。
+- **`recall-progress-gate.js`（召回进度门 / 防剧透锁）**：四态判定 `ok` / `ahead` / `no_progress` / `not_seated`，
+  **只拦 `ahead`**。借 lorecodex「超前的章节根本不返回，而不是返回后靠提示词叮嘱别看」这条纪律，
+  但**口径改了**：进度用**楼层**而不是叙事日期 —— 日期会随剧情钟回拨、随 dual-time 漂移、同一日可横跨几十楼，
+  用它当闸会出现「同一日内的未来被放行」或「回拨后过去被误锁」；楼层是单调、可寻址、已由 `floor-ledger`
+  立为真源的量。判不了（无楼层归属的通用设定、进度未知的开局首轮）**一律放行** ——
+  同 lorecodex「不属于任何章节的通用设定不受影响」，也与本仓 `branch-guard` / `summary-provenance`
+  的「判不了就放行」同源：过滤漏一点，好过让用户的记忆整体消失。
+  **一个写进注释的坑**：`0` 是合法进度（还没开始），早期写成 `if (!p)` 会把进度 0 当成「判不了」，
+  于是开局第一轮完全不设闸 —— 这条现在有专门判据（`2a`～`2i`）守着。
+- **`recall-provenance-ledger.js`（召回来源台账 / 注入可追）**：三态 `traceable` / `untraceable` / `empty`。
+  这里**明确改了 lorecodex 的口径，并把理由写死**：它要求「未读过原文不注入」，是因为它自己跑检索模型、
+  有 `read_scene` 工具往返可作凭证；本仓召回是**纯本地算分**，没有「读取」这个动作可作凭证，
+  硬造一个「读过」状态等于自己骗自己。故只做**等价可达的一半**：**不要求「读过」，但要求「指得出」**
+  （有 `floor` 或稳定 `id`）。**默认只记账不过滤** —— 严格模式 `requireTraceable` 要显式开
+  （`recallProvenanceStrict`，默认 `false`），因为某些来源本来就不带地址，开了会真丢记忆。
+  措辞纪律：`untraceable` 只说「指不出来源」，**不判真伪**（判据 `3o`/`3p` 守着读数里不许出现「虚假/伪造/编造」）。
+- **接线位置与其理由**：`engine-recall.js` 的 `recallMemory()` 末尾、`_finalize` **之前**。
+  此处 `finalMerged` 已是最终注入名单（`intentRerank` / `fuseCandidates` / `resonance` / `symphony` 全部落位），
+  而后面的 LLM 精排只对 `candidates = finalMerged.slice(0, candN)` 重排、并从**同一批**候补里补齐长度，
+  它不会把已剔除的条目加回来 ⇒ 这里剔一次即终局。读数**无条件**落地（含 0 剔除的一轮）：
+  「这轮跑了但一条没拦」与「这轮根本没跑」必须可分辨（本仓 R2-A 同款纪律）。
+- **进度取数三档，都要求 `>= 0`**：`currentStoryFloor()`（本仓既有剧情时点真源，取 chat 末位）→
+  `_currentFloor` → 自读 `chat.length - 1`。**`-1` 不是合法楼层**（`index.js` 构造期初值 = 「还没进楼层」），
+  故三档都要求 `>= 0`，否则落到 `null` = 判不了 → 放行。
+- **`tests/v3483_recall_progress_and_provenance.test.mjs`（127 条，全绿）**：九段式 ——
+  四态判定逐条 / **0 是合法进度** / 三态不混同（`empty` 与 `untraceable` 是两个问题，带楼层的空条目仍算 `empty`，
+  不被「指得出」掩盖）/ 判不了就放行（负控制）/ 逐条列出（不只给个数）/ 畸形输入不抛 / 不改入参（纯函数）/
+  **真连线自证** / 接线自证与模块登记 / 版权纯度与边界。
+- **这一段的纪律（上一轮踩过的坑，写进测试注释）**：真连线自证**不许用空桩冒充接线**。
+  首轮冒烟时各来源数组全空 ⇒ `checked=0`，读数全 0 也「全绿」，等于什么都没验。故现在让 `bm25` 真产出 7 条，
+  断言「本轮注入 5 条、未来 2 条被拦、过去与本楼仍在、无楼层归属仍放行」，并加反向：**关掉开关后
+  `future_30` 必须回来**（证明拦下的是本机制，不是别处）。
+- **负控制 5 组，全部真变红（不是看着像）**：NC1 只拦 `ahead` 改成全放行 → `1f` 红；
+  NC2 把 `0` 当判不了 → `2a` 红（`期望 0，实得 null`）；NC3 拆掉接线不剔除 → `7b` 红（`期望 5，实得 7`）；
+  NC4 `untraceable` 算成 `traceable` → `3d` 红；NC5 空条目不再单列 → `3e` 红。复原后 127/127 绿、三文件与备份逐字节一致。
+- **登记与台账（真跑真重生，不手改数字）**：`manifest.extra_js` **455 → 457**（两件插在 `summary-provenance.js` 之后，
+  同族：召回来源/进度判据）；`extra_js_seam_ledger.tsv` **457/457、孤儿 0**；
+  `module_consumption_ledger.json` **457/457 活跃、零消费 0**；死代码预算 `165260 → 167081`
+  （实测 166681，`--bump` 带理由：两件 + `engine-recall` 接线 109 行 + 3 个开关 + 宿主库口）。
+  宿主侧：`index.js` 新增两个库口并注入 `engine-recall` 的 `bindDeps`（与本文件其余 `libs` 同款注入式传参，
+  Node 单测走 `require` 回退）；`memory-config.js` 新增三个开关，默认 `true` / `true` / `false`（严格模式默认关）。
+- **一处自己纠正的判断**：上一轮我曾说「别名表只落在解释层、没进检索层」，本轮实测 `index.js:6530`
+  的 `buildQuery()` 已在做 `buildAliasMap()`（含 NFKC 归一、按 `_aliasMapAt` 揭穿时点过滤、`_scopeOf` 时段判定）
+  并写入 `query.aliases` —— 故**别名下沉这一项不做**，已在对话中明确纠正，不把已存在的功能重做一遍。
+- **另一项评估后不做**：lorecodex 的「检索前判定要不要查」需要每轮额外调一次模型，其 README 自己承认
+  「增加延迟与花费」。本仓定位不需要这个代价，故不引入。
+- **版本**：七处版本串 3.482.0 → 3.483.0（`index.js` / `memory-config.js` / `memory-core.js` / `memory-organs.js`
+  的 `VERSION` 常量、`manifest.json`、`package.json`、`README.md` 当前版本行）。
+- **不宣称（如实）**：① 本版**未跑全量回归** —— 只跑了语法、本批判据（127 条）、五组负控制、三份台账重生
+  与死代码预算；② 两个新机制**没有在真机（真 SillyTavern）里点过**，本版只到 Node 端到端与源码面证据；
+  ③ HEAD 上既有的存量红（`state-report` / `host_beast_baseline` 等读数停在旧版）**本版不动**，
+  按既有纪律另案处理 —— 不掩盖、也不把它们算成本版通过。
+
 ## v3.482.0
 **呈现层 stage-2：LoreCodex 工作台接上本仓数据面（只读视图 · 21 个同名适配器 · 14 条判据）**
 

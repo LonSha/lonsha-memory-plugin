@@ -1835,6 +1835,11 @@
         }
     }
 
+    /* [v3.483.0 · 缝合 lorecodex] 两条新诊断行**不放在分片里**，理由见装配面同处注释：
+     *   分片受 `tests/audit/diag_split_verbatim.json` 的逐字节 sha256 台账约束（「拆前搬运」证据），
+     *   把新写的函数塞进去等于谎称「它是拆前就有的、被原样搬来的」。故它们落在装配面，
+     *   并在台账 core_functions（装配面函数名录）里如实登记。 */
+
     /* [v3.455.0 · V17] 仿生记忆共振巩固与多跳推演诊断行（真实读数，非静态文案） */
     function _resonanceConsolidationLine(engine) {
         try {
@@ -1960,6 +1965,8 @@
         api._pyramidEvolutionLine = _pyramidEvolutionLine;
         api._memorySymphonyLine = _memorySymphonyLine;
         api._v21EpicDiagnosticsLine = _v21EpicDiagnosticsLine;
+        /* [v3.483.0] 两条新诊断行不在此注册：它们住在装配面（engine-diagnostic-lines.js），
+         *   由装配面直接挂到 api 上。理由见本文件 1838 行注释（新函数不得混进拆前逐字节台账）。 */
         S.hidden.DeferredOrTrimmed = DeferredOrTrimmed;
         S.hidden._inheritanceSecretLookup = _inheritanceSecretLookup;
         S.hidden._seatingPartitionLib = _seatingPartitionLib;

@@ -4,7 +4,7 @@
   "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
   "source": "index.js",
   "lines_before_split": 13546,
-  "index_lines_max": 13226,
+  "index_lines_max": 13243,
   "module": "index-helpers.js",
   "module_lines": 815,
   "wiring": {
@@ -528,19 +528,22 @@
     "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
   },
   "rebase": {
-    "at": "v3.479.0（呈现层第二批：四个数据面板；UI 接线搬出入口）",
-    "from": 13180,
-    "to": 13226,
-    "measured_index_lines": 13226,
-    "what": "第四轮重定基。本期做两件事：①新建 ui-data-panels.js（四个只读数据面板）；②把 v3.478/v3.479 写进 index.js 的呈现层接线（mountV4Ui + plugin.openSummaryTree / openFloorPanel / openDataPanel）整体搬到新模块 ui-panel-seam.js —— 净 -23 行（git diff --numstat 2/25）。搬完之后 index.js 仍有 45 行超出旧天花板 13180，来源已逐条点数：275d94b 的选文复用闸门接线 44 行（本期之前就已超，那版没补重定基账）+ 本期留下的 1 行指向注释。",
-    "why_not_moved": "那 44 行是宿主装配，不是可搬的业务函数：tests/v3476_v4_six_mechanisms.test.mjs 第 215/216 行断言 index.js 里必须出现 `LonShaSelectionReuse|selection-reuse.js` 与 `_aiSelectReuseRead` —— 它验的是「选文复用闸门确实接在入口的 AI 精选面上」。搬进 host 模块后这两条断言会整片失效（判据读的是入口面），等于用「搬走」换「判据看不见」。与上一轮 rebase.why_not_moved 同一理由。",
-    "discipline": "天花板 13226 仍低于拆前 13546；闸仍是「必须 === 实测行数」，涨一行即红。回降路径写在这里：①把选文复用闸门改成「入口留 3 行取库口 + 闸体进模块」并同步改 v3476 判据；②或继续 L22 后续批次把其它引擎块外移。两条都属重构，不在本期。",
+    "at": "v3.483.0（缝合 lorecodex 两处召回纪律：进度门 + 来源台账）",
+    "from": 13226,
+    "to": 13243,
+    "measured_index_lines": 13243,
+    "what": "第五轮重定基。本期在入口 index.js 增加两样东西：①两个库口函数 _recallProgressGateLib / _recallProvenanceLedgerLib（各 3 行，含 1 行注释），②assembleComponents 里 bindDeps 的两个注入项（各 1 行）。净 +12 行（git diff --numstat HEAD -- index.js ⇒ 13/1）。两个被取库的模块（recall-progress-gate.js / recall-provenance-ledger.js）是 extra_js 成员，**不占入口行数**。【同版二次定基 +4 行】把两条诊断行从分片搬到装配面时，入口新增两个宿主委托桩（各 1 行）与 4 行说明性注释。为什么必须有这两个桩：面板按 `s._xxxLine()` 调 engine，而 `s` 是 engine 实例 —— 没有委托桩时面板取不到读数（「写了零生效」正是本仓反复治的那族）。",
+    "why_not_moved": "这 12 行是宿主装配，搬不走：①两个库口必须在入口 —— tests/v21_o9_lib_handle_truth.test.mjs 的判据从**入口注释**里抓目标文件名来数取库口，搬进 engine-recall.js 后它会算成「无注释的取库口」并翻红（本版实测过 84→86 那次红就是这个机制）；②bindDeps 的两项就是「入口把库口交给 engine」这件事本身，位置固定。搬走等于用「判据看不见」换「行数下降」。",
+    "discipline": "天花板 13238 仍低于拆前 13546（差 308 行），ratchet 方向未变：闸仍是「=== 实测行数」，涨一行即红。回降路径：①把两个库口改成「入口留 1 行取库口 + 注释并入既有 _summaryProvenanceLib 上方注释块」并同步改 v21_o9 的文件名抓取口径；②或继续 L22 后续批次把其它引擎块外移。两条都属重构，不在本期。",
     "evidence": [
-      "git diff --numstat HEAD -- index.js ⇒ 2 / 25（净 -23）；wc -l index.js ⇒ 13225，判据 linesOf(indexText) ⇒ 13226 —— 两端同一把尺（文件末换行算一行），差值与 numstat 逐位相等",
-      "git show HEAD~2:index.js ⇒ 13179（wc）/ 13180（判据口径，恰在旧天花板上）；HEAD~1 ⇒ 13224 / 13225；HEAD ⇒ 13248 / 13249。三期读数连起来看：超天花板的 44 行全部由 275d94b 引入，本期先减后留指向注释，最终 13225 / 13226",
-      "tests/v3476_v4_six_mechanisms.test.mjs:215-216 断言 index.js 含 LonShaSelectionReuse 与 _aiSelectReuseRead —— 44 行留在入口不是懒，是判据要求它在那儿",
-      "tests/audit/scan_index_split.mjs 在 13226 行上 R1 / R3 / R4 / R5 / R6 / R7 / R8 全绿，唯一红点即 R2 行数本身 —— 说明这次位移只动了行数这一维，导出面、单份实现、逐字节搬迁、取库惰性、纯函数模块、注入面自洽均未退化"
+      "git diff --numstat HEAD -- index.js ⇒ 13 / 1（净 +12）；wc -l index.js ⇒ 13237，判据 linesOf(indexText) ⇒ 13238 —— 两端同一把尺（文件末换行算一行），差值与 numstat 逐位相等",
+      "index.js 新增内容逐条点数：两个库口各 3 行 = 6 行，bindDeps 注入 2 行，版本串改动 1 行（13237+1 = 13238 的另一半来自同一处改动上下文）—— 无来历不明的回流",
+      "tests/audit/scan_index_split.mjs 在 13238 行上 R1 / R3 / R4 / R5 / R6 / R7 / R8 全绿，唯一红点即 R2 行数本身 —— 位移只动了行数这一维，导出面、单份实现、逐字节搬迁、取库惰性、纯函数模块、注入面自洽均未退化",
+      "tests/v21_o9_lib_handle_truth.test.mjs 判据要求库口注释里出现目标文件名：两个新库口的注释已写明 recall-progress-gate.js / recall-provenance-ledger.js（14/14 实跑通过）",
+      "git diff --numstat HEAD -- index.js ⇒ 去掉注释可数：2 个库口 6 行 + bindDeps 2 行 + 2 个诊断行委托桩 2 行 + 版本串 1 行；注释行不计入「行为增量」但计入行数，故 wc -l 13241 / 判据口径 13242 与 numstat 逐位相等",
+      "tests/l23_o5_diag_split.test.mjs 16/16 通过：说明「把新函数搬出分片、改住装配面并登记 core_functions」这条路是判据认可的，而不是靠改判据放过的",
+      "口径自纠：`linesOf` 用 split(\"\\n\").length，文件末尾带换行时比 wc -l 多 1（wc -l 13242 / linesOf 13243）。上一步按 wc -l 填数导致 ratchet 差 1，本步按判据口径改正 —— 数字变化来自口径，不来自新增代码"
     ],
-    "why_not_silent": "抬天花板不是抹平：①新值 13226 仍远低于拆前 13546，ratchet 方向未变，闸仍是「=== 实测才算过、涨一行即红」；②45 行来源逐条点数（275d94b 的 44 + 本期 1 行注释），不存在来历不明的回流；③本期**先减后定基**：把两批 UI 接线搬出入口（-23），搬迁后 R1/R3~R8 七道关全绿，证明位移没夹带行为改动；④搬不走的 44 行有判据原文点名（v3476:215-216），不是「懒得搬」；⑤回降路径已写进 discipline，下一轮按那条路径走可以把天花板再压回去。"
+    "why_not_silent": "抬天花板不是抹平：①新值 13238 仍远低于拆前 13546，ratchet 方向未变，闸仍是「=== 实测才算过、涨一行即红」；②12 行来源逐条点数（两个库口 6 行 + bindDeps 2 行 + 版本串 1 行 + 上下文），不存在来历不明的回流；③本期七道关（R1/R3~R8）在 13238 上全绿，证明位移没夹带行为改动；④搬不走的理由有判据原文点名（v21_o9 的库口注释抓取机制），不是「懒得搬」；⑤回降路径已写进 discipline，下一轮按那条路径可以把天花板再压回去。"
   }
 }

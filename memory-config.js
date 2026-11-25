@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.482.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.483.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -388,6 +388,19 @@ tempo 语义：buildup=铺垫蓄力，mixed=松紧交替，surge=高压密集，
             // [v3.183] 分支感知召回过滤：摘要来源楼显示页已被翻掉（source_changed）时不注入。
             //   只剔这一态，其余（缺源/旧档/正文改写）一律放行——判不了就放行，宁多勿少。
             recallProvenanceFilter: true,
+            // [v3.483.0 · 缝合 lorecodex maxOrder] 召回进度门（防剧透锁）。
+            //   模型只该看到「当前楼层及以前」的记忆：超前的条目**本轮不注入**，条目本身留在库里
+            //   （删是 GC 的事）。判不了就放行 —— 无楼层归属的通用设定、进度未知的开局首轮一律不拦，
+            //   宁可多注入也别让用户的记忆整体消失。默认开（纯读、无副作用，只影响本轮注入名单）。
+            recallProgressGate: true,
+            // [v3.483.0 · 缝合 lorecodex readScenes] 召回来源台账（注入可追）。
+            //   lorecodex 要求「未读过原文的场景不注入」，那要靠它自己的检索模型往返做凭证；
+            //   本仓召回是纯本地算分，故只做等价可达的一半：**不要求「读过」，但要求「指得出」**。
+            //   默认只记账不过滤（读数给诊断面板与 recall-explain 看）。
+            recallProvenanceLedger: true,
+            // 台账严格模式：**默认关**。开启后只放行能指出 floor 或稳定 id 的条目。
+            //   开启前先看台账里的 untraceable 明细——某些来源本来就不带地址，开了会真丢记忆。
+            recallProvenanceStrict: false,
             sleepAwakenEnabled: true,      // [v3.234.0] 睡眠语义唤醒：低保留价值已归档的摘要，在相似情景再现时回程（archivedForSleep 此前是单向门）
             // [v3.235.0] R4-A：回滚预览（dry-run）。删楼前先算出「撤几面 / 量级多少」，只读不落地；
             //   预告与实撤不符时在诊断面留痕。默认开（纯读、无副作用）。
