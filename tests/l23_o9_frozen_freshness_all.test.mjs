@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import {
     judgeFreshness, parseTimestamp, refreshCommand, FROZEN_READINGS, STALE_DAYS, EXPIRED_DAYS,
 } from './audit/_freshness_judge.mjs';
@@ -57,7 +58,22 @@ test('A2 三态各答各的：每份判定必是三态之一；expired 必须给
         const j = JSON.parse(fs.readFileSync(path.join(ROOT, e.rel), 'utf8'));
         const v = judgeFreshness(j, NOW);
         assert.ok(['fresh', 'stale', 'expired'].includes(v.state), e.rel + ' 判定越界：' + v.state);
-        assert.ok(Number.isFinite(v.ageDays), e.rel + ' 判定必须回报年龄（否则三态没法复核）');
+        /* ★ [v3.483.0 修既有] 判读器的契约是 `ageDays: number|null`（见 _freshness_judge.mjs 的
+         *   `@returns`）：**版本式时间戳解析不到对应提交时就返回 null**，同时按最保守口径判 expired。
+         *   本仓历史被压缩过（`git rev-list --count HEAD` 只有个位数），`v3.475.0` 这类旧版本号
+         *   本来就解析不出提交 ⇒ 原来那句 `Number.isFinite(v.ageDays)` 是一条**永不可能满足**的断言，
+         *   而它要守的性质（「三态必须可复核」）照样能守：null 必须显式、必须 fail-closed、
+         *   而且只要判成 fresh 就必须给得出有限年龄 —— 三条一起才是「可复核」的完整含义。 */
+        assert.ok(v.ageDays === null || Number.isFinite(v.ageDays),
+            e.rel + ' 判定必须回报年龄（有限数字，或「解析不到」的显式 null —— 不许 NaN）');
+        if (v.ageDays === null) {
+            assert.equal(v.state, 'expired',
+                e.rel + ' 年龄未知时必须按最保守口径判 expired（fail-closed，不许当 fresh）');
+        }
+        if (v.state === 'fresh') {
+            assert.ok(Number.isFinite(v.ageDays),
+                e.rel + ' 判成 fresh 就必须给得出有限年龄（否则「现行」这句话无从复核）');
+        }
         if (v.state === 'expired') {
             const cmd = refreshCommand(e.producer);
             assert.match(cmd, /^node /, 'expired 必须给可复制刷新命令，got ' + cmd);
@@ -77,9 +93,32 @@ test('A3 同义键名：`generated_at`（snake）必须当成时间戳读（修�
     assert.equal(judgeFreshness(both, now).state, 'fresh', '两个键都在时按 camel 优先，不许取更老的那个当结论');
 });
 
+/** 本仓历史里**最老那个提交**的版本号（如 'v3.481.0'）；取不到返回 null。
+ *  为什么需要它：判据不许假设「任意版本号都能解析」—— 本仓历史被压缩过。 */
+function oldestVersionInHistory() {
+    try {
+        const shas = execFileSync('git', ['log', '--format=%H', '--reverse'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 }).trim().split('\n');
+        if (!shas.length) return null;
+        const txt = execFileSync('git', ['show', shas[0] + ':package.json'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
+        const m = /"version"\s*:\s*"([0-9.]+)"/.exec(txt);
+        return m ? 'v' + m[1] : null;
+    } catch { return null; }
+}
+/** 当前版本（index.js 的 VERSION）。 */
+function currentVersion() {
+    const src = fs.readFileSync(path.join(ROOT, 'index.js'), 'utf8');
+    const m = /const VERSION = '([0-9.]+)'/.exec(src);
+    return m ? m[1] : '0.0.0';
+}
 test('A4 版本式时间戳：「找不到提交」与「没写时间」必须是两个 why（结论同为 expired）', () => {
-    const resolvable = judgeFreshness({ measured_at: 'v3.472.0', _self_path: 'tests/audit/host_beast_baseline.json' }, NOW);
-    assert.ok(Number.isFinite(resolvable.ageDays), 'v3.472.0 必须能解析到提交（修前一律解析失败）');
+    /* [v3.482.0 修判据] 样本版本不许写死。本仓历史被压缩过（git rev-list --count = 22），
+     *   v3.481 以前的版本在 git 里根本没有对应提交 —— 写死 v3.472.0 会把这条判据变成
+     *   **永远不可能满足**的判据（它红的原因与「解析器能不能解析」无关）。
+     *   改法：样本从**本仓历史里真实存在的版本**取（最老那个提交的 package.json）。
+     *   判据本意不变：能解析的读数必须回报年龄，且不许被报成「缺时间戳」。 */
+    const resolvableVersion = oldestVersionInHistory() || ('v' + currentVersion());
+    const resolvable = judgeFreshness({ measured_at: resolvableVersion, _self_path: 'tests/audit/host_beast_baseline.json' }, NOW);
+    assert.ok(Number.isFinite(resolvable.ageDays), resolvableVersion + ' 必须能解析到提交（修前一律解析失败）');
     assert.ok(!/缺时间戳/.test(resolvable.why), '能解析的读数不许被报成「缺时间戳」');
     const unresolvable = judgeFreshness({ measured_at: 'v9.9.9', _self_path: 'tests/audit/host_beast_baseline.json' }, NOW);
     assert.equal(unresolvable.state, 'expired', '查不到提交仍要 fail-closed 成 expired');
@@ -117,9 +156,12 @@ test('C2 生成器 --check 必须绿（「台账没漂」的可执行判据，�
 });
 
 test('D1 负控制：阈值真的在起作用 —— 把 staleDays/expiredDays 放大后同一份读数必须改判 fresh', () => {
-    const old = { measured_at: 'v3.226.0', _self_path: 'tests/audit/gate_timing_baseline.json' };
+    /* [v3.482.0 修判据] 同上：v3.226.0 在本仓历史里不存在，判据会因「解析不到」而红，
+     *   而本条要验的是**阈值是否被读**（纯函数契约），与历史深度无关。
+     *   故用判读器自带的 _ts_override 造一份确定年龄的读数：阈值一放大必须改判 fresh。 */
+    const old = { _ts_override: NOW - 60 * 86400000 };
     const real = judgeFreshness(old, NOW);
-    assert.notEqual(real.state, 'fresh', '这份读数现在不该是 fresh（它是 42～52 天前的）');
+    assert.notEqual(real.state, 'fresh', '这份读数现在不该是 fresh（它是 60 天前的）');
     const loose = judgeFreshness(old, NOW, { staleDays: 100000, expiredDays: 200000 });
     assert.equal(loose.state, 'fresh', '把阈值放到极大还判非 fresh ⇒ 三态没读阈值');
 });

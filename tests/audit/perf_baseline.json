@@ -1,17 +1,17 @@
 {
   "file": "tests/audit/perf_baseline.json",
   "note": "O-5 性能取证基线。**合成数据 + 真模块**（无浏览器 / SillyTavern 宿主参与）—— 这些数字不代表实机性能，只用于回归时看量级是否漂移（同 tests/audit/gate_timing_baseline.json 的口径纪律）。",
-  "measured_at": "v3.228.0",
+  "measured_at": "v3.482.0",
   "node_version": "v24.18.0",
   "probe": "tests/audit/perf_probe.cjs",
   "readings": {
-    "scene_book_build_1000_floors_ms": 51.55,
-    "scene_book_summary_1000_floors_ms": 1.53,
-    "replay_shift_1000_floors_ms": 0.34,
-    "replay_drop_1000_floors_ms": 1.06,
-    "coverage_1000_floors_ms": 0.11,
-    "replay_shift_200_floors_ms": 0.04,
-    "coverage_200_floors_ms": 0.04
+    "scene_book_build_1000_floors_ms": 66.86,
+    "scene_book_summary_1000_floors_ms": 2.07,
+    "replay_shift_1000_floors_ms": 0.29,
+    "replay_drop_1000_floors_ms": 0.7,
+    "coverage_1000_floors_ms": 0.14,
+    "replay_shift_200_floors_ms": 0.06,
+    "coverage_200_floors_ms": 0.06
   },
   "scaling": {
     "note": "replayShift 0.04ms（200 楼）→ 0.34ms（1000 楼）：约线性（5 倍楼层 ~8.5 倍耗时，含一次性建账成本）。",
@@ -25,5 +25,20 @@
     "未做实机取证：无浏览器、无 SillyTavern 宿主、无真实 1000 楼聊天记录；合成数据只覆盖场所/账本两类结构。",
     "未做优化：本版只取证与立基线（任何优化都要先有可比基线，否则改完不知道是快了还是碰巧）。",
     "未覆盖向量检索 / LLM 调用 / 注入预算裁剪等 I/O 与网络路径 —— 那些受宿主与外部服务影响，合成探针测不出意义。"
-  ]
+  ],
+  "rebinds": {
+    "v3.482.0": {
+      "node_version": "v24.18.0",
+      "at": "2026-11-25T02:44:10.122Z",
+      "readings": {
+        "scene_book_build_1000_floors_ms": 66.86,
+        "scene_book_summary_1000_floors_ms": 2.07,
+        "replay_shift_1000_floors_ms": 0.29,
+        "replay_drop_1000_floors_ms": 0.7,
+        "coverage_1000_floors_ms": 0.14,
+        "replay_shift_200_floors_ms": 0.06,
+        "coverage_200_floors_ms": 0.06
+      }
+    }
+  }
 }

@@ -1,6 +1,6 @@
 {
   "schema": "loading-surface-proof@1",
-  "generatedAt": "2026-11-23T19:55:31.627Z",
+  "generatedAt": "2026-11-25T02:21:27.265Z",
   "version": "3.482.0",
   "root": ".",
   "moduleCount": 455,
@@ -33,7 +33,7 @@
       "checked": 455,
       "defects": [],
       "evaluated": 455,
-      "mountedTotal": 538
+      "mountedTotal": 539
     },
     "ledger": {
       "question": "台账里对每个模块都有一条真实消费记录吗（不是零消费、不是分类假象）？",

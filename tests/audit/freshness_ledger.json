@@ -2,10 +2,10 @@
   "file": "tests/audit/freshness_ledger.json",
   "generator": "tools/gen_freshness_report.mjs（由它写；判据 --check 按判读结论比对，ageDays/judged_at 属时钟字段不参与，手改由 C1 全字段深度比对照看）",
   "note": "L23-O9 冻结读数新鲜度台账。三态口径来自 tests/audit/_freshness_judge.mjs（阈值单一真源）。`ageDays` 是整岁天数；版本式时间戳（measured_at）按该版本提交日计龄。expired 的读数**不得再作依据**，refresh 一列给出可复制的刷新命令。",
-  "judged_at": "2026-11-21T09:11:55.504Z",
+  "judged_at": "2026-11-25T03:56:38.882Z",
   "counts": {
     "fresh": 6,
-    "stale": 4
+    "expired": 4
   },
   "rows": [
     {
@@ -13,8 +13,8 @@
       "producer": "tests/audit/_realhost_suite.mjs",
       "producer_verified": true,
       "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "ageDays": 1,
+      "why": "读数 1 天前生成 —— 现行",
       "refresh": "node tests/audit/_realhost_suite.mjs"
     },
     {
@@ -30,18 +30,18 @@
       "rel": "tests/audit/doc_readings.json",
       "producer": "tools/_rebind_doc_readings.py",
       "producer_verified": false,
-      "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "state": "expired",
+      "ageDays": null,
+      "why": "读数写了版本式时间戳 v3.475.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tools/_rebind_doc_readings.py"
     },
     {
       "rel": "tests/audit/test_cost_readings.json",
       "producer": "tools/gen_test_budget.mjs",
       "producer_verified": false,
-      "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "state": "expired",
+      "ageDays": null,
+      "why": "读数写了版本式时间戳 3.475.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tools/gen_test_budget.mjs"
     },
     {
@@ -49,44 +49,44 @@
       "producer": "tests/audit/host_beast_probe.cjs",
       "producer_verified": false,
       "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "ageDays": 1,
+      "why": "读数 1 天前生成 —— 现行",
       "refresh": "node tests/audit/host_beast_probe.cjs"
     },
     {
       "rel": "tests/audit/gate_timing_baseline.json",
       "producer": "tests/v3227_gate_isolation_and_timing.test.mjs",
       "producer_verified": false,
-      "state": "stale",
-      "ageDays": 56,
-      "why": "读数已 56 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "state": "expired",
+      "ageDays": null,
+      "why": "读数写了版本式时间戳 v3.226.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tests/v3227_gate_isolation_and_timing.test.mjs"
     },
     {
       "rel": "tests/audit/perf_baseline.json",
       "producer": "tests/v3229_perf_evidence.test.mjs",
       "producer_verified": false,
-      "state": "stale",
-      "ageDays": 56,
-      "why": "读数已 56 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "state": "fresh",
+      "ageDays": 1,
+      "why": "读数 1 天前生成 —— 现行",
       "refresh": "node tests/v3229_perf_evidence.test.mjs"
     },
     {
       "rel": "tests/audit/scale_archive_baseline.json",
       "producer": "tests/v3231_snapshot_scale_evidence.test.mjs",
       "producer_verified": false,
-      "state": "stale",
-      "ageDays": 46,
-      "why": "读数已 46 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "state": "fresh",
+      "ageDays": 1,
+      "why": "读数 1 天前生成 —— 现行",
       "refresh": "node tests/v3231_snapshot_scale_evidence.test.mjs"
     },
     {
       "rel": "tests/audit/snapshot_baseline.json",
       "producer": "tests/v3231_snapshot_scale_evidence.test.mjs",
       "producer_verified": false,
-      "state": "stale",
-      "ageDays": 56,
-      "why": "读数已 56 天未刷新（> 30）—— 尚可读，须带「待刷新」标注",
+      "state": "expired",
+      "ageDays": null,
+      "why": "读数写了版本式时间戳 v3.230.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tests/v3231_snapshot_scale_evidence.test.mjs"
     },
     {
@@ -94,8 +94,8 @@
       "producer": "tests/audit/scan_module_consumption.mjs",
       "producer_verified": true,
       "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "ageDays": 1,
+      "why": "读数 1 天前生成 —— 现行",
       "refresh": "node tests/audit/scan_module_consumption.mjs"
     }
   ]
