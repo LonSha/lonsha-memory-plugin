@@ -3,7 +3,7 @@
 // 计划原文：「34 个视图分支逐个真调：不抛 + 落 DOM + 带机器可读面态」。
 //
 // 先给实测口径（不是猜的，是本档枚举并逐个驱动过的）：
-//   · settings-ui.js 的浏览器视图（`viewType === 'x'`）= **27** 个，已由 `v21_o6` 在最小 DOM shim 里逐个真调；
+//   · settings-ui.js 的浏览器视图（`viewType === 'x'`）= **28** 个，已由 `v21_o6` 在最小 DOM shim 里逐个真调；
 //   · modules_combined.js 的可视化面板（`render*View`）= **4** 个（graph/timeline/stats/community），
 //     **此前没有任何判据驱动过它们**，而且它们连机器可读面态都没有（只有 `lonsha-empty` 这个类名）。
 //   ⇒ 真视图面 = **31**，与计划写的 34 差 3（差异如实记进 `tests/audit/view_drive_ledger.json`，
@@ -111,9 +111,9 @@ function drive(srcText, opts) {
 
 const VIZ_VIEWS = ['renderGraphView', 'renderTimelineView', 'renderStatsView', 'renderCommunityView'];
 
-test('A1 视图面枚举：settings-ui 27 + viz 面板 4 = 31，且枚举是扫出来的不是写死的', () => {
+test('A1 视图面枚举：settings-ui 28 + viz 面板 4 = 32，且枚举是扫出来的不是写死的', () => {
     const settings = analyze(fs.readFileSync(UI_PATH, 'utf8')).views.map((v) => v.view);
-    assert.equal(settings.length, 27, 'settings-ui 浏览器视图数变了（27）⇒ 台账必须同步：' + settings.length);
+    assert.equal(settings.length, 28, 'settings-ui 浏览器视图数变了（28）⇒ 台账必须同步：' + settings.length);
     const declared = (VIZ_SRC.match(/(render[A-Za-z0-9_]*View)\s*\(/g) || [])
         .map((x) => x.replace(/\s*\($/, ''))
         .filter((x, i, a) => a.indexOf(x) === i)
@@ -123,16 +123,16 @@ test('A1 视图面枚举：settings-ui 27 + viz 面板 4 = 31，且枚举是扫�
     assert.deepEqual(defs.sort(), [...VIZ_VIEWS].sort(),
         'viz 面板的渲染分支集合变了 ⇒ 判据必须跟着扩面（新增分支不许不驱动）：实 ' + defs.join(','));
     void declared;
-    assert.equal(settings.length + defs.length, 31, '真视图面 = 27 + 4 = 31');
+    assert.equal(settings.length + defs.length, 32, '真视图面 = 28 + 4 = 32');
 });
 
 test('A2 台账与现场一致：总数 31、计划写 34 的差异必须写清（不凑数）', () => {
     const led = JSON.parse(fs.readFileSync(LEDGER_PATH, 'utf8'));
-    assert.equal(led.counts.settings_ui, 27, '台账 settings_ui 数必须与现场一致');
+    assert.equal(led.counts.settings_ui, 28, '台账 settings_ui 数必须与现场一致');
     assert.equal(led.counts.viz_panel, 4, '台账 viz_panel 数必须与现场一致');
     assert.equal(led.counts.total, led.counts.settings_ui + led.counts.viz_panel, '台账总数必须是两项之和');
     assert.equal(led.plan_expectation, 34, '计划原文的数字必须留档（不改计划去迎合实测）');
-    assert.ok(Math.abs(led.plan_expectation - led.counts.total) === 3, '差异条数必须如实写在台账里');
+    assert.equal(led.plan_expectation - led.counts.total, 2, '差异条数必须如实写在台账里（v3.485.0 新增 drylens 后 34 - 32 = 2）');
     assert.ok(String(led.why || '').length >= 40, '差异原因必须写清（不许一句「口径不同」了事）');
     assert.ok(Array.isArray(led.driven_by) && led.driven_by.length >= 2, '每个面由谁驱动必须点名');
 });
@@ -183,11 +183,11 @@ test('B4 面态是「一处实现」：四个分支都经 `_face`，不许各写
         "data-face-state 只许在 _face 里写一次（多处写=第二份真源）");
 });
 
-test('B5 27 个 settings-ui 视图由 v21_o6 驱动，且驱动清单来自 analyze（不是写死 27）', () => {
+test('B5 28 个 settings-ui 视图由 v21_o6 驱动，且驱动清单来自 analyze（不是写死 28）', () => {
     const src = fs.readFileSync(path.join(ROOT, 'tests', 'v21_o6_view_drive_truth.test.mjs'), 'utf8');
     assert.match(src, /viewList\(\)/, 'v21_o6 必须遍历 analyze 出来的清单（写死列表会漏掉新视图）');
     assert.match(src, /data-face-state|data-ls-face/, 'v21_o6 必须断言机器可读面态');
-    assert.equal(analyze(fs.readFileSync(UI_PATH, 'utf8')).views.length, 27);
+    assert.equal(analyze(fs.readFileSync(UI_PATH, 'utf8')).views.length, 28);
 });
 
 test('C1 入口事实如实登记：实例化 1 处但「打开面板」0 处 ⇒ 台账必须写清这两条（不假装可达）', () => {

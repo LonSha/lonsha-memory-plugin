@@ -1,3 +1,52 @@
+## v3.485.0
+
+**召回干跑透视镜接上可视面（v3.484.0 只出诊断行，用户看不见「谁被挡下」）。**
+
+做了什么
+- `settings-ui.js`：新增 `plugin.showRecallDryRunLens()` 一屏（自己的 overlay，不进 22 个视图的取数面），
+  总览「维护」组加一张 `data-view="drylens"` 入口卡（读数直接显示 `进预算/候选`），
+  `showBrowser` 头部加一条路由分支。屏内逐条列 `#排名 · 分数 · 楼层 · 粒度 · tokens · 累计 · 进入/被挡归因`，
+  外加红线网格（绿 ✓ / 红 ✕ / 灰 —）。
+- `index.js`：插件类新增 `rerunRecallDryRunLens()` —— 对**上一轮的瘦候选**重跑同一批判据，
+  不发请求、不计费；三态 reason 分开（`no-candidates` / `module-missing` / `threw`）。
+- `engine-recall.js`：留一份**不带正文**的瘦候选 `_lastRecallDryRunInput` + `_lastRecallDryRunBudget`。
+
+口径纪律（写进面板与注释，不是口号）
+- **重算不重打分**：瘦候选的分数原样搬自真路径，重算只重排名与预算 —— 否则就是第二个真源；
+- **三态不同形**：缺席（带 reason）/ 空（本轮真 0 条）/ 有读数，前两者读数都是 0 但文案与标记不同；
+- **na ≠ green**：未设预算的格子是灰，不是通过；面板明说「灰格不等于通过」；
+- **token 是估算口径**（CJK 1.5 字/token、其余 3.5），面板上如实标注，不冒充计数器。
+
+判据
+- `tests/v3485_recall_dryrun_panel.test.mjs` 8 条：入口/路由/卡片三处在场、三态标记分离、
+  na≠green 渲染分离、转义纪律（属性 vs 文本）、瘦候选不带正文且带 tokens、
+  **重新演练与首次同源**（瘦候选再 inspect，排名/进预算/被挡/token/红线状态逐字相同）、
+  重算三态 reason、当版自锚。
+- 版本七处 3.484.0 → 3.485.0；frontier 迁到 `v3485`（v3484 的锚改为历史下界）。
+- 台账：`index_split_ledger` 行数天花板按纪律重定基、`host_beast_baseline` 由探针重跑落盘、
+  `catalog_reference_consumers.tsv` 登记新测试。
+收尾时被判据抓出的三处（都是先红再改实现/台账，不是改判据放过）
+- **「有读数」态原本没有机器可读面态**：`v21_o6 C1` 报 `drylens` 无 `data-ls-face` —— 三态里只有
+  缺席/空两态带标记，第三态缺。已给读数分组补 `data-ls-face="ok"`，三态现在都能被机器读到。
+- **视图计数台账漂了**：新增 `data-view="drylens"` 使 settings-ui 视图 27 → 28、总面 31 → 32，
+  `tests/audit/view_drive_ledger.json` 与 `l23_o8` 的枚举数同步更新；与计划原文 34 的差异由 3 变 2，
+  如实改写 `why`（不为了对齐 34 去造假视图）。
+- **freshness 台账过期**：`host_beast_baseline` 重新判读后与 `l23_o9` 的 C1/C2 不一致，已用
+  `tools/gen_freshness_report.mjs` 重生成（不手改）。
+  ⚠ 顺序坑（记下来免得下轮再踩）：`measured_at` 是**版本式时间戳**，按该版本的 **git 提交日**计龄 ——
+  所以 freshness 必须在**提交之后**重生成；提交前生成会判成「无时间戳」，提交后同一份台账立刻变成
+  「现场 fresh / 台账 expired」而翻红。本轮实际踩了一次。
+- `l23_o6` 的 `_lastRecallDryRunInput` / `_lastRecallDryRunBudget` 被判「写了不读」是**真信号**：
+  修法是让 `_recallDryRunLine` 真读它们（拼出「可重算 N 条（预算 X token）」），再走生成器重生成台账，
+  没有在台账里加豁免。
+诚实交代
+- 真机未点过：本版是面板新增，**没有真 SillyTavern 宿主里的实点截图**，观感/窄屏需真机确认。
+- 遗留红与本事无关：`tests/v3461_r18_wiring_truth.test.mjs` 在上一提交 `24ad9d8` 上就是 8/10（同两红），
+  根因是 `tests/audit/scan_module_wiring.mjs` 的注释自己写明「实际从未调用过 stripComments」，
+  而 `index.js` 注释里的 `window.LonSha*` 被当成消费点，掏出一个裸 `LonSha`。本版不动它（剥注释会让
+  「已挂载未消费 18 个 / 账本仅 4 个」的旧账一次性爆开，属另一次单独的账）。
+- 未跑全量：按纪律标「全量待验」，`doc_readings` 仍停 v3.475.0。
+
 ## v3.484.0
 
 **从用户给的两份酒馆脚本里缝四条纪律进主干**（📚 通用角色弧光与世界书归档台 V4.6 / 光域·镜忆 V0.1）。

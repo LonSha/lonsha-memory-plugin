@@ -1296,6 +1296,20 @@
                             rows: _l.rows,
                             redLines: _l.redLines
                         };
+                        /* [v3.485.0] 面板「重新演练」要能就地重算，故留一份**瘦候选**：
+                         *   只带 id / 楼层 / 分数 / 两条源分 / tokens / 粒度 —— **不带正文**。
+                         *   为什么不带正文：① 它只在内存里活一轮，带正文等于给每轮多存一份上下文；
+                         *   ② 重算只需要分数与 token 数（lens 的 tokenOf 可省，rows 里已有 tokens），
+                         *      带正文反而会让「干跑和真路径同源」变成「干跑自己再估一遍 token」。
+                         *   口径纪律：这是**读数副本**，不是第二真源 —— 分数一律原样搬，不重算。 */
+                        engine._lastRecallDryRunInput = (_l.rows || []).map(function (r) {
+                            return {
+                                id: r.id, floor: r.floor, rrfScore: r.rrfScore,
+                                sources: { dense: r.dense, bm25: r.bm25 },
+                                tokens: r.tokens, matchedGrain: r.grain
+                            };
+                        });
+                        engine._lastRecallDryRunBudget = _budget;
                     } else {
                         engine._lastRecallDryRun = { active: false, reason: 'module-missing' };
                     }

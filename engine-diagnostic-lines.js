@@ -334,6 +334,13 @@
             var s = '【召回干跑】候选 ' + (r.candidateCount || 0) + ' 条 · 进预算 ' + (r.admitted || 0) + ' 条';
             if (r.cut) s += ' · **被预算挡下 ' + r.cut + ' 条**';
             if (r.budgetTokens !== null && r.budgetTokens !== undefined) s += ' · ' + (r.tokensUsed || 0) + '/' + r.budgetTokens + ' token';
+            // 瘦候选与预算是面板重算的口径，这里真读一次当读数用
+            var _slim = engine ? engine._lastRecallDryRunInput : null;
+            var _bud = engine ? engine._lastRecallDryRunBudget : null;
+            if (_slim && _slim.length) {
+                var _bt = _bud && _bud.budgetTokens !== null && _bud.budgetTokens !== undefined ? _bud.budgetTokens : '—';
+                s += ' · 可重算 ' + _slim.length + ' 条（预算 ' + _bt + ' token）';
+            }
             var reds = (st.redLines || []).filter(function (x) { return x.state === 'red'; });
             if (reds.length) s += ' · **红线 ' + reds.length + ' 条**（' + reds.map(function (x) { return x.key; }).join('、') + '）';
             return s;

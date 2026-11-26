@@ -2,14 +2,14 @@
   "file": "tests/audit/view_drive_ledger.json",
   "note": "L23-O8「视图分支逐个真调」的计数与差异台账。判据 tests/l23_o8_view_drive_all.test.mjs 会重新枚举盘面并与本文件逐项比对：数字一变就红，所以这份读数不能手抄着漂。口径：『视图分支』= settings-ui.js 里 `viewType === 'x'` 的浏览器视图 + modules_combined.js 里 `render*View()` 的可视化视图；memory-center.js 的 `view` 是**面态**（panel/result/empty/unknown/error）不是视图，不计入。",
   "counts": {
-    "settings_ui": 27,
+    "settings_ui": 28,
     "viz_panel": 4,
-    "total": 31
+    "total": 32
   },
   "plan_expectation": 34,
-  "why": "计划写「34 个视图分支逐个真调」，本次按机器枚举实测 31（27 + 4），差 3。差异原因：计划里的 34 是立项时的粗计数，没有绑定到任何可复算的枚举口径；本刀把口径钉成可复算的两条（viewType 分支 + render*View 方法）后落到 31。处理方式是**留档差异、不凑数**——不为了对齐 34 去造三个没有渲染分支的假视图，也不改计划原文去迎合实测。真正的验收线是「枚举到的每一个都被真调过」，而不是「数字等于 34」。",
+  "why": "计划写「34 个视图分支逐个真调」，本次按机器枚举实测 32（28 + 4），差 2。差异原因分两层：① 计划里的 34 是立项时的粗计数，没有绑定到任何可复算的枚举口径；② v3.485.0 新增 data-view=\"drylens\"（召回干跑透视镜），27 -> 28。本刀把口径钉成可复算的两条（viewType 分支 + render*View 方法）后落到 32。处理方式是**留档差异、不凑数**——不为了对齐 34 去造两个没有渲染分支的假视图，也不改计划原文去迎合实测。真正的验收线是「枚举到的每一个都被真调过」，而不是「数字等于 34」。",
   "driven_by": [
-    "tests/v21_o6_view_drive_truth.test.mjs（27 个 settings-ui 视图，最小 DOM shim 里逐个真调 showBrowser）",
+    "tests/v21_o6_view_drive_truth.test.mjs（28 个 settings-ui 视图，最小 DOM shim 里逐个真调 showBrowser）",
     "tests/l23_o8_view_drive_all.test.mjs（4 个 viz 视图，vm 隔离 context 里逐个真调 render*View）"
   ],
   "entry_sites": 1,

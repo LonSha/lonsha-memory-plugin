@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.484.0';
+    const VERSION = '3.485.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -11357,6 +11357,37 @@ function _collectNewFace() {
     /* [v3.484.0] 三个新方法落在**插件类**里，不放模块级：
      *   它们要读 `this._lastCacheSafeSegments` / `this._lastMemoryMirror`，
      *   而诊断行按 `engine._xxx` 取读数 —— 状态必须活在引擎实例上。 */
+    /* [v3.485.0] 召回干跑「重新演练」：只对**上一轮的瘦候选**再跑一遍同一批判据，
+     *   不发请求、不计费、不碰真路径。为什么需要它：面板上的读数是「上一轮生成时」的快照，
+     *   用户调整了预算/看错了一条想再看一遍时，除了再生成一轮没有别的办法 ——
+     *   而那要付一次真生成。这里给的是「同一批候选、同一批判据、可重入」的重算。 */
+    rerunRecallDryRunLens() {
+        const lib = _recallDryRunLensLib();
+        const input = this._lastRecallDryRunInput;
+        if (!lib || typeof lib.inspect !== 'function') {
+            this._lastRecallDryRun = { active: false, reason: 'module-missing' };
+            return { ok: false, reason: 'module-missing' };
+        }
+        if (!Array.isArray(input) || input.length === 0) {
+            /* 三态不同形：没有候选 ≠ 算出来 0 条 */
+            return { ok: false, reason: 'no-candidates' };
+        }
+        try {
+            const res = lib.inspect({ candidates: input, budgetTokens: this._lastRecallDryRunBudget || null });
+            this._lastRecallDryRun = {
+                active: true,
+                state: res.state,
+                readings: res.readings,
+                rows: res.rows,
+                redLines: res.redLines,
+                rerun: true
+            };
+            return { ok: true, state: res.state, rows: res.rows.length };
+        } catch (e) {
+            this._lastRecallDryRun = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+            return { ok: false, reason: 'threw' };
+        }
+    }
     /* [v3.484.0 · 缝合镜忆 90-10 前缀缓存保护] 注入分段计划。
      *   为什么放在 index 而不在注入管线里各算各的：稳定段的**定序键**必须与
      *   注入串的拼接顺序同源，两处各写一遍就会出现「计划说稳定、实拼是抖的」。

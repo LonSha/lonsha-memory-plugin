@@ -193,15 +193,15 @@ test('12. 接线自证：登记 + 真引用 + 诊断行', () => {
   }
 });
 
-/* ========== 13. 当版自锚（版本守卫 V4：当版档案里恰一处 vnum 锚点） ========== */
+/* ========== 13. 历史锚（v3.485.0 起 frontier 迁到 v3485；此处只保下界） ========== */
 {
   const vnum = (s) => {
     const m = /^([0-9]+)[.]([0-9]+)[.]([0-9]+)/.exec(String(s || '').trim());
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
   };
   const cur = (/const VERSION = '([0-9.]+)'/.exec(read('index.js')) || [])[1];
-  assert.equal(cur, '3.484.0', 'index.js VERSION 应为 3.484.0，实得 ' + cur);
+  assert.ok(vnum(cur) >= 3484000, 'index.js VERSION 不应低于 3.484.0，实得 ' + cur); /* [v3.485.0] 退成历史锚 */
   assert.equal(vnum('3.484.0'), 3484000, '数值口径不可复算');
-  assert.equal(JSON.parse(read('manifest.json')).version, '3.484.0');
-  assert.equal(JSON.parse(read('package.json')).version, '3.484.0');
+  assert.ok(vnum(JSON.parse(read('manifest.json')).version) >= 3484000);
+  assert.ok(vnum(JSON.parse(read('package.json')).version) >= 3484000);
 }

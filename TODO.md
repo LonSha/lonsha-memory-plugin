@@ -104,6 +104,7 @@
 > · [拓展九项](.agents/notes/proposed/feature/2026-11-16-product-expansion-v22.md)。
 > 下方第二十一期记录（L21 十八项，已于 v3.465.2 全部交付）保留为历史。
 
+> **最近更新：v3.485.0**（召回干跑透视镜接上面板：总览「维护」组新增入口卡 + 独立一屏，逐条列分数/楼层/粒度/tokens/被挡归因 + 红线网格绿红灰三态；`rerunRecallDryRunLens()` 对瘦候选重跑同一批判据（不发请求不计费，不重打分）。判据 8 条全绿。
 > **最近更新：v3.484.0**（**从用户自带的两份酒馆脚本缝四条纪律**：`cache-safe-injection-segments` 90-10 前缀缓存保护 / `recall-dryrun-lens` 召回干跑透镜 / `recall-grain-merge` 双粒度择优 / `memory-text-mirror` 可读文本镜像往返。四条都落在实测 0 命中的缺口上；不新增配置键；台账三份重绑（seam +4 / core_functions 46→50 / index 行数棘轮 13243→13322 带理由）。判据 12 条全绿。
 > **最近更新：v3.483.0**（**从第三方 `lena13144/lorecodex`（酒馆扩展，安装名 `st-tree-lore`，MIT、零依赖）借两处纪律缝进召回主链**。
 > 它自己的机制是 PageIndex 式的「卷→篇→幕」目录树 + 本地 IndexedDB 引擎 + `read_scene` 工具往返，**整棵不搬**（目录树与

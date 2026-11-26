@@ -505,6 +505,7 @@
                 <div class="ls-stat-section-title"><i class="ls-ico" data-i="gear" aria-hidden="true"></i>维护</div>
                 <div class="ls-stat-grid">
                     <div class="ls-stat-card ls-clickable" data-view="injection"><div class="ls-stat-num">${s._lastInjection ? '就绪' : '—'}</div><div class="ls-stat-label">本轮注入预览</div></div>
+                    <div class="ls-stat-card ls-clickable" data-view="drylens" title="召回干跑透视镜：不发请求、不计费，看这一轮捞回哪几条、各自多少分、预算挡下了谁"><div class="ls-stat-num">${s._lastRecallDryRun && s._lastRecallDryRun.readings ? ((s._lastRecallDryRun.readings.admitted || 0) + '/' + (s._lastRecallDryRun.readings.candidateCount || 0)) : '—'}</div><div class="ls-stat-label">召回干跑</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="memorycenter"><div class="ls-stat-num">调阅</div><div class="ls-stat-label">详细设置</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="report"><div class="ls-stat-num">生成</div><div class="ls-stat-label">全景档案报告</div></div>
                     <div class="ls-stat-card ls-clickable" data-view="archive"><div class="ls-stat-num">${s._lastArchiveAudit ? (s._lastArchiveAudit.verdict === 'classified' ? ((s._lastArchiveAudit.cleanup || 0) > 0 ? (s._lastArchiveAudit.cleanup + ' 项') : '正常') : '—') : '—'}</div><div class="ls-stat-label">存档健康体检</div></div>
@@ -571,9 +572,91 @@
             });
         };
 
+        /* ===== [v3.485.0 · 缝合镜忆干跑透视] 召回干跑透视镜（面板控件）=====
+         * 这一屏回答的问题：**「我这句问下去会捞回哪几条、预算涨到哪被谁挡下」** ——
+         * 修前全仓无处可看（`engine-recall` / `unified-recall` 里 dryRun/透视/预演 0 命中），
+         * 只能改配置、真发请求、翻注入串，一轮一轮试。
+         *
+         * 三条口径纪律（与 v3.428.0 面板三态同族）：
+         *   ① **不发请求、不计费**：数据来自上一轮生成时的 `_lastRecallDryRun`（真路径同源分数），
+         *      「重新演练」只对瘦候选重跑同一批判据，不重算分数（重算就是第二真源）；
+         *   ② **三态不同形**：`缺席`（模块没装上 / 已跳过，带 reason）/ `空`（本轮候选 0 条）/
+         *      `有读数`（逐条列）—— 前两者读数都是 0，压成一句话就分不清「机制没接上」与
+         *      「这轮本来就没捞到东西」；
+         *   ③ **na ≠ green**：红线网格里「没给预算」是 na 灰格，不是通过；只有真判过的才画绿。
+         * 边界：token 数是**估算口径**（CJK 1.5 字/token、其余 3.5），面板上如实标注，不冒充计数器的数。 */
+        plugin.showRecallDryRunLens = function() {
+            const s = this.engine;
+            const st = s ? s._lastRecallDryRun : null;
+            const esc = (t) => String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const face = (kind, text) => `<div class="ls-hint" data-ls-face="${kind}" style="padding:14px;text-align:center;">${text}</div>`;
+            let body = '';
+            if (!st) {
+                body = face('empty', '还没有干跑读数：生成一轮之后这里会显示「这一轮捞回了哪几条、各自多少分、预算挡下了几条」。');
+            } else if (st.active === false) {
+                body = face('absent', '干跑透镜不可用（原因：' + esc(st.reason || 'unknown') + '）—— 这不是「没有数据」，是这一面没跑起来。');
+            } else if (st.state === 'empty') {
+                body = face('empty', '本轮召回候选 0 条（真的没捞到东西，不是面板坏了）。');
+            } else {
+                const r = st.readings || {};
+                const rows = st.rows || [];
+                const reds = st.redLines || [];
+                const chip = (x) => {
+                    const tone = x.state === 'red' ? 'var(--ls-error, #e05252)' : (x.state === 'green' ? 'var(--ls-success, #3f9c5a)' : 'var(--ls-text-3)');
+                    const mark = x.state === 'red' ? '✕' : (x.state === 'green' ? '✓' : '—');
+                    return `<span style="display:inline-block;margin:2px 6px 2px 0;padding:1px 6px;border-radius:6px;border:1px solid ${tone};color:${tone};font-size:12px;" title="${esc(x.detail)}">${mark} ${esc(x.key)}</span>`;
+                };
+                const rowHtml = rows.map((x) => {
+                    const verdict = x.admitted ? '进入' : ('被挡（' + esc(x.cutBy || 'budget') + '）');
+                    const color = x.admitted ? 'var(--ls-text-2)' : 'var(--ls-warn, #c9812c)';
+                    const score = (x.rrfScore === null || x.rrfScore === undefined) ? '—（无分数）' : Number(x.rrfScore).toFixed(3);
+                    return `<div class="ls-item-text" style="margin:2px 0;font-size:12px;color:${color};">`
+                        + `#${x.rank} <b>${score}</b>`
+                        + (x.floor === null || x.floor === undefined ? ' · 无楼层' : (' · 第' + x.floor + '楼'))
+                        + (x.grain ? (' · ' + esc(x.grain)) : '')
+                        + ` · ${x.tokens} tok · 累计 ${x.cumTokens} · ${verdict}</div>`;
+                }).join('');
+                body = `
+                    <div class="ls-group" data-ls-face="ok">
+                        <div class="ls-group-title">本轮干跑读数${st.rerun ? '（重算）' : '（上一轮生成时）'}</div>
+                        <div class="ls-item">
+                            <div class="ls-item-meta">候选 ${r.candidateCount || 0} 条 · 进预算 ${r.admitted || 0} 条`
+                        + (r.cut ? ` · <b style="color:var(--ls-warn, #c9812c);">被预算挡下 ${r.cut} 条</b>` : '')
+                        + (r.budgetTokens === null || r.budgetTokens === undefined ? ' · 未设预算（只排名不裁）' : ` · ${r.tokensUsed || 0}/${r.budgetTokens} token（剩 ${r.tokensLeft || 0}）`)
+                        + `</div>
+                            <div class="ls-item-text" style="margin-top:6px;">${rowHtml || '（无行）'}</div>
+                        </div>
+                    </div>
+                    <div class="ls-group">
+                        <div class="ls-group-title">红线网格</div>
+                        <div class="ls-item"><div class="ls-item-text">${reds.map(chip).join('') || '（无检查项）'}</div></div>
+                    </div>
+                    <div class="ls-hint" style="display:flex;align-items:center;gap:6px;">
+                        <span class="lsm-item" data-act="rerun" style="cursor:pointer;color:var(--ls-accent);">重新演练（不发请求、不计费）</span>
+                        <span style="color:var(--ls-text-3);">· 分数与真路径同源（本屏不重算）；token 为估算口径</span>
+                    </div>
+                    <div class="ls-hint" style="color:var(--ls-text-3);">灰格 na = 该项没有适用条件（例如未设预算），<b>不等于</b>通过。被挡的条目仍在库里，预算放宽后自然能进。</div>
+                `;
+            }
+            const ov = makeSheet('lonsha-drylens-overlay', '召回干跑透视镜', body);
+            const btn = ov && ov.querySelector ? ov.querySelector('[data-act="rerun"]') : null;
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const res = plugin.rerunRecallDryRunLens();
+                    if (!res || res.ok !== true) {
+                        toast(res && res.reason === 'no-candidates' ? '还没有可重算的候选（先生成一轮）' : '重算失败：' + ((res && res.reason) || 'unknown'));
+                        return;
+                    }
+                    plugin.showRecallDryRunLens();
+                });
+            }
+        };
         // ========== 记忆内容浏览器（v1.3.1）==========
         plugin.showBrowser = function(viewType) {
             const s = this.engine;
+            /* [v3.485.0] 干跑透视镜单独一屏（走自己的 overlay），不塞进本函数 22 个视图里：
+             *   它只读 `_lastRecallDryRun` 这一份读数，与浏览器各视图的取数面没有交集。 */
+            if (viewType === 'drylens') { return plugin.showRecallDryRunLens(); }
             let title = '', body = '';
             // [v3.273] 交互绑定块要用引擎别名（该块原先错位在 showStatsPanel，eng 与 viewType 双未定义）；搬回本函数后 viewType 在作用域内，eng 在此声明。
             const eng = this.engine;
