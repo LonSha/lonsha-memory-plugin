@@ -165,7 +165,11 @@ test('B2 同源：取库口与消费方不得引用「文件里不存在的挂�
     const allFiles = fs.readdirSync(ROOT).filter((f) => f.endsWith('.js'));
     const provided = new Set();
     for (const f of allFiles) for (const n of mountedNames(read(f))) provided.add(n);
-    const index = read('index.js');
+    /* [v3.486.0] 必须剥注释：本行原为 `read('index.js')` 原文，于是注释里那句
+     *   `window.LonSha*`（index.js:10305 的说明文）被当成取库名，掏出一个裸 `LonSha`，
+     *   把「全仓没有任何文件挂它」判成了缺陷 —— 假红。同一个文件里的 C1 早就用
+     *   stripComments，本组漏用。判据口径统一：**注释不算引用**（v3.472.0 的纪律）。 */
+    const index = stripComments(read('index.js'));
     for (const m of index.matchAll(/defineProperty\(\s*window\s*,\s*'([A-Za-z0-9_]+)'/g)) provided.add(m[1]);
     for (const m of index.matchAll(/window\s*\.\s*([A-Za-z0-9_]+)\s*=/g)) provided.add(m[1]);
 

@@ -100,8 +100,11 @@ test('8. 当版自锚（版本守卫 V4）', () => {
     return m ? Number(m[1]) * 1000000 + Number(m[2]) * 1000 + Number(m[3]) : NaN;
   };
   const cur = (/const VERSION = '([0-9.]+)'/.exec(IDX) || [])[1];
-  assert.equal(cur, '3.485.0', 'index.js VERSION 应为 3.485.0，实得 ' + cur);
+  /* [v3.486.0] 当版硬等号降级为历史下界：frontier 身份已让给 v3486。
+     版本守卫 V4 的纪律是「每抬一版，旧 frontier 的当版锚必须降为不低于本版下界」——
+     否则历史测试会锁死当前版本，每抬一版都红一片。 */
+  assert.ok(vnum(cur) >= 3485000, 'index.js VERSION 应不低于 3.485.0，实得 ' + cur);
   assert.equal(vnum('3.485.0'), 3485000);
-  assert.equal(JSON.parse(read('manifest.json')).version, '3.485.0');
-  assert.equal(JSON.parse(read('package.json')).version, '3.485.0');
+  assert.ok(vnum(JSON.parse(read('manifest.json')).version) >= 3485000, 'manifest 版本应不低于 3.485.0');
+  assert.ok(vnum(JSON.parse(read('package.json')).version) >= 3485000, 'package 版本应不低于 3.485.0');
 });

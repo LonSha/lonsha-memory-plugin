@@ -339,6 +339,58 @@ for (const m of entryCode.matchAll(/\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)\s*=/g)
 for (const m of entryCode.matchAll(/defineProperty\(\s*window\s*,\s*'([A-Za-z0-9_]+)'/g)) selfProvided.add(m[1]);
 const unresolved = [...referenced].filter(s => !actuallyProvided.has(s) && !selfProvided.has(s)).sort();
 
+/* ---------- 3.5 [v3.486.0] B4 专用消费面：**任意已注册脚本的读** ----------
+ * 【为什么改】修前 B4 的消费面 = index.js + 一份手抄载体清单（A1_CARRIERS / HOST_FACE_CONSUMERS）。
+ *   清单是**逐轮补出来的**：v3.264（A1 刀口）、v3.301（_winModule 形态）、v3.439（宿主直挂面板）、
+ *   v3.461（编排器裸守卫）、v3.474（拆片载体）—— 同一类假红修了五轮，每轮都要再手抄一遍文件名。
+ *   到 v3.485.0 已经积了 14 条：`LonShaPanel` / `LonShaUiKit` / `LonShaSummaryTree` / `LonShaFloorPanel`
+ *   / `LonShaDataPanels` / `LonShaUiSeam` / `LonShaJsonTree` / `LonShaUiTable` / `LonShaFormControls`
+ *   / `LonShaSettingsPanel` / `LonShaWindowPlan` / `LonShaStorageCodec` / `LonShaRulesCompile` /
+ *   `LonShaV4PanelUi` —— 全都是**真接线**，消费方住在面板层（dashboard-shell / v4-panel-ui /
+ *   ui-panel-seam / v4-panel-bridge），判据看不见而已。
+ *
+ * 【新口径】一个已挂载的全局算「有消费」当且仅当：**存在一个已注册脚本 f 读了它，且 f 不是它的提供者**。
+ *   「提供者自身读自己」不算 —— 那正是「自产自销」的假绿形态（与 selfProvided 同一条纪律）。
+ *   这不是放宽：判据量的是「有没有人用」，而不是「index.js 有没有用」。原来那五个载体特例
+ *   全部被这条口径覆盖，故清单退役（留着只会继续腐烂）。
+ *
+ * 【为什么不并进 referenced】referenced 是 B3（引用面必须被供给）的输入，改它等于同时改两条判据的
+ *   口径。这里按 v3.461 水合表那条的先例：**只影响 B4，不进 referenced**，B3 的面原样不动。
+ *
+ * 【防自证】`mod('X', './f.js')` / `pick('X', './f.js')` 这类字符串取库形态，必须通过**真名核对**
+ *   （X 必须等于 f 这个文件真实挂载的全局名）才算消费 —— 否则名字写错时它恰恰是缺陷本身，
+ *   登记表会自证为绿（水合表那条踩过的坑，此处同法收紧）。
+ */
+const consumedEverywhere = new Set();
+const SELF_READ_RES = [
+    /\bwindow\s*\.\s*(LonSha[A-Za-z0-9_]*)/g,
+    /\b(?:global|globalThis|root|self)\s*\.\s*(LonSha[A-Za-z0-9_]*)\b(?!\s*=(?!=))/g,
+    /\b_winModule\(\s*['"](LonSha[A-Za-z0-9_]*)['"]/g,
+    /typeof\s+(LonSha[A-Za-z0-9_]*)\s*!==\s*['"]undefined['"]/g,
+];
+const MOD_FETCH_RE = /\b(?:mod|pick|_mod|_pick|winModule)\(\s*['"]([A-Za-z_$][A-Za-z0-9_$]*)['"]\s*,\s*['"]([^'"]+)['"]\s*\)/g;
+let readFiles = 0;
+for (const f of loadOrder) {
+    let code = '';
+    try { code = stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8')); } catch (_e) { continue; }
+    readFiles++;
+    const own = providersByFile.get(f) || new Set();
+    for (const re of SELF_READ_RES) {
+        for (const m of code.matchAll(re)) {
+            if (own.has(m[1])) continue;          // 提供者自产自销不算
+            consumedEverywhere.add(m[1]);
+        }
+    }
+    for (const m of code.matchAll(MOD_FETCH_RE)) {
+        const nm = m[1];
+        const target = String(m[2]).replace(/^\.\//, '');
+        const owner = providersByFile.get(target);
+        if (!owner || !owner.has(nm)) continue;   // 真名核对不过 ⇒ 不算消费（防登记表自证）
+        if (own.has(nm)) continue;
+        consumedEverywhere.add(nm);
+    }
+}
+console.log('B0 消费面读数：读了 ' + readFiles + ' 个已注册脚本，见到 ' + consumedEverywhere.size + ' 个模块全局的真读点');
 /* ---------- 4. B4：消费面（冻结账本） ---------- */
 // 这些模块对外挂载了全局符号，但当前无任何调用点（机制要么已内联在 index.js、
 // 要么尚未接线）。它们不是死文件（已被注册、有独立单测），但属于「静默腐烂」区，
@@ -355,7 +407,13 @@ const UNCONSUMED_LEDGER = [
      *   index.js 引用 UI 全局会把「引擎可跑」和「面板可渲染」耦合成一个失败面；本仓库的面板层一直
      *   走 settings-ui 自装载，故此处记账而不改 index.js。
      */
-    'LonShaIcons', 'LonShaDashboardV2', 'LonShaDevConsole',
+    /* [v3.486.0] 上面三条（LonShaIcons / LonShaDashboardV2 / LonShaDevConsole）**撤出账本**。
+     *   v3.475.1 把它们记进账的理由是「由 dashboard-shell 消费、不由 index.js 消费」——
+     *   而账本本来是给「谁都没用」的模块用的豁免口。既然 v3.486.0 的 B4 口径已改成
+     *   「任意已注册脚本（非提供者）有真读点即算消费」，dashboard-shell / dashboard-v2 /
+     *   dev-console-v3 里那些 `window.LonShaIcons` 读点就被如实认账了，它们不再是零消费。
+     *   留着这三条 = 继续给真接线发豁免 = 账本自证，故撤。
+     *   （原 v3.475.1 的注释保留在上方作为历史理由，不删档。） */
     // [v3.173] 缝合模块接线面：**账本已清空**。
     //   v3.163 建账时这里冻结了 7 个「已挂载但零消费」的模块（canonical / dependency-closure /
     //   entity-semantic / extraction-cadence / floor-range / npc-ties / turn-reconciler）。
@@ -385,6 +443,18 @@ const UNCONSUMED_LEDGER = [
      *   为满足审计而造假消费点（同 L21-O4 对 floor-fingerprint 的判定）；但它也不是死代码，
      *   故如实记账：挂载、零业务消费、消费者是判据。 */
     'LonShaDiagnosticLinesParts',
+    /* [v3.486.0 · 面板层] `LonShaPanel` —— dashboard-shell.js 末尾 `window.LonShaPanel = { open, close, version: '6.0.0' }`。
+     *   全仓读点只有 4 处，**全部在同一个文件里**：638/639（包裹层把非开发者面路由到 v6 面板）、
+     *   768（`if (window.LonShaPanel) return;` 重复安装自锁）。递归 grep 过 .js/.json/.tsv/.md，
+     *   没有第二个文件读它 —— 它不是「接线丢了」，而是**同文件自锁位 + 对外探测面**（version 字段
+     *   就是给 probeModules 那类探测用的）。
+     *   为什么不接线：面板真实入口是 `plugin.showSettingsPanel`（settings-ui.js:3214），而
+     *   dashboard-shell.js 已经把这个入口**包裹**了（包裹层内部就把调用转成 window.LonShaPanel.open）——
+     *   也就是说产品路径确实经过它，只是「经过」发生在提供者自己的文件里，外部没有第二读点。
+     *   为点亮判据去 index.js 塞一句 window.LonShaPanel，就是 repo 明令禁止的
+     *   `do not add a consumer solely to satisfy the audit`，故如实记账。
+     *   若将来要由 index.js 直接触发 v6 面板，接上并删掉本条。 */
+    'LonShaPanel',
 ];
 // [v3.173] 清空必须是有凭据的清空：下列 7 个模块是**本版声明已接线**的，必须逐个确认
 //   index.js 里真有对它全局符号的引用。否则「删掉引用 + 删掉账本记录」也能让 B4 全绿 ——
@@ -398,6 +468,7 @@ for (const sym of actuallyProvided) {
     if (sym === 'GraphDiffusion' || sym === 'MemoryVisualizer') continue; // 类名经裸标识符消费，下面单独判
     if (selfProvided.has(sym)) continue;                                   // index.js 自产自销
     if (referenced.has(sym)) continue;                                     // 被 index.js 引用
+    if (consumedEverywhere.has(sym)) continue;                             // [v3.486.0] 任意已注册脚本（非提供者）有真读点
     if (hydrateRegistered.has(sym)) continue;                              // 持久化水合表按真名登记（L18）
     unconsumed.push(sym);
 }
@@ -443,7 +514,8 @@ console.log('加载顺序 ' + loadOrder.length + ' 个脚本（入口 + extra_js
     + (loadOrder.length - loadFailures.length) + '/' + loadOrder.length
     + ' | 顶层声明 ' + declOwner.size + ' 个 | 对外全局 ' + actuallyProvided.size + ' 个');
 console.log('index.js 引用 window.* 符号 ' + referenced.size + ' 个（自身产出 ' + selfProvided.size + ' 个）| 已挂载未消费 '
-    + unconsumed.length + ' 个（账本 ' + UNCONSUMED_LEDGER.length + ' 个）');
+    + unconsumed.length + ' 个（账本 ' + UNCONSUMED_LEDGER.length + ' 个）'
+    + ' | 全仓真读点 ' + consumedEverywhere.size + ' 个（B4 口径）');
 console.log('v3.173 接线凭据：声明已接线 ' + WIRED_AT_3173.length + ' 个，其中真被引用 '
     + (WIRED_AT_3173.length - wiredNotConsumed.length) + ' 个');
 console.log('B5 结构健康：' + (defects.length ? '发现 ' + defects.length + ' 项缺陷' : 'ok'));

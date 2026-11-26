@@ -530,7 +530,12 @@
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     if (root) {
-        try { root.LonShaV4PanelUI = Object.freeze(api); } catch (_e) { /* 宿主冻结全局会抛，忽略 */ }
+        /* [v3.486.0] 这里原来挂的是 `root.LonShaV4PanelUI`，而文件末尾又挂了一个
+         *   `window.LonShaV4PanelUi` —— **同一个 api 两个只差大小写的全局名**，消费方
+         *   （ui-panel-seam.js 的 `mod('LonShaV4PanelUi', './v4-panel-ui.js')`）只认后者，
+         *   前者是零读点的重复挂载；更糟的是前者被 freeze、后者没有，同一模块两个名两种可变性。
+         *   收敛成消费方用的那个名字：一个模块一个全局名。 */
+        try { root.LonShaV4PanelUi = Object.freeze(api); } catch (_e) { /* 宿主冻结全局会抛，忽略 */ }
     }
 
     /* 自启动（幂等、可失败）：宿主页面就绪后挂一次。

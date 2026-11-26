@@ -641,3 +641,4 @@ panel-v5-wiring.test.mjs		v3.483.0 新增：v5 视觉层的「落点 / 特异性
 v3483_recall_progress_and_provenance.test.mjs
 v3484_fused_attachments.test.mjs
 v3485_recall_dryrun_panel.test.mjs
+v3486_wiring_surface_truth.test.mjs

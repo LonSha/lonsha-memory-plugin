@@ -2,9 +2,9 @@
   "_doc": "死代码行数上界（T3）。v3116 的「活跃代码总量」判据读这里的 ceiling，不再手写字面量。",
   "_rule": "上界只跟**活跃模块**走，不给死代码留余量：ceiling 必须 >= 实测总量，且余量 <= maxSlack。",
   "_bump": "node tests/audit/dead_code_budget.mjs --bump --reason='<为什么这次活跃代码变多了>'",
-  "ceiling": 167081,
+  "ceiling": 168316,
   "maxSlack": 400,
-  "note": "v3.483.0 缝合 lorecodex 两处纪律：新增 recall-progress-gate.js（180 行·召回进度门 maxOrder 防剧透）+ recall-provenance-ledger.js（190 行·召回来源台账 readScenes 等价半）+ engine-recall.js 接线 109 行 + memory-config 3 个开关 + 宿主库口 13 行 + 测试 330 行（测试不计入活跃代码）",
+  "note": "v3.486.0：新增判据 v3486（11 条含 6 条负控制）+ 扫描器消费面重写的注释与实现",
   "history": [
     {
       "ceiling": 21000,
@@ -517,7 +517,11 @@
     {
       "ceiling": 167081,
       "reason": "v3.483.0 缝合 lorecodex 两处纪律：新增 recall-progress-gate.js（180 行·召回进度门 maxOrder 防剧透）+ recall-provenance-ledger.js（190 行·召回来源台账 readScenes 等价半）+ engine-recall.js 接线 109 行 + memory-config 3 个开关 + 宿主库口 13 行 + 测试 330 行（测试不计入活跃代码）"
+    },
+    {
+      "ceiling": 168316,
+      "reason": "v3.486.0：新增判据 v3486（11 条含 6 条负控制）+ 扫描器消费面重写的注释与实现"
     }
   ],
-  "_history_last": "ceiling 165260 → 167081（实测 166681 + slack 400）：v3.483.0 缝合 lorecodex 两处纪律：新增 recall-progress-gate.js（180 行·召回进度门 maxOrder 防剧透）+ recall-provenance-ledger.js（190 行·召回来源台账 readScenes 等价半）+ engine-recall.js 接线 109 行 + memory-config 3 个开关 + 宿主库口 13 行 + 测试 330 行（测试不计入活跃代码）"
+  "_history_last": "ceiling 167081 → 168316（实测 167916 + slack 400）：v3.486.0：新增判据 v3486（11 条含 6 条负控制）+ 扫描器消费面重写的注释与实现"
 }
