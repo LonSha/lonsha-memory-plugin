@@ -639,3 +639,4 @@ v3482_settings_panel_wiring.test.mjs		v3.481.0 补登·存量盲区：该档在�
 ui-workbench-adapter.test.mjs		v3.482.0 呈现层 stage-2 · LoreCodex 工作台数据面适配器：21 个导出与上游逐个对拍 / 三级映射 / 楼层锁与「没有这条」不同形 / grep AND 语义 / traversal 与 scenes 对齐 / 只读面必须抛 / importmap 接线在场 + 漂移闸绿（14 条，三条反向验证实测）
 panel-v5-wiring.test.mjs		v3.483.0 新增：v5 视觉层的「落点 / 特异性 / 层序 / 纪律」判据（治「写了零生效且全绿」）。
 v3483_recall_progress_and_provenance.test.mjs
+v3484_fused_attachments.test.mjs

@@ -88,6 +88,21 @@
     }
     /* [v3.483.0 · 缝合 lorecodex maxOrder] 召回进度门取库口。
      *   判据本体在 recall-progress-gate.js（纯函数、可单测）；此处只负责取数与留痕。 */
+    /* [v3.484.0 · 缝合两份外部脚本] 四个纯函数库口。
+     *   模块缺席一律回 null，由调用方写 reason='module-missing'（不伪装成「跑了但没结果」）。 */
+    function _cacheSafeSegmentsLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaCacheSafeSegments : null), 'cache-safe-injection-segments.js');
+    }
+    function _recallDryRunLensLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallDryRunLens : null), 'recall-dryrun-lens.js');
+    }
+    function _recallGrainMergeLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallGrainMerge : null), 'recall-grain-merge.js');
+    }
+    function _memoryTextMirrorLib() {
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryTextMirror : null), 'memory-text-mirror.js');
+    }
+
     function _recallProgressGateLib() {
         if (_libs._recallProgressGateLib) return _libs._recallProgressGateLib();
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallProgressGate : null), 'recall-progress-gate.js');
@@ -1246,6 +1261,49 @@
 
                 /* ① 进度门：只拦 ahead。读数**无条件**落地（含 0 剔除的一轮）——
                  *   「这轮跑了但一条没拦」与「这轮根本没跑」必须可分辨。 */
+                /* [v3.484.0 · 缝合镜忆 grain 纪律] 双粒度择优：同一 turn 的 raw / card
+                 *   两种表示先归并再算预算。放在进度门**之前**——进度门要判的是
+                 *   「最终会注入的那一份」，拿归并前的两份去判会重复计数。 */
+                try {
+                    const GM = _recallGrainMergeLib();
+                    if (GM && typeof GM.merge === 'function') {
+                        const _gm = GM.merge(finalMerged);
+                        if (_gm && Array.isArray(_gm.items) && _gm.items.length) {
+                            finalMerged.splice(0, finalMerged.length, ..._gm.items);
+                        }
+                        engine._lastRecallGrainMerge = { active: true, state: _gm.state, counts: _gm.counts };
+                    } else {
+                        engine._lastRecallGrainMerge = { active: false, reason: 'module-missing' };
+                    }
+                } catch (e) {
+                    errLog(e, 'recallMemory.grainMerge');
+                    engine._lastRecallGrainMerge = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+                }
+
+                /* [v3.484.0 · 缝合镜忆干跑透视] 只吃**已有分数**（不重算，否则就是第二个真源），
+                 *   排名 + 预算归因 + 红线网格；不发请求、不计费。
+                 *   读数与真路径同源：分数进来什么样，诊断行出去什么样。 */
+                try {
+                    const LENS = _recallDryRunLensLib();
+                    if (LENS && typeof LENS.inspect === 'function') {
+                        const _cfg = (engine.config && engine.config.config) || {};
+                        const _budget = Number(_cfg.recallMaxTokens || _cfg.maxRecallTokens || 0) || null;
+                        const _l = LENS.inspect({ candidates: finalMerged, budgetTokens: _budget });
+                        engine._lastRecallDryRun = {
+                            active: true,
+                            state: _l.state,
+                            readings: _l.readings,
+                            rows: _l.rows,
+                            redLines: _l.redLines
+                        };
+                    } else {
+                        engine._lastRecallDryRun = { active: false, reason: 'module-missing' };
+                    }
+                } catch (e) {
+                    errLog(e, 'recallMemory.dryRunLens');
+                    engine._lastRecallDryRun = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+                }
+
                 if (engine.config.config.recallProgressGate !== false) {
                     const G = _recallProgressGateLib();
                     if (G && typeof G.pick === 'function') {

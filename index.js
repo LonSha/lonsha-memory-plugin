@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.483.0';
+    const VERSION = '3.484.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -2226,6 +2226,12 @@ function relativeTimeLabel(eventTime, nowTime) {
                         /* [v3.483.0 · 缝合 lorecodex] 召回进度门 + 来源台账两个库口。
                          *   注入式传参（与本文件其余 libs 同款），Node 单测走 require 回退。 */
                         _recallProgressGateLib: _recallProgressGateLib,
+                        /* [v3.484.0 · 缝合两份外部脚本] 四个纯函数库口。 */
+                        _cacheSafeSegmentsLib: _cacheSafeSegmentsLib,
+                        _recallDryRunLensLib: _recallDryRunLensLib,
+                        _recallGrainMergeLib: _recallGrainMergeLib,
+                        _memoryTextMirrorLib: _memoryTextMirrorLib,
+
                         _recallProvenanceLedgerLib: _recallProvenanceLedgerLib,
                         _psychologicalDefenseLib: _psychologicalDefenseLib,
                         _hypergraphCausalHubLib: _hypergraphCausalHubLib,
@@ -10295,6 +10301,21 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     //   没有任何来源字段——翻 swipe / 删楼 / 楼层前移之后，摘要仍指着旧文本，
     //   下一次 GC 扫到 fp 不在任何 swipe 取值里才清掉（floor-ledger 注释记载的旧行为）。
     //   现在把「来源」本身变成可查的字段，六态判定把「旧档」与「真失效」分开。
+    /* [v3.484.0 · 缝合两份外部脚本] 四个库口：纯函数模块住在仓库根，
+     *   宿主按 extra_js 装载后挂在 window.LonSha*，故先取全局、再回落 require。
+     *   取不到就返回 null（调用方据此说「模块缺席」，不伪装成「跑了但没结果」）。 */
+    function _cacheSafeSegmentsLib() {
+        return _moduleLib(() => window.LonShaCacheSafeSegments, 'cache-safe-injection-segments.js');
+    }
+    function _recallDryRunLensLib() {
+        return _moduleLib(() => window.LonShaRecallDryRunLens, 'recall-dryrun-lens.js');
+    }
+    function _recallGrainMergeLib() {
+        return _moduleLib(() => window.LonShaRecallGrainMerge, 'recall-grain-merge.js');
+    }
+    function _memoryTextMirrorLib() {
+        return _moduleLib(() => window.LonShaMemoryTextMirror, 'memory-text-mirror.js');
+    }
     function _summaryProvenanceLib() {
         return _moduleLib(() => window.LonShaSummaryProvenance, 'summary-provenance.js');
     }
@@ -11333,6 +11354,64 @@ function _collectNewFace() {
     
 
     class LonShaMemoryPlugin {
+    /* [v3.484.0] 三个新方法落在**插件类**里，不放模块级：
+     *   它们要读 `this._lastCacheSafeSegments` / `this._lastMemoryMirror`，
+     *   而诊断行按 `engine._xxx` 取读数 —— 状态必须活在引擎实例上。 */
+    /* [v3.484.0 · 缝合镜忆 90-10 前缀缓存保护] 注入分段计划。
+     *   为什么放在 index 而不在注入管线里各算各的：稳定段的**定序键**必须与
+     *   注入串的拼接顺序同源，两处各写一遍就会出现「计划说稳定、实拼是抖的」。
+     *   调用方：注入管线取 plan() 的 segments（稳定在前、变动在后），面板取 readings。 */
+    _planInjectionSegments(blocks) {
+        const lib = _cacheSafeSegmentsLib();
+        if (!lib || typeof lib.plan !== 'function') {
+            this._lastCacheSafeSegments = { active: false, reason: 'module-missing' };
+            return null;
+        }
+        try {
+            const planned = lib.plan(blocks);
+            const prev = this._lastCacheSafeSegments && this._lastCacheSafeSegments.readings;
+            const cmp = prev && typeof lib.sameStablePrefix === 'function'
+                ? lib.sameStablePrefix(prev, planned.readings) : { same: false, reason: 'no-prev' };
+            this._lastCacheSafeSegments = {
+                active: true,
+                state: planned.state,
+                readings: planned.readings,
+                sameAsPrev: cmp.same,
+                sameReason: cmp.reason
+            };
+            return planned;
+        } catch (e) {
+            this._lastCacheSafeSegments = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+            return null;
+        }
+    }
+    /* [v3.484.0 · 缝合弧光台档案格式] 记忆的可读文本镜像：渲染 + 回读（往返可逆）。
+     *   只排版既有记录，不生成内容；解析只产新对象，不改库。 */
+    _renderMemoryMirror(notes, opts) {
+        const lib = _memoryTextMirrorLib();
+        if (!lib || typeof lib.render !== 'function') {
+            this._lastMemoryMirror = { active: false, reason: 'module-missing' };
+            return '';
+        }
+        try {
+            const text = lib.render(Object.assign({ notes: notes }, opts || {}));
+            this._lastMemoryMirror = { active: true, chars: text.length, lines: text.split('\n').length };
+            return text;
+        } catch (e) {
+            this._lastMemoryMirror = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+            return '';
+        }
+    }
+    _parseMemoryMirror(text) {
+        const lib = _memoryTextMirrorLib();
+        if (!lib || typeof lib.parse !== 'function') return { state: 'malformed', reason: 'module-missing', notes: [], attitude: '' };
+        try {
+            return lib.parse(text);
+        } catch (e) {
+            return { state: 'malformed', reason: 'threw:' + String((e && e.message) || e), notes: [], attitude: '' };
+        }
+    }
+
         constructor() { 
             this.configMgr = _newConfigManager();   // [v3.267.0] A1 第七刀外移 memory-config.js 
             this.engine = new MemoryEngine(this.configMgr); 

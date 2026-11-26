@@ -224,6 +224,11 @@
             _testimonyBoardLib: _testimonyBoardLib,
             _worldlineMemoryLib: _worldlineMemoryLib,
             /* [v3.483.0] 两条新诊断行（装配面自有，不在分片里；台账 core_functions 已登记）。 */
+            /* [v3.484.0] 四条新诊断行（装配面自有，不在分片里；台账 core_functions 已登记）。 */
+            _cacheSafeSegmentsLine: _cacheSafeSegmentsLine,
+            _recallGrainMergeLine: _recallGrainMergeLine,
+            _recallDryRunLine: _recallDryRunLine,
+            _memoryMirrorLine: _memoryMirrorLine,
             _recallProgressGateLine: _recallProgressGateLine,
             _recallProvenanceLedgerLine: _recallProvenanceLedgerLine,
             errLog: errLog
@@ -279,7 +284,76 @@
             return '—（召回来源台账诊断异常）';
         }
     }
-    function _installParts() {
+        /* [v3.484.0 · 缝合两份外部脚本] 四条新诊断行住在装配面，理由同 v3.483.0：
+     *   分片受 `tests/audit/diag_split_verbatim.json` 逐字节 sha256 约束，新写函数
+     *   塞进分片等于谎称「拆前就有」。故它们在此，并在台账 core_functions 登记。
+     *
+     *   措辞纪律：三态必须能分辨 —— 「没激活」「激活了但 0 条」「拦/省了多少」
+     *   三种读数的数字都是 0，混同就分不清「机制没接上」与「这轮本来没事发生」。 */
+    function _cacheSafeSegmentsLine(engine) {
+        try {
+            var st = engine ? engine._lastCacheSafeSegments : null;
+            if (!st) return '【注入分段】未激活（本轮未规划注入段）';
+            if (st.active === false) return '【注入分段】已跳过（原因：' + (st.reason || 'unknown') + '）';
+            var r = st.readings || {};
+            if (st.state === 'no_stable') return '【注入分段】无稳定段（本轮全是新内容）· 变动 ' + (r.volatileChars || 0) + ' 字';
+            if (st.state === 'malformed') return '【注入分段】入参不合法';
+            var pct = Math.round((r.stableRatio || 0) * 100);
+            var s = '【注入分段】稳定 ' + (r.stableChars || 0) + ' 字 / 变动 ' + (r.volatileChars || 0) + ' 字 · 稳定占比 ' + pct + '%';
+            s += r.cacheSafe ? '（可缓存前缀）' : '（不足 ' + Math.round((r.minRatio || 0.8) * 100) + '%，不指望命中）';
+            if (st.sameAsPrev === true) s += ' · 顺序与上轮一致';
+            else if (st.sameReason === 'changed') s += ' · **顺序变了（上一轮的前缀缓存作废）**';
+            return s;
+        } catch (e) {
+            errLog(e, 'engine._cacheSafeSegmentsLine');
+            return '—（注入分段诊断异常）';
+        }
+    }
+    function _recallGrainMergeLine(engine) {
+        try {
+            var st = engine ? engine._lastRecallGrainMerge : null;
+            if (!st) return '【双粒度择优】未激活（本轮无召回）';
+            if (st.active === false) return '【双粒度择优】已跳过（原因：' + (st.reason || 'unknown') + '）';
+            var c = st.counts || {};
+            if (!c.both) return '【双粒度择优】同源 ' + (c.input || 0) + ' 条 → ' + (c.merged || 0) + ' 条 · 无同源对（未合并）';
+            var s = '【双粒度择优】同源 ' + (c.input || 0) + ' 条 → ' + (c.merged || 0) + ' 条 · **合并 ' + c.both + ' 组**（落选 ' + (c.dropped || 0) + ' 条）';
+            if (c.ties) s += ' · 同分 ' + c.ties + ' 组按摘要取边（原话仍随行）';
+            return s;
+        } catch (e) {
+            errLog(e, 'engine._recallGrainMergeLine');
+            return '—（双粒度择优诊断异常）';
+        }
+    }
+    function _recallDryRunLine(engine) {
+        try {
+            var st = engine ? engine._lastRecallDryRun : null;
+            if (!st) return '【召回干跑】未激活（本轮无召回）';
+            if (st.active === false) return '【召回干跑】已跳过（原因：' + (st.reason || 'unknown') + '）';
+            var r = st.readings || {};
+            if (st.state === 'empty') return '【召回干跑】本轮候选 0 条';
+            var s = '【召回干跑】候选 ' + (r.candidateCount || 0) + ' 条 · 进预算 ' + (r.admitted || 0) + ' 条';
+            if (r.cut) s += ' · **被预算挡下 ' + r.cut + ' 条**';
+            if (r.budgetTokens !== null && r.budgetTokens !== undefined) s += ' · ' + (r.tokensUsed || 0) + '/' + r.budgetTokens + ' token';
+            var reds = (st.redLines || []).filter(function (x) { return x.state === 'red'; });
+            if (reds.length) s += ' · **红线 ' + reds.length + ' 条**（' + reds.map(function (x) { return x.key; }).join('、') + '）';
+            return s;
+        } catch (e) {
+            errLog(e, 'engine._recallDryRunLine');
+            return '—（召回干跑诊断异常）';
+        }
+    }
+    function _memoryMirrorLine(engine) {
+        try {
+            var st = engine ? engine._lastMemoryMirror : null;
+            if (!st) return '【记忆文本镜像】未渲染（尚无导出动作）';
+            if (st.active === false) return '【记忆文本镜像】已跳过（原因：' + (st.reason || 'unknown') + '）';
+            return '【记忆文本镜像】' + (st.lines || 0) + ' 行 / ' + (st.chars || 0) + ' 字（可回读）';
+        } catch (e) {
+            errLog(e, 'engine._memoryMirrorLine');
+            return '—（记忆文本镜像诊断异常）';
+        }
+    }
+function _installParts() {
         var parts = _collectParts();
         var S = _support();
         for (var i = 0; i < parts.length; i++) {

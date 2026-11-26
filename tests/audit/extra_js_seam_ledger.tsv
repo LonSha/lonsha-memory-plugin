@@ -456,3 +456,7 @@ ui-table.js	yes	no	ui-data-panels.js	module-internal
 ui-form-controls.js	yes	no	ui-data-panels.js;ui-settings-panel.js	module-internal
 ui-settings-panel.js	yes	no	dashboard-shell.js	module-internal
 ui-mem-workbench.js	yes	yes	none	host-seam
+cache-safe-injection-segments.js	yes	yes	none	host-seam
+recall-dryrun-lens.js	yes	yes	none	host-seam
+recall-grain-merge.js	yes	yes	none	host-seam
+memory-text-mirror.js	yes	yes	none	host-seam
