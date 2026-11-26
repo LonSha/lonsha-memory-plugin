@@ -214,6 +214,19 @@ async function runInScratch(mutate) {
                 writeFileSync(path.join(dir, f), readFileSync(p, 'utf-8'));
             }
         }
+        /* [v3.487.0] `css/` **整个目录**都要物化：manifest.extra_css 只登记了其中一部分，
+         *   而 v3.476.0 新增的两份 CSS 扫描器读的是**目录**（`scan_undefined_css_tokens`
+         *   要求 css/*.css 的全部并集口径：定义 ≥40 且消费 ≥100 才肯下判断）。
+         *   夹具里少几份 ⇒ 消费面掉到 80（低于 100 的分母下限）⇒ 它在「健康树」上报
+         *   「分母异常 exit 2」。按本文件既有纪律（v3.163 / v3.191 / v3.293 / v3.421 同族：
+         *   健康树夹具必须真的像健康树），把镜子照全，**判据一个字不改**。 */
+        if (existsSync(path.join(ROOT, 'css'))) {
+            /* **全部文件**都要拷，不只是 .css：`scan_vendored_css_drift` 的台账本身住在
+             *   `css/vendor-ledger.json`（它先判 css 文件数 ≥5，再读台账；缺台账就报
+             *   「结构漂移 exit 2」）。同族教训再记一次：夹具要照全，判据不因此放宽。 */
+            mkdirSync(path.join(dir, 'css'), { recursive: true });
+            cpSync(path.join(ROOT, 'css'), path.join(dir, 'css'), { recursive: true });
+        }
         // 入口与面板由调用方按需覆盖（退化用例会写入 '// gone'）
         /* [v3.421.0] 此前写的是 hostSurface 的**合并面**（入口 + 全部外提模块拼成的大串）。
          *   模块体十批外提之后，合并面已远大于真 index.js：健康树上 dead_code_budget 读到

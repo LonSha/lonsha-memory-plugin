@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-25T17:22:00.475Z",
-  "extra_js_count": 457,
-  "host_injected_count": 254,
-  "total_modules": 458,
+  "generated_at": "2026-11-26T14:54:39.266Z",
+  "extra_js_count": 461,
+  "host_injected_count": 258,
+  "total_modules": 462,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 458,
+  "active_count": 462,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -637,6 +637,30 @@
           "file": "index.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "cache-safe-injection-segments.js": {
+      "module": "cache-safe-injection-segments.js",
+      "surface": [
+        "cache-safe-injection-segments"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
         }
       ],
       "load_surface_callers": []
@@ -2646,15 +2670,15 @@
         "LonShaDiagnosticLines",
         "LonShaDiagnosticLinesParts"
       ],
-      "prod_call_sites": 294,
-      "business_call_sites": 294,
+      "prod_call_sites": 298,
+      "business_call_sites": 298,
       "load_surface_only": false,
       "allowed": 1,
       "why": "active",
       "callers": [
         {
           "file": "index.js",
-          "count": 294,
+          "count": 298,
           "type": "file_binding+exclusive_global"
         }
       ],
@@ -6565,6 +6589,30 @@
       ],
       "load_surface_callers": []
     },
+    "memory-text-mirror.js": {
+      "module": "memory-text-mirror.js",
+      "surface": [
+        "memory-text-mirror"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "memory-time-machine.js": {
       "module": "memory-time-machine.js",
       "surface": [
@@ -8244,6 +8292,30 @@
       ],
       "load_surface_callers": []
     },
+    "recall-dryrun-lens.js": {
+      "module": "recall-dryrun-lens.js",
+      "surface": [
+        "recall-dryrun-lens"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "recall-echo.js": {
       "module": "recall-echo.js",
       "surface": [
@@ -8341,6 +8413,30 @@
           "type": "file_binding+exclusive_global"
         }
       ]
+    },
+    "recall-grain-merge.js": {
+      "module": "recall-grain-merge.js",
+      "surface": [
+        "recall-grain-merge"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
     },
     "recall-inverted-index.js": {
       "module": "recall-inverted-index.js",

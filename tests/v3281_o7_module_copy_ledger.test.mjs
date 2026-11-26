@@ -390,6 +390,37 @@ const LEDGER = [
     ['tokenize', ['recall-inverted-index.js', 'tiered-memory-plane.js'], '17298e00', '文本分词原语；倒排索引与分层平面各自持有以保持单文件自足（收拢即引入跨模块静默读旧值）'],
     ['isCjk', ['memory-views.js', 'recall-inverted-index.js', 'tiered-memory-plane.js'], '14e0e664', 'CJK 字符判定门；三模块独立运行、不共享全局工具'],
     ['tsOf', ['memory-views.js', 'privacy-forgetting-proof.js'], '0fe306bb', '时间戳归一原语；视图投影与遗忘回执各自自足'],
+    /* ── [v3.487.0] 补登五簇：v3.478~v3.482 呈现层（ui-kit-core / ui-summary-tree / ui-floor-panel /
+     *   ui-table / ui-json-tree / ui-form-controls / ui-data-panels / ui-settings-panel / ui-mem-workbench /
+     *   ui-panel-seam）与 R24 的 window-plan / maintenance-schedule 留下的**取口原语**副本。
+     *   这五簇由对应版本落盘时引入，当版**漏了同步本台账** —— B1 从 v3.478.0 起一直报「新增未登记的
+     *   模块↔模块逐字副本」，判据按设计生效，不是误报。体 md5 与成员集合全部由 B1 从盘上实测枚举得出，
+     *   非手抄（本行 md5 就是 B1 报出来的五个）。
+     *   为什么留多份：这五个都是**取口原语**（不是业务逻辑），每份 UI 模块都是零依赖 IIFE ——
+     *   要能被单独 require、也要能在 CDN 装载面独立工作。把取口收拢成「引兄弟模块的一个函数」，
+     *   等于给呈现件加了一条「对方先挂载」的隐式前置 —— 正是本仓反过的跨模块静默读旧值形态。
+     *   与既有 `numOf` / `text` / `strOf` 簇是同一族理由，故按同族登记而不是收拢。 */
+    ['keyOf', ['maintenance-schedule.js', 'window-plan.js'], 'eb63faff',
+        '消息 key 合成：有真 key 用真 key，否则用 `#序号:角色` 兜底（对账要稳定且不与真 key 撞）。\n'
+        + '★ 与 `keyOf#cb4883eb`（名字/键归一去首尾空白、非串给空串）**同名不同体** —— 按本档纪律\n'
+        + '「同名不同体必须分开成簇」分列，合并会把「合成一个稳定键」与「归一一个已有键」两种语义抹平。\n'
+        + '两模块都是零依赖 IIFE（R24 的窗口维护计划与排期各持一份），装载时机互不包含。'],
+    ['kit', ['ui-form-controls.js', 'ui-json-tree.js', 'ui-table.js'], '7c8cb348',
+        '取 ui-kit-core 的取口（先 `require`，失败回落全局，再失败如实 null）。\n'
+        + '三份呈现件各持一份：呈现件要能被单独装载（面板按需加载、CDN 面可缺），\n'
+        + '收拢会让「本件自足」变成「ui-kit-core 必须先挂载」。取口与业务逻辑无关，属同族通用原语。'],
+    ['engine', ['ui-data-panels.js', 'ui-floor-panel.js'], 'e37196c6',
+        '取宿主引擎实例的取口（`p && p.engine`，缺则如实 null）。\n'
+        + '两份数据呈现件各持一份，理由同 `kit`：呈现件零依赖、可单独装载，\n'
+        + '取口收拢会把「没引擎 ⇒ 报 absent」这条降级路径绑到另一个模块的装载顺序上。'],
+    ['formLib', ['ui-data-panels.js', 'ui-settings-panel.js'], '54bb834b',
+        '取表单控件库（ui-form-controls.js）的取口。\n'
+        + '数据页与设置页各持一份：两页都要能独立出现（设置页可缺席而数据页在，反之亦然），\n'
+        + '且缺库时必须各自降级成「没有控件」而不是抛错 —— 降级路径不能依赖兄弟模块在场。'],
+    ['doc', ['ui-json-tree.js', 'ui-mem-workbench.js', 'ui-panel-seam.js', 'ui-table.js'], '0a6c4d2e',
+        '取 `document` 的取口（非浏览器环境如实 null，调用方据此报 absent 而不是崩）。\n'
+        + '四份呈现件各持一份：这是**环境取口**，不是业务原语 —— 每份件都要能在 jsdom / 真浏览器 /\n'
+        + '无 DOM 三种环境各自判定，收拢等于让「环境探测」依赖另一个模块先被装载。'],
 ];
 
 /* ---- 破坏锚点（逐条取自真源，禁改；本档须逐字持有） ---- */

@@ -79,7 +79,14 @@ test('学术参数默认折叠、开箱即用文案在场、控件契约零丢�
     /* [v3.467.0 重绑 82→83] 新增 gameplayPreset 的 data-cfg-text 控件（可达性补全，
  *   v3160/v3161/v34355 三红同源修复的 UI 落点）。钉数随真功能面重绑，非放宽：
  *   断言仍钉死总数，未来任何无对应判据的增删仍会当场翻红。 */
-assert.equal((body.match(/data-cfg(?:-num|-text)?="/g) || []).length, 83, '文本/滑块控件数不得变化');
+/* [v3.487.0 重绑 83→84] 新增 `lonshaRules` 的 data-cfg-text 输入面。这一项不是补装饰：
+ *   `v4-panel-bridge.js:136` 一直在读 `host.config.config.lonshaRules`（规则 DSL），
+ *   而默认配置块从未声明该键、设置面也没有输入框 ⇒ 那条通路永远只能拿到 undefined，
+ *   `scan_config_liveness` 报「有读点、无写点」。本次把读点补成可写：
+ *   `memory-config.js` 声明 `lonshaRules: ''` + 本处 textarea，并同步登记
+ *   `config-effect-policy.json`（effect_at=next-turn，规则在下一轮生成前编译）。
+ *   钉数仍钉死总数：未来任何没有对应判据的增删依旧当场翻红。 */
+assert.equal((body.match(/data-cfg(?:-num|-text)?="/g) || []).length, 84, '文本/滑块控件数不得变化');
     /* [v3.472.0 重绑·扫描面] 修前只扫 body 模板，而 v3.472.0 把「保存并继续」从 body 末尾
      *   移到了 makeSheet 的 footerHTML（底栏常驻，用户不用滚过几屏才找到它 —— 这正是本档
      *   T1 自述要治的那条）。控件没少，只是搬到了同属面板骨架的另一段模板。

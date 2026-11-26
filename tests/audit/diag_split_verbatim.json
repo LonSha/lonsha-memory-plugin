@@ -190,6 +190,7 @@
   },
   "core_functions": [
     "_agencyContractLib",
+    "_archiveOriginLine",
     "_cacheSafeSegmentsLine",
     "_causalChainLib",
     "_changeset",
@@ -236,6 +237,7 @@
     "_symbiosisBridgeLib",
     "_symbolicEvolutionLib",
     "_testimonyBoardLib",
+    "_uniqueHitLine",
     "_worldlineMemoryLib",
     "bindDeps",
     "errLog"

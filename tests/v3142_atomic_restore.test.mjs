@@ -2,6 +2,13 @@
 // [v3.142] CP: 两阶段恢复（dryRun 零副作用）+ 未知键 round-trip（宽容解析）+ missing/skipped 分离
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+/* [v3.487.0] `restoreFromPayload` 的方法体新增了两个闭包依赖（`archiveOriginVerdictOf` /
+ *   `ARCHIVE_ORIGIN_KEY`，串档闸）。抠方法体的夹具必须把新依赖一并注入 —— 与历次新增依赖同法
+ *   （ARCHIVE_SCHEMA_VERSION / ARCHIVE_TOP_LEVEL_KEY_SET / PLUGIN_NAME 都是这么加进来的）。
+ *   传的是**真实现**，不是桩：夹具若拿桩顶替，串档闸就永远测不到。 */
+import { createRequire as __createRequire } from 'node:module';
+const __POPS = __createRequire(import.meta.url)('../engine-persistence-ops.js');
+const ARCHIVE_ORIGIN_DEPS = [__POPS.archiveOriginVerdictOf, __POPS.ARCHIVE_ORIGIN_KEY];
 import { readFileSync } from 'node:fs';
 const src = readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 /* [十二批外提同步] restoreFromPayload / collectExport / ARCHIVE_TOP_LEVEL_KEYS 已随持久化面
@@ -31,9 +38,9 @@ function mkFn() {
         summary: { import: () => calls.push('summary'), lockedFacts: [] },
         clock: { import: () => calls.push('clock') },
     };
-    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET',
+    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET', 'archiveOriginVerdictOf', 'ARCHIVE_ORIGIN_KEY',
         `return function (data) { ${extractBraced('restoreFromPayload(data) {', 'persistence')} }`)(
-        () => {}, 1, new Set(KEYS.filter(k => k !== 'thirdPartyThing')));
+        () => {}, 1, new Set(KEYS.filter(k => k !== 'thirdPartyThing')), ...ARCHIVE_ORIGIN_DEPS);
     return { eng, fn, calls };
 }
 test('v3.142 dryRun 零副作用：不改确认状态、不写运行时、不收容未知键', () => {
@@ -83,8 +90,8 @@ test('v3.142 missing 与 skipped 分离：有数据但引擎无模块不再被�
         summary: { import: () => calls.push('summary'), lockedFacts: [] },
         // 故意不装配 clock / timeline：payload 给了这两个键的数据
     };
-    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET',
-        `return function (data) { ${extractBraced('restoreFromPayload(data) {', 'persistence')} }`)(() => {}, 1, new Set(KEYS));
+    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET', 'archiveOriginVerdictOf', 'ARCHIVE_ORIGIN_KEY',
+        `return function (data) { ${extractBraced('restoreFromPayload(data) {', 'persistence')} }`)(() => {}, 1, new Set(KEYS), ...ARCHIVE_ORIGIN_DEPS);
     const r = fn.call(eng, { graph: {}, summaries: [], clock: { t: 1 }, timeline: [1] }, { source: 't' });
     assert.ok(r.missing.includes('clock'), '有数据但引擎缺模块 → missing');
     assert.ok(r.missing.includes('timeline'), '同上：timeline 数据存在但引擎未装配');

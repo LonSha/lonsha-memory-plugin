@@ -226,6 +226,7 @@
     "gameplayPreset": "immediate",
     "recallProgressGate": "immediate",
     "recallProvenanceLedger": "immediate",
-    "recallProvenanceStrict": "immediate"
+    "recallProvenanceStrict": "immediate",
+    "lonshaRules": "next-turn"
   }
 }

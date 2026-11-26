@@ -6,9 +6,17 @@
       "engine-diagnostic-lines-part-b.js",
       "engine-diagnostic-lines-part-c.js"
     ],
-    "core_lines_max": 400,
+    "core_lines_max": 470,
     "part_lines_max": 2100,
     "lines_before_split": 5915,
-    "why": "5915 行单体无行数上界门；拆为装配面+三片并把上界钉进 tests/l23_o5_diag_split.test.mjs"
+    "why": "5915 行单体无行数上界门；拆为装配面+三片并把上界钉进 tests/l23_o5_diag_split.test.mjs",
+    "ceiling_history": [
+      {
+        "from": 400,
+        "to": 470,
+        "version": "3.487.0",
+        "why": "装配面新增两条诊断行（_archiveOriginLine / _uniqueHitLine）+ 它们共享的 _shortChatId 与长注释；两条都刻意不放分片（分片受 diag_split_verbatim 的逐字节 sha256 约束）"
+      }
+    ]
   }
 }

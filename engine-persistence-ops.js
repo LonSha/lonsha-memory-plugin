@@ -69,6 +69,86 @@
         } catch (e) { return 'unknown_fp'; }
     }
 
+    /* ══════════════════════════════════════════════════════════════════════
+     * [v3.487.0] 存档来源身份（缝合「瑟瑟台账 V1.170」的串档判据）
+     *
+     * 台账原文的处置是「账本快照文件与当前聊天身份不一致（可能被复制/串档）」→ 拒。
+     * 搬到本仓后**不能照抄成硬拒绝**：本仓的嵌入存档随 chatMetadata 走，而「复制对话 /
+     * 分支续写」正是用户的正当用法，硬拒会把正常打档变成故障。故按**来源路径**分档
+     * （这是本仓自己那条「跨档污染」口径的延伸，见 restoreFromPayload 里
+     * 「storage.load 刻意不抓快照」那段注释）：
+     *
+     *   same           同身份                          → 放行
+     *   absent         载荷无来源戳（旧档）             → 放行，**缺席不等于同身份**，只标不拦
+     *   unknown-dest   取不到当前聊天身份               → 放行，无从比对，如实说「没比对」
+     *   blocked        异身份 + 文件导入               → **拦下**（用户手选文件是唯一
+     *                                                   一次性、可撤销的入口，风险最高）
+     *   adopted        异身份 + 其余入口（复制对话等）  → 放行，记 adoptedFrom，下次导出
+     *                                                   按**当前**聊天重新打戳
+     *
+     * 第二条纪律（这条是本仓自找的坑，比台账原文更硬）：
+     *   **来源戳是随存档走的「事实」，不是随运行时走的「状态」** —— 若让
+     *   restoreFromPayload 把它吸进 `_archiveExtensions`（那是给未知顶层键的持久命名空间），
+     *   导入 A 档之后 B 档每次导出都会继续挂着 A 的身份，戳从此永久失真。
+     *   故恢复侧**必须剥掉**它，只留 `_lastArchiveOrigin` 当读数。
+     * ══════════════════════════════════════════════════════════════════════ */
+    var ARCHIVE_ORIGIN_KEY = 'lonshaArchiveOrigin';
+    function shortChatId(id) {
+        var t = String(id == null ? '' : id);
+        return t.length > 14 ? (t.slice(0, 6) + '…' + t.slice(-3)) : t;
+    }
+    function archiveOriginStampOf(engine) {
+        var cid = null;
+        try { cid = (engine && typeof engine.getCurrentChatId === 'function') ? engine.getCurrentChatId() : null; }
+        catch (e) { cid = null; }
+        return {
+            chatId: cid == null ? null : String(cid),
+            at: Date.now(),
+            producerVersion: VERSION,
+            schemaVersion: ARCHIVE_SCHEMA_VERSION,
+        };
+    }
+    function archiveOriginOf(payload) {
+        try {
+            var e = payload && payload.extensions;
+            var o = e && e[ARCHIVE_ORIGIN_KEY];
+            if (o && typeof o === 'object' && o.chatId != null) return String(o.chatId);
+        } catch (err) { /* 形态不合 ⇒ 当无戳，不抛 */ }
+        return null;
+    }
+    function archiveOriginVerdictOf(engine, data, opts) {
+        var dst = null;
+        try { dst = (engine && typeof engine.getCurrentChatId === 'function') ? engine.getCurrentChatId() : null; }
+        catch (e) { dst = null; }
+        dst = dst == null ? null : String(dst);
+        var src = archiveOriginOf(data);
+        var allow = !!(opts && opts.allowCrossChat === true);
+        var source = String((opts && opts.source) || 'unknown');
+        var base = { src: src, dst: dst, source: source, allowCrossChat: allow, key: ARCHIVE_ORIGIN_KEY };
+        if (!src) {
+            return Object.assign(base, { verdict: 'absent', line: '存档无来源戳（旧档）：放行，按「未知」记 —— 缺席不等于同身份' });
+        }
+        if (!dst) {
+            return Object.assign(base, { verdict: 'unknown-dest', line: '取不到当前聊天身份，无法比对（载荷自称 ' + shortChatId(src) + '）' });
+        }
+        if (src === dst) {
+            return Object.assign(base, { verdict: 'same', line: '同档（' + shortChatId(dst) + '）' });
+        }
+        if (source === 'file-import' && !allow) {
+            return Object.assign(base, {
+                verdict: 'blocked',
+                line: '串档已拦下：存档来自 ' + shortChatId(src) + '，当前聊天是 ' + shortChatId(dst)
+                    + '（文件导入须显式 allowCrossChat 才放行）',
+            });
+        }
+        return Object.assign(base, {
+            verdict: 'adopted',
+            line: '跨档采纳 ' + shortChatId(src) + ' → ' + shortChatId(dst)
+                + '（来源 ' + source + (allow ? '，已显式授权' : '，该入口允许：复制对话/回复存档')
+                + '；下次导出按当前聊天重新打戳）',
+        });
+    }
+
     function validateLedgerItemOps(list, ctx) {
         if (typeof _deps.validateLedgerItemOps === 'function') return _deps.validateLedgerItemOps(list, ctx);
         return { items: Array.isArray(list) ? list : [], dropped: [], violations: [], clipped: 0, batchTruncated: 0 };
@@ -355,7 +435,11 @@
                      *   它此前落盘的永远只有 undefined（全仓零写入点），是死字段。
                      *   造一个 createState 会凭空发明不存在的状态并静默落盘 —— 比不登记更坏。 */
                     this._exposureRiskState ? { lonshaExposureRiskState: _collForSave(this._exposureRiskState) } : {},
-                    this._burnoutDecayState ? { lonshaBurnoutDecayState: _collForSave(this._burnoutDecayState) } : {}),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
+                    this._burnoutDecayState ? { lonshaBurnoutDecayState: _collForSave(this._burnoutDecayState) } : {},
+                    /* [v3.487.0] 存档来源身份戳：**现场生成、且放在最后一个实参**，
+                     *   于是即便 _archiveExtensions 里残留了上一份戳，也会被这里盖掉。
+                     *   （恢复侧还会主动剥掉它，两道防线是刻意的：戳失真过一次就很难查。）*/
+                    { lonshaArchiveOrigin: archiveOriginStampOf(this) }),   // [v3.142] CP: 未知顶层键随存档回写，不丢不炸
                 // [L11-O5 & O8 & X8 & X9] 记忆退火/相变锁/岁月史诗/代际图腾持久化 (真实记忆库与实体状态导出)
                 memoryAnnealingCurve: (() => {
                     try {
@@ -449,6 +533,21 @@
             const opts = arguments[1] || {};
             const res = { ok: true, dryRun: opts.dryRun === true, restored: [], skipped: [], missing: [], failed: [], count: 0, source: String(opts.source || 'unknown'), at: Date.now() };
             if (!data || typeof data !== 'object') { res.ok = false; res.error = 'invalid payload'; return res; }
+            /* [v3.487.0] 串档闸：刻意落在**一切副作用之前**（_confirmed 清除 / _bumpEpoch /
+             *   结构迁移 全在它后面）。理由：被拦下的载荷一个字节都不该动运行时，
+             *   否则「拒绝」自身就成了一次副作用（本仓对 dryRun 就是这个口径）。
+             *   闸门的回报**带事实**（src/dst/source），不是一个光秃秃的 false ——
+             *   拒绝必须回答「谁跟谁不一样」，否则调用方只能猜。 */
+            var _orig = archiveOriginVerdictOf(this, data, opts);
+            res.origin = _orig;
+            this._lastArchiveOrigin = Object.assign({ at: Date.now(), source: res.source }, _orig);
+            if (_orig.verdict === 'blocked') {
+                res.ok = false;
+                res.error = 'archive-origin-mismatch';
+                res.reason = _orig.line;
+                res.failed.push({ key: ARCHIVE_ORIGIN_KEY, error: _orig.line });
+                return res;
+            }
             // [v3.142] CP: 预检（dryRun）不得动确认状态——只读校验不该有任何副作用
             if (opts.dryRun !== true) this.storage._confirmed = null;   // 恢复期间清除确认（真实落盘后由 storage.save 重新推进）
             if (opts.dryRun !== true) this._bumpEpoch('restore:' + res.source);   // [v3.145] CP-L6: 整体替换运行时，作废在飞任务
@@ -522,7 +621,13 @@
             }
             // [v3.142] CP 宽容解析（stbme round-trip 纪律）：未知顶层键不丢不炸，收进 extensions 命名空间随存档回写。
             const _ext = data.extensions && typeof data.extensions === 'object' ? data.extensions : null;
-            if (!dry && _ext) { this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _ext); }
+            if (!dry && _ext) {
+                /* [v3.487.0] 来源戳不进持久命名空间：它是随存档走的事实，不是运行时状态。
+                 *   吸进 _archiveExtensions 会让这份身份跟着本聊天**永久**活下去（见助手块长注释）。*/
+                const _bag = Object.assign({}, _ext);
+                delete _bag[ARCHIVE_ORIGIN_KEY];
+                this._archiveExtensions = Object.assign({}, this._archiveExtensions || {}, _bag);
+            }
             /* [v3.455.0 · V17] 共振状态恢复（upgrade-on-read 宽容解析，与 collectExport 逐键对称）。
              *   失败必须点名、跳过必须计数 —— 不静默吞成「空状态」，否则诊断行会把「没恢复」读成「没用过」。 */
             if (!dry && _ext && _ext.lonshaResonanceState) {
@@ -1920,6 +2025,17 @@ const exportsObj = {
             const target = engine || this;
             return _ops.getSaveSourceReport.apply(target, args);
         },
+        /* [v3.487.0] 存档来源身份：判据要能直接调（不必造一个 engine 再触发真恢复）。 */
+        archiveOriginStampOf: function (engine, ...args) {
+            return archiveOriginStampOf(engine, ...args);
+        },
+        archiveOriginVerdictOf: function (engine, ...args) {
+            return archiveOriginVerdictOf(engine, ...args);
+        },
+        archiveOriginOf: function (payload) {
+            return archiveOriginOf(payload);
+        },
+        ARCHIVE_ORIGIN_KEY: ARCHIVE_ORIGIN_KEY,
     };
 
     return exportsObj;

@@ -234,6 +234,13 @@ const EXEMPT = {
     'tests/v3185_querytext_and_xref_consumer.test.mjs': ['codeLines'],
     // 审计基建自身的负控制工具：它必须能独立于真源工作（破坏目标就是真源）
     'tests/_negative_util.mjs': ['codeLines'],
+    // [v3.487.0] 语义**确实不同**（CSS 口径 vs JS 口径），按本表规范登记而不是改名绕过：
+    //   本档剥的是 **CSS 注释**，只剥块注释 `/* */`；而真源 stripComments 是 **JS 口径**，
+    //   会把 `//` 到行尾一并剥掉。实仓 css/ 里 `url("data:image/svg+xml,…http://www.w3.org…")`
+    //   这类 data-URI 满地都是（css/dev-console-v3.css:101、css/ls-icons.css:25 等），
+    //   用 JS 口径去剥 CSS 会把每条规则的剩余行整段抹掉 —— 不是「严一点」，是把规则拆坏。
+    //   卡在这个差异上恰是本表的用意：口径不同就要写明，不许靠「样本里恰好没有」蒙过去。
+    'tests/panel-v5-wiring.test.mjs': ['stripComments'],
     // [v3.210.0] 语义**确实不同**（故按本表规范登记，而不是改名绕过）：
     //   本套件要取的是「本仓 index.js 里某个函数/类方法的完整花括号块」，而真源 braceMatch
     //   **只跳字符串、不跳注释** —— 本仓源码注释里大量出现花括号，实测在 index.js 的

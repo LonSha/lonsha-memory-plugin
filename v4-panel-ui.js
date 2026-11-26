@@ -530,7 +530,7 @@
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     if (root) {
-        /* [v3.486.0] 这里原来挂的是 `root.LonShaV4PanelUI`，而文件末尾又挂了一个
+        /* [v3.487.0] 这里原来挂的是 `root.LonShaV4PanelUI`，而文件末尾又挂了一个
          *   `window.LonShaV4PanelUi` —— **同一个 api 两个只差大小写的全局名**，消费方
          *   （ui-panel-seam.js 的 `mod('LonShaV4PanelUi', './v4-panel-ui.js')`）只认后者，
          *   前者是零读点的重复挂载；更糟的是前者被 freeze、后者没有，同一模块两个名两种可变性。

@@ -1264,6 +1264,12 @@
     --v5-r: 14px;
     --v5-r-sm: 10px;
     --v5-r-xs: 8px;
+    /* [v3.487.0] 补上这一条：`--v5-pill` 在 794（开关滑块）与 981（标签 chip）两处被裸用，
+     *   而刻度表里只有 r-win / r / r-sm / r-xs 四档圆角 —— 缺这一档的后果不是「圆角小一点」，
+     *   是 `border-radius: var(--v5-pill)` 整条声明 invalid-at-computed-value-time，
+     *   开关与 chip 回落成直角。这是 `scan_undefined_css_tokens.mjs` 在健康树上唯一一条真缺陷
+     *   （该门自 v3.476.0 起一直是红的，同时 v3226 的灵敏度表也漏登了这两份 CSS 扫描器 —— 同一处欠账的两面）。 */
+    --v5-pill: 999px;
     --v5-tap: 46px;
     --v5-hair: 1px;
 }

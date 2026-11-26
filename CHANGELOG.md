@@ -1,3 +1,108 @@
+## v3.487.0
+**缝合两份更新版用户脚本里的两条写入侧纪律（改形搬迁，不是搬实现）。**
+
+### 对账方法（这一步比改动本身重要）
+用户给来三份**更新版**脚本：瑟瑟台账 V1.170 / 瑟瑟小手机 V1.308 / 色色灵感状态栏 V4.027。
+三份都是压缩单行包（64 万 / 215 万 / 428 万字符，函数名已短化为单字母），
+`info` / `button` / `data` / `export_with` 四个自述面**全是空的** —— 按函数名、按自述契约对账都无效。
+改走「人写文案」路线：压缩会短化标识符，但不会改 toast / 报错 / 标签里的中文句子。
+逐份抽出这类短句（台账 608 条 / 小手机 2188 条 / 状态栏 4022 条），按机制词分桶，
+得到一张**机制地图**，再逐条回本仓核对是否已存在。
+
+### 对账结果：十二条候选里九条本仓已更强或已存在（逐条留证，不重复造）
+- **失效目标检测**：已有且更硬 —— `memory-core.js` 卷摘要存**源楼层指纹快照**，
+  `verifyVolumesIntact` 对账当前 chat，任一源指纹失效即**整卷降级**（不是部分写入）。
+- **状态指纹防护**：已有 —— `memory-organs.js` 的 `expectedStateFingerprint` 不符即拒写盘。
+- **批量操作台账 / 可回滚**：已有 —— `batch-op-ledger.js`（actor/count/ids/可 undo/过期拒绝）。
+- **快照恢复三态 + 落盘时机在流程内**：已有 —— `restoreSnapshotFlow`（`ok:false`/`applied:false`/`applied:true`）。
+- **格式校验失败回灌模型自纠**：已有 —— `memory-organs.js` 工具回执错误文本回灌。
+- **世界书排除面 / 请求分级（1A 类）**：**不适用** —— 本仓不是世界书注入器（lore 只有三个文件）。
+- **「换 API 后缓存仍命中」**：**不适用** —— 那是状态栏的地图图缓存，本仓 `cache-identity` 不缓存图像。
+
+### 真缺口一：存档来源身份（串档闸）
+台账原文是「账本快照文件与当前聊天身份不一致（可能被复制/串档）」→ 直接拒。
+**照抄会打坏正常用法**：本仓嵌入存档随 `chatMetadata` 走，「复制对话 / 分支续写」正是正当操作。
+故改形为**按来源路径分档**，五态不同形：
+`same` 同档 / `absent` 无戳（旧档，**缺席不等于同身份**，只标不拦）/ `unknown-dest` 取不到当前身份
+（如实说「没比对」）/ `blocked` 异档 + **文件导入**（唯一一次性入口，风险最高，拦下）/
+`adopted` 异档 + 其余入口（复制对话、回复到存档：放行，记 `adoptedFrom`，下次导出按当前聊天重新打戳）。
+- 闸门落在 `restoreFromPayload` 的**一切副作用之前**（`_confirmed` 清除 / `_bumpEpoch` / 结构迁移都在它后面）：
+  被拦下的载荷一个字节都不许动运行时，否则「拒绝」自身就成了一次副作用。
+- 拒绝**带事实**（`src` / `dst` / `source` / 人话 line），不是一个光秃秃的 `false`。
+- 第二条（本仓自找的坑，比台账原文更硬）：**来源戳是随存档走的「事实」，不是随运行时走的「状态」**。
+  若让它被吸进 `_archiveExtensions`（给未知顶层键的持久命名空间），导入 A 档之后 B 档每次导出
+  都会继续挂着 A 的身份，戳从此永久失真。故导出侧**放在 `Object.assign` 最后一个实参**（盖掉任何残留），
+  恢复侧**主动 `delete`**（两道防线是刻意的）。
+- 面板配套：`settings-ui.js` 的导入处理器原来会把「被拦下」读成「存档无可恢复内容」（count 也是 0）——
+  两种成因必须不同形，现在识别 `archive-origin-mismatch`，问一次人话，答「确定」才以 `allowCrossChat: true` 重来。
+
+### 真缺口二：按 id 写入的后置条件
+状态栏原文是「删除未命中唯一一行（实际 N）」→ 拒。那是 SQL 语境；本仓是数组 + **确定性 id**
+（`_detId(char,text)` + 楼层），同一个 id 天然可能在 `core` 与 `recent` 各存一份。
+照抄「拒绝」会变成「删不掉东西」，故改形为**后置条件验收**：
+- 删除的验收不是「splice 执行过一次」，而是「这条 id 事后**零命中**」；
+- 恢复的验收不是「push 过一条」，而是「这条 id 事后**恰好一份**」。
+- 修前真缺陷（可复算）：`deleteMemory` 在 `idxCore >= 0` 处短路，只清 core 那份，`recent` 同 id 副本原样留着 ——
+  调用方拿到 `true`（「删掉了」）回查却还在；而同文件的 `purgeTombstone` 用 `filter`（删全部），
+  **同一个 id 的两条删除路径语义相反**。本版一并收敛为「删干净」，并保留两份墓碑（回滚能力不丢）。
+- 读数 `_lastUniqueHit` 四态不同形：`miss` / `hit` / `postcondition-failed` / `already-present`。
+
+### 判据
+- 新增 `tests/v3487_archive_identity_and_unique_hit.test.mjs` 11 条：结构面（闸门位置 / 剥戳 / 打戳在末位）
+  / 五态文案互不相同 / 显式授权通路 / **被拦下时零副作用**（不推 epoch、不清 `_confirmed`、不抓快照）
+  / 删除后置条件（core+recent 各一份也清干净、两份墓碑都留）/ `miss ≠ hit` / 恢复后置条件（已在池中不再复制）/
+  两条诊断行各态文案互不相同 / 装配面名录登记 / 当版锚。
+- 两条新诊断行 `_archiveOriginLine` / `_uniqueHitLine` 住**装配面**（分片受逐字节 sha256 约束），
+  已登记 `diag_split_verbatim.core_functions`。
+- `module_split_ledger.core_lines_max` 400 → 470（装配面多了两条行 + 共享小工具），重定基留账在 `ceiling_history`。
+
+### 抬版连带清红（本刀真正顺手揪出来的四处缺陷 + 一处判据自伤）
+抬版不是改七处版本串就完事：`scan_*` 一跑，健康树上先红了一批。逐条查完，**没有一条是抬版引入的**，
+但其中四处是真缺陷 —— 都在产品里，不在判据里。
+- **`--v5-pill` 未定义**（`css/lonsha-panel-v5.css`）：开关滑块（第 794 行）与标签 chip（第 981 行）
+  直接裸用 `var(--v5-pill)`，而成套的圆角刻度表只有 `--v5-r-win` / `--v5-r` / `--v5-r-sm` / `--v5-r-xs` 四档。
+  后果不是「圆角小一点」，是**整条 `border-radius` 声明失效**（`var()` 无回退值时声明作废）——
+  开关与 chip 在真机上回落成直角。补 `--v5-pill: 999px` 后 `scan_undefined_css_tokens` 由 exit 1 转
+  「所有裸用的自定义属性都有定义或已登记豁免」。这条是**扫描器立了功**：它上一版还没接 CSS 面。
+- **`lonshaRules` 读得到、设不了**（死配置）：`v4-panel-bridge.js:136` 按 `host.config.config.lonshaRules`
+  取规则 DSL 文本，而 `memory-config.js` 的默认配置块**从未声明这个键**，`settings-ui.js` 也没有对应输入框。
+  于是渲染器那条通路永远拿到 `undefined`，而用户没有任何地方能写它 —— 「有读点、无写点」正是
+  `scan_config_liveness` 要抓的形态。已补默认值 `lonshaRules: ''` 与 `data-cfg-text="lonshaRules"` 的
+  textarea：`v3160` 由 14/15 转 15/15、`v3161` 15/15、扫描器报「无死配置」。
+- **灵敏度矩阵口径窄了**：`audit_scan_probe_matrix.tsv` 只有 H / G / T 三档（健康 / 根 js 清空 / tests 掏空），
+  而 v3.476.0 新增的两份 CSS 扫描器只读 `css/`，在 G/T 两档上恒 0 —— 按旧表读数，它们会被判成
+  **恒绿探测器**（那种「无论输入怎么坏都发合格证」的东西）。补第四档 **C（css 目录全置空）** 并**实测**：
+  `scan_undefined_css_tokens` C 档 exit 2（分母归零，正是 fail-closed 该有的样子）、
+  `scan_vendored_css_drift` C 档 exit 1（两份 vendored 副本置空 ⇒ md5 双漂移）。
+  表 54 → 56 行（补两份扫描器登记），`v3226` 的列解析与判定同源改到五列。
+- **审计真源卫生**：`scan_audit_lib_consolidation` 报两处「本地重写 `stripComments`」。
+  `v3483` 是 JS 口径，直接收敛到 import 真源；`panel-v5-wiring` 是**CSS 口径**（只剥块注释）——
+  JS 口径会把 `url("data:image/svg+xml,…http://…")` 这类 data-URI 整段抹掉，所以它**不能**收敛。
+  按规范登记进 `EXEMPT` 并逐条写明理由：口径不同就要写明，不许靠「样本里恰好没有」蒙过去。
+  修后扫描器报「本地重写 0 个 / import 真源 238 个 / 5 组负控制全 ok」。
+### 判据自伤第 5 处（`v3430X6` 的「面板抛错」负控制恒不翻红）
+清红清到最后一条 `v3430_l12_x6_unload_drill` 时，先在 `git archive HEAD` 的干净快照上复跑：
+18 条 15 pass / 3 fail，**与当前树同红同名** ⇒ 存量欠账，不是本刀引入。但根因值得记：
+- 破坏 B 打在 `settings-ui.js:3214` 的 `plugin.showSettingsPanel` 上，而运行时真正执行的是
+  `dashboard-shell.js:634` 的 `wrapped`（`:672` 把它挂上 plugin）。逐层证伪：
+  ① 只改 settings-ui → 演练仍报 `opened`；② 只改 `:2028` 的 v6 面板 wire → 仍 `opened`；
+  ③ 两处同时改 → 仍 `opened`。原因写在 `wrapped` 自己身上：非 diag 且 `window.LonShaPanel.open`
+  可用时它**直接 `return true`**，压根不调用 original（=settings-ui 那份）。
+- ⇒ 能代表「面板入口抛错」的唯一一层是 `wrapped` 自身。锚点改为 `const wrapped = function () {`
+  （dashboard-shell.js 内恰 1 次；`wrappedHome` 是另一枚，不冲突），工具 selftest 与 C2 同源改。
+- 修后 `--selftest` 两条负控制均 `turnedRed`、`v3430_l12_x6` 18/18。登记进
+  `preexisting_red_ledger.json` 的 `regression_found_and_fixed`（含「基线同红」的复算读数）。
+- 这里的手法与 v3.430 立档时的教训同族：**破坏必须打在判据真会读的那一面**。
+  本次新学到的一句是 —— 「最后一层」不等于「最后一行赋值」：`wrapped` 会把请求短路掉，
+  短路线上的那份实现改坏了也没有任何观测效果。
+### 诚实交代
+- **真机未点过**：串档闸的确认框与 toast 文案在真 SillyTavern 宿主里没走过；判据只证明结构与返回值正确。
+- **`storage-load` 路径的跨档是照常放行的**（复制对话），只标 `adopted` 不拦 —— 这是刻意的取舍，
+  不是漏判；如果将来要连这条路也拦，必须先在面板给出「这是复制来的对话」的可视标记。
+- 未跑全量：`doc_readings` 仍停 v3.475.0，不自证 Clean；`tests/audit/test_budget.json` 同样停在
+  v3.475.0（落后 12 个次版本，`scan_test_budget` 红着）——本刀不声明 `pending_full_run` 去豁免它，
+  因为「抬版」这件事本身就该以一次全量读数收口，豁免留给真正做不完的计划。
+
 ## v3.486.0
 **结清模块接线面的假红：B4 的消费面口径重写（顺带揪出一个真缺陷）。**
 这一版不动 `index.js` 的逻辑（只改版本串，行数不变，棘轮无需重定基），主体是**判据口径**加一处真代码。

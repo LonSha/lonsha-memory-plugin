@@ -2,7 +2,7 @@
   "_note": "第二十三期「账实对齐」：存量红台账。用途 —— 区分「本刀引入的回归」与「干净基线上就红的存量红」，让收口只需跑受影响面子集，不必靠全量跑证明。判法：同一个测试文件在 git worktree 的干净基线树与当前树上各跑一次，两边都红 = 存量红（不得顺手抹平）；只有当前红 = 回归（必须修）。",
   "baseline_tree": "/home/user/_baseline（git worktree add --detach HEAD=e710253）",
   "classify_command": "node tests/run.mjs <pattern...>  分别在两棵树上跑（同一 run.mjs 口径）",
-  "verified_at_version": "3.474.0",
+  "verified_at_version": "3.487.0",
   "preexisting_red": [
     {
       "files": [
@@ -254,6 +254,15 @@
       "symptom": "全量回归首跑 551 文件 / 失败 90 断言 / 53 文件红。归因后分两档：① 本刀引入 9 档；② 存量红 44 档（干净基线树同红）。",
       "fix": "① 本刀 9 档全修：l23_o6——O7 改 engine-injection-pipeline.js 造成行号漂移，按生成器重生成处置台账（不手改）；l23_x_surface——版本锚由 strictEqual 当版改为格式校验（保留三源一致与出生锚）；v3116/v3194/v3205——「根 .js 归属」从两态（注册/被引用）升级为三态（入口/声明/归档），并抽出唯一真源 tests/audit/_root_js_inventory.mjs（四处判据同读一处，不再各写一遍），dead_code_budget 的「活跃代码」口径同步改为「真的被装载的代码」并按唯一算式收紧上界 145897→144655；v3184——导出键断言由裸子串改为键名精确匹配（`_changeset:` 不再被当成 `changeset:`）；v3236/探针——host_beast_probe.cjs 按 module_split_ledger 并入拆片（与 hostSurface 同口径），合并面读数 30237 → 36360 与判据侧逐行一致；v3198/v3199——_audit_lib.mjs 的 md5 指纹按 O5 的真实改动重钉。② 存量红里 6 档被「HOST_MODULES 补入 index-helpers.js」顺带治好（该清单自 L22-O1 起漏了外移模块，导致判据静默空转）：v3128/v313/v318/v319/v337/v350。",
       "reading": "修后定向复跑同一 53 档：53 → 17 档转绿（首轮 13 + 复跑后补修 4），剩余 36 档全部为存量红（已在 preexisting_red 入账）。9 档本刀引入项 0 残留。"
+    },
+    {
+      "id": "v3430_l12_x6_unload_drill C2 / E1 / E2（存量红，本刀修掉）",
+      "files": [
+        "v3430_l12_x6_unload_drill"
+      ],
+      "symptom": "破坏 B（「面板抛错」）打在 settings-ui.js:3214 那份 plugin.showSettingsPanel 上，而运行时真正生效的是 dashboard-shell.js:634 的 wrapped（:672 挂上 plugin）。wrapped 在「非 diag 且 window.LonShaPanel.open 可用」时直接 return true、不调 original，于是改坏 settings-ui 那份零承重 ⇒ selftest 恒报 breakB_panelThrows.turnedRed=false，连带 C2（真源码破坏不点名）与 E1/E2（工具两向自证）三条红。",
+      "fix": "锚点同源改到真身：工具 selftest 与 C2 都改用 dashboard-shell.js:634 的 `const wrapped = function () {`（全仓恰 1 次），注释里刻意不写锚点字面量以免撞 F3 纯度计次。逐层证伪留痕：分别/同时改坏 settings-ui:3214 与 dashboard-shell:2028，演练仍报 opened（exit 0）。修后 `node --test tests/v3430_l12_x6_unload_drill.test.mjs` 18/18 全绿、`node tools/drill_unload.mjs --selftest` 两条负控制均 turnedRed。",
+      "reading": "基线同红取证：git archive HEAD（v3.486.0）干净快照上 18 条 15 pass / 3 fail，与当前树同红同名 ⇒ 存量红；修后当前树 18/18。"
     }
   ]
 }

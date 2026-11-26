@@ -1,12 +1,19 @@
 // tests/v3226_audit_sensitivity.test.mjs — 审计扫描器灵敏度体检（O-3）[v3.225.0]
-//   主题：**审计的审计**。本仓审计目录里有 29 个扫描器 + 13 个负控制；扫描器负责「判缺陷」，
+//   主题：**审计的审计**。本仓审计目录里有在役扫描器数十份 + 13 份以上负控制；扫描器负责「判缺陷」，
 //   而「扫描器自己还有没有判的能力」此前只在**测试侧**散点验过：
 //     · v3159 [2b] 只覆盖 3 个扫描器（scan_resilience / scan_wiring / scan_config_liveness）；
 //     · v3177 的 C7 是测试里的一条断言（默认根上 index.js 要出现在清单里）—— 判据在测试里，不在门上。
 //
 //   本轮把这件事立成「表 + 判据」：
 //     tests/audit/audit_scan_probe_matrix.tsv 是「扫描器 × 退化形态 → 实测退出码」的登记表，
-//     本套件常驻校验它（结构 / 双向齐全 / H 列全 0 / G、T 至少一列非 0）。
+//     本套件常驻校验它（结构 / 双向齐全 / H 列全 0 / G、T、C 至少一列非 0）。
+//
+//   [v3.487.0] 补第三档形态 C =「css/ 下所有 .css 置为空文件」。理由是真跑出来的，不是整齐：
+//     v3.476.0 新增的两份 CSS 扫描器（`scan_undefined_css_tokens` / `scan_vendored_css_drift`）
+//     只读 `css/`，在 G（删根 .js）与 T（掏空 tests/）两档上**恒为 0**（实测 0/0/0）；
+//     而它们对样式面是敏感的（css 置空后分别 exit 2 / exit 1）。两档表头会把它们判成恒绿探测器 ——
+//     那是**判据的口径窄了**，不是扫描器空转。三类输入面（根 .js / tests/ / css/）各一档，口径才闭合。
+//     不读 css 面的扫描器（源码里不出现 css 目录引用）C 按构造恒 0，行上照写 0 不是手抄读数而是推论。
 //
 //   为什么值得一张表：扫描器的输入面只有两类 —— 根 .js/.mjs 源码树、tests/ 目录。
 //     ① H 列非 0：健康树上误红（假红，浪费人的注意力）；
@@ -83,7 +90,7 @@ function parseTable(text) {
     for (const line of text.split('\n')) {
         if (!line.trim() || line.trim().startsWith('#')) continue;
         const c = line.split('\t');
-        if (c.length < 4) return { rows, bad: line };
+        if (c.length < 5) return { rows, bad: line };   // [v3.487.0] 4 列 → 5 列：补 C(样式面)
         rows.push(c);
     }
     return { rows, bad: null };
@@ -105,28 +112,30 @@ function healthyJudge(text) {
     return rows.every((r) => Number(r[1]) === 0);
 }
 
-/** J3 每条都要有敏感性：G 或 T 至少一列非 0（两列都是 0 ⇒ 恒绿探测器）。 */
+/** J3 每条都要有敏感性：G / T / C 至少一列非 0（三列都是 0 ⇒ 恒绿探测器）。
+ *   [v3.487.0] 加 C：样式面也是输入面。少了它，只读 css/ 的两份扫描器在本表里无处安放。 */
 function sensitivityJudge(text) {
     const { rows, bad } = parseTable(text);
     if (bad || !rows.length) return false;
-    return rows.every((r) => Number(r[2]) !== 0 || Number(r[3]) !== 0);
+    return rows.every((r) => Number(r[2]) !== 0 || Number(r[3]) !== 0 || Number(r[4]) !== 0);
 }
 
 // ══════════ A 表本体 ══════════
-test('v3226 A1. ★★ 灵敏度登记表在场且结构可解析（29 条扫描器 + 形态定义可复现）', () => {
+test('v3226 A1. ★★ 灵敏度登记表在场且结构可解析（在役扫描器逐条 + 三档形态定义可复现）', () => {
     assert.ok(fs.existsSync(TABLE), '登记表必须在场：tests/audit/audit_scan_probe_matrix.tsv');
     const { rows, bad } = parseTable(tableText);
     assert.equal(bad, null, '每行必须有 >= 4 个制表符分隔的列：' + String(bad).slice(0, 80));
     assert.equal(rows.length, inService.length, '登记条数须等于在役扫描器数');
     assert.ok(rows.length >= 29, '本轮实测 29 条，实得 ' + rows.length + '（表被删减？）');
-    for (const [s, h, g, t] of rows) {
-        for (const [name, v] of [['H', h], ['G', g], ['T', t]]) {
+    for (const [s, h, g, t, cc] of rows) {
+        for (const [name, v] of [['H', h], ['G', g], ['T', t], ['C', cc]]) {
             assert.ok(['0', '1', '2', 'TIMEOUT'].includes(v), s + ' 的 ' + name + ' 列取值非法：' + v);
         }
     }
     // 形态定义写在表头里（否则这张表不可复现，也无从判「H/G/T 是什么意思」）
     assert.ok(/H = 不改动/.test(tableText) && /G = 删掉镜像根目录全部 \.js/.test(tableText)
-        && /gutted/.test(tableText), '表头须逐字写明三档形态，使表可复现');
+        && /gutted/.test(tableText) && /C = 镜像 css\/ 下所有 \.css 置为空文件/.test(tableText),
+        '表头须逐字写明四档形态（H/G/T/C），使表可复现');
 });
 
 // ══════════ B 双向齐全 ══════════
@@ -159,10 +168,11 @@ test('v3226 C1. ★★ 健康树不得误红：H 列逐条为 0', () => {
     assert.equal(healthyJudge(tableText), true, 'J2 在原件上必须为真');
 });
 
-test('v3226 C2. ★★★ 没有恒绿探测器：G、T 至少一列非 0', () => {
+test('v3226 C2. ★★★ 没有恒绿探测器：G、T、C 至少一列非 0', () => {
     assert.equal(sensitivityJudge(tableText), true, 'J3 在原件上必须为真');
-    const dead = parseTable(tableText).rows.filter((r) => Number(r[2]) === 0 && Number(r[3]) === 0).map((r) => r[0]);
-    assert.deepEqual(dead, [], '两档退化都不敏感的扫描器就是恒绿探测器：' + dead.join(', '));
+    const dead = parseTable(tableText).rows
+        .filter((r) => Number(r[2]) === 0 && Number(r[3]) === 0 && Number(r[4]) === 0).map((r) => r[0]);
+    assert.deepEqual(dead, [], '三档退化都不敏感的扫描器就是恒绿探测器：' + dead.join(', '));
 });
 
 // ══════════ D 本轮真缺陷面：语法门的入口在场性 ══════════
@@ -257,8 +267,8 @@ test('v3226 N1. ★★ 负控制·健康树误红：把某行 H 改成 1 ⇒ J2 
     assert.equal(healthyJudge(tableText), true, '对照：原件上仍为真');
 });
 
-test('v3226 N2. ★★ 负控制·恒绿探测器：把某行 G、T 都改成 0 ⇒ J3 转红', () => {
-    const broken = mutateOnce(tableText, 'scan_syntax.mjs\t0\t2\t0\t', 'scan_syntax.mjs\t0\t0\t0\t');
+test('v3226 N2. ★★ 负控制·恒绿探测器：把某行 G、T、C 都改成 0 ⇒ J3 转红', () => {
+    const broken = mutateOnce(tableText, 'scan_syntax.mjs\t0\t2\t0\t0\t', 'scan_syntax.mjs\t0\t0\t0\t0\t');
     assert.equal(sensitivityJudge(broken), false, '两档皆 0 必须让 J3 转红');
     assert.equal(sensitivityJudge(tableText), true, '对照：原件上仍为真');
 });
@@ -271,7 +281,7 @@ test('v3226 N3. ★★★ 负控制·登记面变窄 / 长出退位项 ⇒ J1 �
     const dropped = lines.slice(0, idx).concat(lines.slice(idx + 1)).join('\n');
     assert.equal(registryJudge(dropped, inService), false, '少登记一条必须转红（缺口）');
     // ② 登记表里多一条不在役的扫描器（退位项）
-    const extra = tableText.replace(/\n$/, '\nscan_v9999_ghost.mjs\t0\t2\t0\t幽灵\n');
+    const extra = tableText.replace(/\n$/, '\nscan_v9999_ghost.mjs\t0\t2\t0\t0\t幽灵\n');
     assert.equal(registryJudge(extra, inService), false, '多一条不在役项必须转红（残留）');
     assert.equal(registryJudge(tableText, inService), true, '对照：原件上仍为真');
 });

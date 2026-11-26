@@ -26,6 +26,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+/* [v3.487.0] 剥注释改走唯一真源（v3.191 纪律：文本判据一律做在 tests/_audit_lib.mjs 的口径上）。
+ *   本档此前自带一份 `stripComments`，被 `scan_audit_lib_consolidation.mjs` 的 E1 结构面点名
+ *   （盘上真源必须卫生：本地重写）。这份是 JS 口径（块注释 + 行注释），与真源语义一致，故直接收敛。 */
+import { stripComments } from './_audit_lib.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -310,7 +314,6 @@ const eq = (name, a, b) => {
   const l = read('recall-provenance-ledger.js');
   // lorecodex 的概念不该出现在本仓模块里（说明没照抄它的实现）
   // 断言只看**代码面**：注释里引用借鉴对象（说明「本仓不这么做」）是合理的，不该判红。
-  const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
   const gCode = stripComments(g), lCode = stripComments(l);
   ok('9a 不做它的章节树（无 list_series / list_arcs 工具调用）', !/list_series|list_arcs|get_arc_scenes/.test(gCode + lCode));
   ok('9b 不做它的 read_scene 往返（无该工具调用）', !/read_scene\s*\(|readScenes\s*\(/.test(gCode + lCode));

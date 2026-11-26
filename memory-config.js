@@ -82,7 +82,7 @@ let clearApiCooldowns = function clearApiCooldowns() {
 
     /* ── 二、逐字副本：宿主常量（注了也是同一串字符，故不进注入面） ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.486.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
+let VERSION = '3.487.0';   // [留痕] 必须 let：bindDeps 可换（const 会 TypeError，宿主 catch 吞掉并中断整轮注入）
 const _FACTS_PROMPT_ANCHOR_OLD = '"visibility": "observable"}]}';
 const _FACTS_PROMPT_ANCHOR_NEW = '"visibility": "observable"}], "facts": [{"subject": "主语", "predicate": "谓词", "value": "取值", "type": "九类型名之一"}]}';
 const _FACTS_PROMPT_IDEMPOTENT = '"facts": [{"subject"';
@@ -124,6 +124,13 @@ class ConfigManager {
             graphDiffusionEnabled: true,
             autoSave: true,
             maxSummaryLength: 200,
+            /* [v3.487.0] 规则 DSL 的**声明面**。v4-panel-bridge.js 的 compileRules 一直按
+             *   `host.config.config.lonshaRules` 取用户写的规则文本（未配置 ⇒ not-configured），
+             *   但默认配置块里从来没有这个键 —— 于是「读得到、设不了」：v3160 [1] 点名它是
+             *   「引擎读了却没人声明」，v3161 [1] 会接着点名「声明了却没法设」。
+             *   这里补声明 + 设置面板补一个 textarea（data-cfg-text），两侧一次结清；
+             *   默认空串与桥的 not-configured 分支同义，行为零变化。 */
+            lonshaRules: '',
             // [v3.14] 从世界书提取角色提示词（zhino 触发词优先思路）
             extractRolesLimit: 50,
             extractRolesPrompt: `你是角色名提取器。从下面世界书条目中提取【角色】及其别名。

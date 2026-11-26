@@ -9,6 +9,7 @@
         "graphDiffusionEnabled": "immediate",
         "autoSave": "immediate",
         "maxSummaryLength": "immediate",
+        "lonshaRules": "next-turn",
         "extractRolesLimit": "immediate",
         "extractRolesPrompt": "next-turn",
         "extractionPrompt": "next-turn",

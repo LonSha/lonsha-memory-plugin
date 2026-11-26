@@ -231,6 +231,9 @@
             _memoryMirrorLine: _memoryMirrorLine,
             _recallProgressGateLine: _recallProgressGateLine,
             _recallProvenanceLedgerLine: _recallProvenanceLedgerLine,
+            /* [v3.487.0] 两条新诊断行（装配面自有，不在分片里；台账 core_functions 已登记）。 */
+            _archiveOriginLine: _archiveOriginLine,
+            _uniqueHitLine: _uniqueHitLine,
             errLog: errLog
         };
     }
@@ -360,6 +363,54 @@
             return '—（记忆文本镜像诊断异常）';
         }
     }
+    /* ══════════════════════════════════════════════════════════════════════
+     * [v3.487.0] 缝合「瑟瑟台账 V1.170」与「色色灵感状态栏 V4.027」的两条读数行。
+     *
+     * 都放装配面（不放分片），理由与 v3.483.0/v3.484.0 同款：分片受
+     * `tests/audit/diag_split_verbatim.json` 的逐字节 sha256 约束（那张表证明
+     * 「拆分只搬家不改写」），新写的函数塞进分片就等于让它们混进「拆前就有」的名录。
+     * 两条都已登记进同一张台账的 core_functions（装配面函数名录）。
+     * ══════════════════════════════════════════════════════════════════════ */
+    /**
+     * 【存档来源】—— 回答「这份正在用的记忆，出身是不是当前这段聊天」。
+     * 五态不同形（same / absent / unknown-dest / adopted / blocked 各有自己的句子）：
+     *   `absent` 与 `same` 的读数都是「放行」，但成因相反（一个是没戳、一个是戳对上了），
+     *   折成一句话就等于把「旧档」读成「同档」——这正是本仓反复治的「两种成因同形」。
+     */
+    function _archiveOriginLine(engine) {
+        try {
+            var st = engine ? engine._lastArchiveOrigin : null;
+            if (!st) return '【存档来源】本会话尚未恢复过存档（无从判断串档）';
+            /* [v3.487.0] 归因句由**引擎侧**给（`archiveOriginVerdictOf` 的 `line`），这里只加前缀与来源。
+             *   刻意不在这里再拼一遍 id 截断：那会长出第二份 `shortChatId` 同名同体的副本
+             *   （v3282 的 alias-copy 台账正是抓这个）。**同一句人话只许有一处产地。** */
+            var body = String(st.line || ('状态 ' + String(st.verdict || '未知')));
+            var via = st.source ? ' · 来源 ' + String(st.source) : '';
+            return '【存档来源】' + body + via;
+        } catch (e) {
+            errLog(e, 'engine._archiveOriginLine');
+            return '—（存档来源诊断异常）';
+        }
+    }
+    /**
+     * 【按 id 写入】—— 回答「上一次按 id 的删/恢复，真的达成了后置条件吗」。
+     * 命中 0 与命中 N>1 必须可分：前者是「这条记忆本来就没有」，后者是
+     * 「同 id 在 core/recent 各存了一份」——处置完全不同（一个该报错，一个该清干净）。
+     */
+    function _uniqueHitLine(engine) {
+        try {
+            var st = engine ? engine._lastUniqueHit : null;
+            if (!st) return '【按 id 写入】本会话尚无按 id 的删/恢复动作';
+            var op = st.op === 'restore' ? '恢复' : '删除';
+            if (st.verdict === 'miss') return '【按 id 写入】' + op + '未命中（' + String(st.id || '').slice(0, 22) + '）· 库里本来就没有这条';
+            if (st.verdict === 'already-present') return '【按 id 写入】恢复跳过：这条记忆**已在池中**（不再复制一份）';
+            if (st.verdict === 'postcondition-failed') return '【按 id 写入】**' + op + '后置条件未成立**：命中 ' + (st.hits || 0) + ' 份，事后仍剩 ' + (st.remain || 0) + ' 份';
+            return '【按 id 写入】' + op + '命中 ' + (st.hits || 0) + ' 份 · 后置条件成立（事后 0 命中）';
+        } catch (e) {
+            errLog(e, 'engine._uniqueHitLine');
+            return '—（按 id 写入诊断异常）';
+        }
+    }
 function _installParts() {
         var parts = _collectParts();
         var S = _support();
@@ -378,6 +429,9 @@ function _installParts() {
      *   放进 `_coreApi` 而不是 `_partApi`，是因为它们不属于任何分片（见上方长注释）。 */
     _coreApi._recallProgressGateLine = _recallProgressGateLine;
     _coreApi._recallProvenanceLedgerLine = _recallProvenanceLedgerLine;
+    /* [v3.487.0] 同上：装配面自有实现必须在冻结后的 api 上出现，否则面板/判据取不到。 */
+    _coreApi._archiveOriginLine = _archiveOriginLine;
+    _coreApi._uniqueHitLine = _uniqueHitLine;
     _coreApi.RULE_TIERS = RULE_TIERS;
     _coreApi.RULE_STATUSES = RULE_STATUSES;
     _coreApi.EVIDENCE_IMPACT_VERDICTS = EVIDENCE_IMPACT_VERDICTS;

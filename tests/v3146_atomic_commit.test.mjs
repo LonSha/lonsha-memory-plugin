@@ -2,6 +2,13 @@
 // [v3.146] CP 原子提交边界：恢复部分失败自动回滚到恢复前快照（不留半套状态）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+/* [v3.487.0] `restoreFromPayload` 的方法体新增了两个闭包依赖（`archiveOriginVerdictOf` /
+ *   `ARCHIVE_ORIGIN_KEY`，串档闸）。抠方法体的夹具必须把新依赖一并注入 —— 与历次新增依赖同法
+ *   （ARCHIVE_SCHEMA_VERSION / ARCHIVE_TOP_LEVEL_KEY_SET / PLUGIN_NAME 都是这么加进来的）。
+ *   传的是**真实现**，不是桩：夹具若拿桩顶替，串档闸就永远测不到。 */
+import { createRequire as __createRequire } from 'node:module';
+const __POPS = __createRequire(import.meta.url)('../engine-persistence-ops.js');
+const ARCHIVE_ORIGIN_DEPS = [__POPS.archiveOriginVerdictOf, __POPS.ARCHIVE_ORIGIN_KEY];
 import { readFileSync } from 'node:fs';
 /* [v3.421.0] 宿主面合并读：index.js 的方法已大批外提到 engine-*.js / memory-core.js，
  *   入口只剩一行委派。只读入口的测试因此两重受害 ——
@@ -60,8 +67,8 @@ const KEYS = ['version', 'graph', 'summaries', 'clock', 'schemaVersion', 'produc
 function mk({ atomic = true } = {}) {
     const calls = [];
     const body = extractBraced('restoreFromPayload(data) {');
-    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET', 'PLUGIN_NAME',
-        `return function (data) { ${body} }`)(() => {}, 1, new Set(KEYS), 'TEST');
+    const fn = new Function('errLog', 'ARCHIVE_SCHEMA_VERSION', 'ARCHIVE_TOP_LEVEL_KEY_SET', 'PLUGIN_NAME', 'archiveOriginVerdictOf', 'ARCHIVE_ORIGIN_KEY',
+        `return function (data) { ${body} }`)(() => {}, 1, new Set(KEYS), 'TEST', ...ARCHIVE_ORIGIN_DEPS);
     const eng = {
         storage: { _confirmed: { chatId: 'c', revision: 7 } },
         config: { config: { atomicRestoreEnabled: atomic } },

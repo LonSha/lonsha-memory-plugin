@@ -642,3 +642,4 @@ v3483_recall_progress_and_provenance.test.mjs
 v3484_fused_attachments.test.mjs
 v3485_recall_dryrun_panel.test.mjs
 v3486_wiring_surface_truth.test.mjs
+v3487_archive_identity_and_unique_hit.test.mjs		v3.487.0 当版新增：缝合更新版用户脚本的两条写入侧纪律 —— 存档来源身份五态闸（blocked 只落 file-import、闸门在一切副作用之前、拒绝带 src/dst 事实、来源戳随存档走而在恢复侧主动剥除）+ 按 id 写入的后置条件验收（删除后零命中 / 恢复后恰好一份，顺带修 deleteMemory 只清 core 那份的缺陷）；11 条断言，含被拦下零副作用与两态文案互不同形。

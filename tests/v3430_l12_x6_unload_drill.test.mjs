@@ -48,6 +48,8 @@ const NL = String.fromCharCode(10);
 const TOOL_SRC = readRoot(TOOL_REL);
 const HOST_SRC = readRoot('index.js');
 const UI_SRC = readRoot('settings-ui.js');
+/* 面板的**最终生效层**在 dashboard-shell.js（它会把 settings-ui 那份再压一次）。 */
+const SHELL_SRC = readRoot('dashboard-shell.js');
 const RECALL_SRC = readRoot('engine-recall.js');
 
 const VERSION = (/const VERSION = '([0-9.]+)'/.exec(HOST_SRC) || [])[1] || '0.0.0';
@@ -189,7 +191,13 @@ test('v3430X6 B2. ★★★ D3 的「合法降级」在真仓读数里逐条可�
 /* ══════════════ C 真源码破坏（每条配原版对照） ══════════════ */
 /* 破坏锚点：逐字取自真源码，且在本档只声明一次（H5 由 F1 钉）。 */
 const A_RECALL_NULL = 'async recallMemory(query) {';
-const A_PANEL_THROW = 'plugin.showSettingsPanel = function() {';
+/* 破坏 B 的锚点必须是**真正执行的那一层**（同工具 selftest 的锚点，同源）：
+ *   实测三层均证伪 —— settings-ui.js:3214 那份被 dashboard-shell.js:672 的 `wrapped` 挡在前面
+ *   （`wrapped` 在非 diag 路径上直接 `return true`，不调 original）；:2028 的 wire 在沙箱里没跑到。
+ *   把前两处各自/同时改坏，演练仍报 `opened`（exit 0）⇒ 打那里等于没测。
+ *   只有 `wrapped` 的定义首行（dashboard-shell.js:634，全仓恰 1 次）抛错才会被看见。
+ *   注：注释里刻意不写锚点字面量 —— F3 要按字面量计次（H5 纯度），写进注释就成 2 次。 */
+const A_PANEL_THROW = 'const wrapped = function () {';
 /* C3 的锚点：`mount` 器首行。打这里才能让**整块挂载**不执行（↑ 见 C3 注释）。 */
 const A_MOUNT_DEAD = 'const mount = () => {';
 
@@ -226,7 +234,7 @@ test('v3430X6 C1. ★★★ recallMemory 静默吞成 null ⇒ D3 必须点名',
 test('v3430X6 C2. ★★★ showSettingsPanel 抛错 ⇒ D2-③ 必须点名', () => {
     withBroken(() => ({
         'index.js': HOST_SRC,
-        'settings-ui.js': breakSource(UI_SRC, A_PANEL_THROW,
+        'dashboard-shell.js': breakSource(SHELL_SRC, A_PANEL_THROW,
             A_PANEL_THROW + ' throw new Error("gate-forced-throw");', '面板抛错'),
         'engine-recall.js': RECALL_SRC,
     }), (rB) => {
@@ -369,7 +377,7 @@ test('v3430X6 F2. ★★ 两处登记面：在役名册 + v3247 接收方台账'
 
 test('v3430X6 F3. ★★★ 破坏锚点在本档各只声明一次（判据纯度 H5）', () => {
     const SELF = readRoot(TEST_REL);
-    const decls = [['A_RECALL_NULL', A_RECALL_NULL, HOST_SRC], ['A_PANEL_THROW', A_PANEL_THROW, UI_SRC],
+    const decls = [['A_RECALL_NULL', A_RECALL_NULL, HOST_SRC], ['A_PANEL_THROW', A_PANEL_THROW, SHELL_SRC],
         ['A_MOUNT_DEAD', A_MOUNT_DEAD, UI_SRC]];
     for (const [name, lit, realSrc] of decls) {
         const n = SELF.split(lit).length - 1;
@@ -382,6 +390,6 @@ test('v3430X6 F3. ★★★ 破坏锚点在本档各只声明一次（判据纯�
 test('v3430X6 F4. ★★ 工具两向自证：零命中 / 多命中 / 同值替换均拒绝', () => {
     assert.throws(() => assertSingleHit(HOST_SRC, '绝对不存在的锚点字符串-xyz', 't-miss'), /拒绝破坏/);
     assert.throws(() => assertSingleHit(UI_SRC, 'plugin.', 't-multi'), /拒绝破坏/);
-    assert.throws(() => breakSource(UI_SRC, A_PANEL_THROW, A_PANEL_THROW, 't-same'), /拒绝破坏/);
+    assert.throws(() => breakSource(SHELL_SRC, A_PANEL_THROW, A_PANEL_THROW, 't-same'), /拒绝破坏/);
     ok('F4：零命中 / 多命中 / 同值替换均拒绝');
 });

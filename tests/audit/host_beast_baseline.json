@@ -1,7 +1,7 @@
 {
   "file": "index.js（+ 宿主面外提模块，合并面）",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
-  "measured_at": "v3.485.0",
+  "measured_at": "v3.487.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3716,6 +3716,45 @@
         "top5_pct": 0,
         "top40_pct": 0
       }
+    },
+    "v3.487.0": {
+      "reason": "[v3.487.0] 缝合更新版用户脚本（瑟瑟台账 V1.170 / 瑟瑟小手机 V1.308 / 色色灵感状态栏 V4.027）里两条**写入侧**纪律（十二条候选逐条对账后只剩这两条是真缺口，其余九条本仓已存在或更强、两条不适用）：① 存档来源身份（串档闸）—— 账本快照随当前聊天走，复制/串档要能被识别；改形为按来源五态分档，`blocked` 只落 file-import（授权后可放行），闸门落在任何副作用之前，拒绝时带 src/dst 事实；确立「来源戳是随存档走的事实、不是运行时状态」（导出侧末位盖戳、恢复侧主动剥戳）。② 按 id 写入的后置条件 —— 删除后零命中、恢复后恰好一份；顺带修掉 `deleteMemory` 只清 core 那份、recent 同 id 副本残留的真缺陷（调用方拿 true 回查却还在，且与同文件 purgeTombstone 语义相反）。引擎侧 +177 行，宿主零业务内联。",
+      "readings": {
+        "total_lines": 13353,
+        "surface_lines": 38184,
+        "member_count": 1401,
+        "duplicate_member_names": 218,
+        "top5_lines": 9489,
+        "top5_pct": 24.9,
+        "top40_lines": 20069,
+        "top40_pct": 52.6,
+        "prefix_rule_coverage_lines": 5339,
+        "prefix_rule_coverage_pct": 14,
+        "unclassified_lines": 31702,
+        "seam_distinct_modules": 229,
+        "seam_reference_sites": 587,
+        "seam_call_shape_sites": 779,
+        "members_over_80_lines": 53,
+        "low_coupling_members": 17,
+        "high_coupling_members": 19,
+        "entry_lines": 13353
+      },
+      "unchanged": [
+        "正常路径行为不变：同档恢复照旧（`same` 直接过）、无戳旧档照旧（`absent` 只标不拦）、取不到当前身份时如实说没比对（`unknown-dest`）",
+        "未新增任何存储键：来源戳写在存档 extensions 里随存档走，不吸进 chatMetadata / extensionSettings 的持久命名空间",
+        "导出面契约零变更：三份存档类型（full / ledger / vault）字段集不变，只在 extensions 里多一个戳",
+        "本版只量不拆：未拆任何宿主巨兽成员（restoreFromPayload 的 +21 行是闸门与剥戳，不是内联业务）"
+      ],
+      "not_done": "本版交付两个写入侧闸门 + 11 条判据 + 两条诊断行（住装配面并登记 core_functions）+ 面板一条授权重试通路；未拆宿主巨兽成员；台账的「快照文件与聊天身份不一致即直接拒」按本仓语境改形（复制对话是正当用法），故 `blocked` 只落 file-import，其余入口走 `adopted` 放行并等下次导出重新打戳 —— 这是刻意的取舍；全量实跑尚余既有红未清（与 HEAD 干净快照同红同名，属存量欠账）",
+      "delta_from": "v3.485.0",
+      "delta": {
+        "total_lines": 0,
+        "surface_lines": 177,
+        "member_count": 6,
+        "top40_lines": 36,
+        "top5_pct": -0.1,
+        "top40_pct": -0.1
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3730,16 +3769,16 @@
   ],
   "readings": {
     "total_lines": 13353,
-    "surface_lines": 38007,
-    "member_count": 1395,
+    "surface_lines": 38184,
+    "member_count": 1401,
     "duplicate_member_names": 218,
     "top5_lines": 9489,
-    "top5_pct": 25,
-    "top40_lines": 20033,
-    "top40_pct": 52.7,
-    "prefix_rule_coverage_lines": 5332,
+    "top5_pct": 24.9,
+    "top40_lines": 20069,
+    "top40_pct": 52.6,
+    "prefix_rule_coverage_lines": 5339,
     "prefix_rule_coverage_pct": 14,
-    "unclassified_lines": 31532,
+    "unclassified_lines": 31702,
     "seam_distinct_modules": 229,
     "seam_reference_sites": 587,
     "seam_call_shape_sites": 779,
@@ -3751,11 +3790,11 @@
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1303,
-      "lines": 31532,
+      "members": 1309,
+      "lines": 31702,
       "lines_pct": 83,
-      "outside_refs": 32393,
-      "internal_refs": 11103,
+      "outside_refs": 32486,
+      "internal_refs": 11102,
       "outside_ref_share_pct": 74.5
     },
     {
@@ -3770,7 +3809,7 @@
     {
       "domain": "召回与注入",
       "members": 37,
-      "lines": 1898,
+      "lines": 1905,
       "lines_pct": 5,
       "outside_refs": 209,
       "internal_refs": 105,
@@ -3895,8 +3934,8 @@
     {
       "name": "restoreFromPayload",
       "file": "engine-repair-ops.js",
-      "lines": 664,
-      "outside_refs": 44
+      "lines": 685,
+      "outside_refs": 47
     },
     {
       "name": "loadModules",
@@ -3936,7 +3975,7 @@
     {
       "name": "collectExport",
       "file": "engine-repair-ops.js",
-      "lines": 307,
+      "lines": 311,
       "outside_refs": 57
     },
     {
@@ -4012,6 +4051,12 @@
       "outside_refs": 0
     },
     {
+      "name": "persistenceOpsDescribe",
+      "file": "engine-repair-ops.js",
+      "lines": 140,
+      "outside_refs": 3
+    },
+    {
       "name": "applyCorrectionPlan",
       "file": "engine-story-annual.js",
       "lines": 139,
@@ -4028,12 +4073,6 @@
       "file": "engine-report.js",
       "lines": 131,
       "outside_refs": 4
-    },
-    {
-      "name": "persistenceOpsDescribe",
-      "file": "engine-repair-ops.js",
-      "lines": 129,
-      "outside_refs": 3
     },
     {
       "name": "loreImportApply",
@@ -4224,8 +4263,8 @@
       {
         "name": "restoreFromPayload",
         "file": "engine-repair-ops.js",
-        "lines": 664,
-        "outside_refs": 44,
+        "lines": 685,
+        "outside_refs": 47,
         "is_host_lifecycle": false
       },
       {
@@ -4244,7 +4283,7 @@
       {
         "name": "collectExport",
         "file": "engine-repair-ops.js",
-        "lines": 307,
+        "lines": 311,
         "outside_refs": 57,
         "is_host_lifecycle": false
       },
@@ -4308,7 +4347,7 @@
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
     "ceiling": 13392,
     "maxSlack": 400,
-    "note": "[v3.485.0] 缝合 lorecodex 两处纪律后的当版重绑：入口 index.js 13353 行（+31）、成员数 1395；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38007 行，TOP5 占 25%，TOP40 占 52.7%。增量全部来自入口那两个库口（_recallProgressGateLib / _recallProvenanceLedgerLib，各 3 行含 1 行注释）与 bindDeps 的两个注入项（各 1 行），不是死代码回流。",
+    "note": "[v3.487.0] 缝合更新版用户脚本两条写入侧纪律后的当版重绑：入口 index.js 13353 行（+0）、成员数 1401；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38184 行，TOP5 占 24.9%，TOP40 占 52.6%。入口零变化（只有版本串），增量全部来自引擎侧两处写入端：engine-persistence-ops.js 的存档来源身份闸（打戳/取戳/判定三个纯函数 + 导出末位盖戳 + 恢复侧闸门与剥戳）与 memory-organs.js 的按 id 写入后置条件（两个方法各持一份就地计数），不是死代码回流。",
     "history": [
       {
         "ceiling": 15000,
@@ -4832,6 +4871,12 @@
         "member_ceiling": 1404,
         "milestone_version": "v3.485.0",
         "reason": "[v3.485.0] 缝合 lorecodex 两处纪律后的当版重绑：入口 index.js 13353 行（+31）、成员数 1395；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38007 行，TOP5 占 25%，TOP40 占 52.7%。增量全部来自入口那两个库口（_recallProgressGateLib / _recallProvenanceLedgerLib，各 3 行含 1 行注释）与 bindDeps 的两个注入项（各 1 行），不是死代码回流。"
+      },
+      {
+        "ceiling": 13392,
+        "member_ceiling": 1404,
+        "milestone_version": "v3.487.0",
+        "reason": "[v3.487.0] 缝合更新版用户脚本两条写入侧纪律后的当版重绑：入口 index.js 13353 行（+0）、成员数 1401；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38184 行，TOP5 占 24.9%，TOP40 占 52.6%。入口零变化（只有版本串），增量全部来自引擎侧两处写入端：engine-persistence-ops.js 的存档来源身份闸（打戳/取戳/判定三个纯函数 + 导出末位盖戳 + 恢复侧闸门与剥戳）与 memory-organs.js 的按 id 写入后置条件（两个方法各持一份就地计数），不是死代码回流。"
       }
     ],
     "member_ceiling": 1404,
@@ -4839,21 +4884,21 @@
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
   "total_lines": 13353,
-  "member_count": 1395,
+  "member_count": 1401,
   "index_total_lines": 13082,
   "index_line_ceiling": 12096,
   "entry_lines": 13353,
-  "surface_lines": 38007,
+  "surface_lines": 38184,
   "members_by_file": {
     "index.js": 903,
     "engine-diagnostic-lines.js": 1,
     "engine-evidence-center.js": 1,
     "engine-execution-pipeline.js": 1,
-    "engine-injection-pipeline.js": 49,
+    "engine-injection-pipeline.js": 51,
     "engine-persistence-ops.js": 54,
     "engine-qa-tools.js": 26,
     "engine-recall.js": 20,
-    "engine-repair-ops.js": 42,
+    "engine-repair-ops.js": 46,
     "engine-report.js": 49,
     "engine-self-check.js": 30,
     "engine-story-annual.js": 28,
@@ -4934,8 +4979,8 @@
     {
       "name": "restoreFromPayload",
       "file": "engine-repair-ops.js",
-      "lines": 664,
-      "outside_refs": 44
+      "lines": 685,
+      "outside_refs": 47
     },
     {
       "name": "loadModules",
@@ -4975,7 +5020,7 @@
     {
       "name": "collectExport",
       "file": "engine-repair-ops.js",
-      "lines": 307,
+      "lines": 311,
       "outside_refs": 57
     },
     {
@@ -5051,6 +5096,12 @@
       "outside_refs": 0
     },
     {
+      "name": "persistenceOpsDescribe",
+      "file": "engine-repair-ops.js",
+      "lines": 140,
+      "outside_refs": 3
+    },
+    {
       "name": "applyCorrectionPlan",
       "file": "engine-story-annual.js",
       "lines": 139,
@@ -5067,12 +5118,6 @@
       "file": "engine-report.js",
       "lines": 131,
       "outside_refs": 4
-    },
-    {
-      "name": "persistenceOpsDescribe",
-      "file": "engine-repair-ops.js",
-      "lines": 129,
-      "outside_refs": 3
     },
     {
       "name": "loreImportApply",

@@ -2,10 +2,10 @@
   "file": "tests/audit/freshness_ledger.json",
   "generator": "tools/gen_freshness_report.mjs（由它写；判据 --check 按判读结论比对，ageDays/judged_at 属时钟字段不参与，手改由 C1 全字段深度比对照看）",
   "note": "L23-O9 冻结读数新鲜度台账。三态口径来自 tests/audit/_freshness_judge.mjs（阈值单一真源）。`ageDays` 是整岁天数；版本式时间戳（measured_at）按该版本提交日计龄。expired 的读数**不得再作依据**，refresh 一列给出可复制的刷新命令。",
-  "judged_at": "2026-11-26T12:45:28.909Z",
+  "judged_at": "2026-11-26T18:33:58.582Z",
   "counts": {
-    "fresh": 6,
-    "expired": 4
+    "fresh": 5,
+    "expired": 5
   },
   "rows": [
     {
@@ -41,16 +41,16 @@
       "producer_verified": false,
       "state": "expired",
       "ageDays": null,
-      "why": "读数写了版本式时间戳 3.475.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
+      "why": "读数写了版本式时间戳 3.487.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tools/gen_test_budget.mjs"
     },
     {
       "rel": "tests/audit/host_beast_baseline.json",
       "producer": "tests/audit/host_beast_probe.cjs",
       "producer_verified": false,
-      "state": "fresh",
-      "ageDays": 0,
-      "why": "读数 0 天前生成 —— 现行",
+      "state": "expired",
+      "ageDays": null,
+      "why": "读数写了版本式时间戳 v3.487.0，但解析不到对应提交（git 里既无该 tag、package.json 里也没找到改成该版本的提交） —— fail-closed 按 expired 处置；这不是「没说时间」，是「说了却查不到」",
       "refresh": "node tests/audit/host_beast_probe.cjs"
     },
     {

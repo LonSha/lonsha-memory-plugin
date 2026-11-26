@@ -405,9 +405,20 @@ if (SELFTEST) {
     }
 
     const idxSrc = readSrc('index.js');
-    const uiSrc = readSrc('settings-ui.js');
+    /* 【本版修掉的第 5 处判据自伤】破坏 B 原先打在 `settings-ui.js:3214` 的那份
+     *   `plugin.showSettingsPanel` 上 —— 改了、副本里也确实抛，但演练仍报 `opened`
+     *   （同一现场在 C2 上也复现过）。逐层证伪后才知道面板一共三层：
+     *     · settings-ui.js:3214  → 旧设置页身；
+     *     · dashboard-shell.js:2028 → v6 面板 wire（演练沙箱里没跑到）；
+     *     · dashboard-shell.js:634 `const wrapped = function () {}` → :672 把它挂上 plugin，
+     *       而它在「非 diag 且 window.LonShaPanel.open 可用」时**直接 return true**，
+     *       压根不调用 original ⇒ 改 settings-ui 那份等于没改。
+     *   判据读的是运行时真面（`P.showSettingsPanel()`），破坏就必须打在真身上：
+     *   只有 wrapped 自己抛，演练才可能看见 `threw`。锚点 `const wrapped = function () {`
+     *   在 dashboard-shell.js 里恰 1 次（`wrappedHome` 是另一枚，不冲突）。 */
+    const shellSrc = readSrc('dashboard-shell.js');
     const bA = mustHitOnce(idxSrc, 'async recallMemory(query) {', 'recallMemory');
-    const bB = mustHitOnce(uiSrc, 'plugin.showSettingsPanel = function() {', 'showSettingsPanel');
+    const bB = mustHitOnce(shellSrc, 'const wrapped = function () {', 'showSettingsPanel');
 
     /* 破坏必须打在**判据真会读的那一面**上，否则等于没测。
      *   实测教训（本版首跑）：破坏 B 原先把 settings-ui.js 改坏，却在「摘九件」那一轮里跑 ——
@@ -416,7 +427,7 @@ if (SELFTEST) {
      *   正确处理：破坏 B 跑在**对照面（全在场）**上 —— 那一面才真会调 showSettingsPanel。 */
     const rA = await runDrill(targets, { 'index.js': bA });
     const jA = judge(rA, '[selftest/breakA]');
-    const rB = await runDrill([], { 'settings-ui.js': bB });
+    const rB = await runDrill([], { 'dashboard-shell.js': bB });
     const jB = judge(rB, '[selftest/breakB]');
 
     const res = {

@@ -188,7 +188,10 @@ test('v3427 7. ★★ 三张登记面与磁盘同源（新增产物必须同版�
     const disk = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.test.mjs'));
     assert.deepEqual(disk.filter((f) => !ref.has(f)), [], '磁盘新增的测试未登记进 catalog_reference_consumers.tsv');
 
-    // ② 灵敏度矩阵：在役扫描器 ⊆ 登记表（且 H 列全 0、G/T 至少一列非 0）
+    // ② 灵敏度矩阵：在役扫描器 ⊆ 登记表（且 H 列全 0、G/T/C 至少一列非 0）
+    /* [v3.487.0] 加 C 列：v3226 的同款判据已补第三档「样式面」形态，这里必须同源 ——
+     *   否则只读 css/ 的两份扫描器在 G/T 上恒 0，会被本档单独判成恒绿探测器而 v3226 判绿，
+     *   两张判据对同一张表各说一套（这正是本仓反复整治的「同事实两个主人」）。 */
     const rows = read('tests/audit/audit_scan_probe_matrix.tsv')
         .split('\n').filter((l) => l.trim() && !l.trim().startsWith('#'))
         .map((l) => l.split('\t'));
@@ -196,8 +199,8 @@ test('v3427 7. ★★ 三张登记面与磁盘同源（新增产物必须同版�
     const inService = fs.readdirSync(AUDIT)
         .filter((f) => f.endsWith('.mjs') && !f.startsWith('_') && !f.includes('negctl'));
     assert.deepEqual(inService.filter((s) => !listed.has(s)), [], '在役扫描器未登记进灵敏度矩阵');
-    const dead = rows.filter((r) => Number(r[2]) === 0 && Number(r[3]) === 0).map((r) => r[0]);
-    assert.deepEqual(dead, [], '两档退化都不敏感的扫描器就是恒绿探测器：' + dead.join(', '));
+    const dead = rows.filter((r) => Number(r[2]) === 0 && Number(r[3]) === 0 && Number(r[4]) === 0).map((r) => r[0]);
+    assert.deepEqual(dead, [], '三档退化（根 .js / tests / css）都不敏感的扫描器就是恒绿探测器：' + dead.join(', '));
 
     // ③ 状态报告：测试/审计计数必须与磁盘一致
     const rep = JSON.parse(read('tests/audit/state-report.json'));

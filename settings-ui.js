@@ -3509,6 +3509,9 @@
                     <input type="range" class="ls-slider" min="1" max="10" step="1" value="${c.smartTriggerThreshold ?? 2}" data-cfg-num="smartTriggerThreshold">
                     <div class="ls-hint" style="padding:0 8px;">达到该分才判为值得抽取 LLM；bionic 缺省 2。调低更容易触发（省得少），调高更省（可能漏事件）。</div>
                     <textarea class="ls-textarea" data-cfg-text="smartTriggerPatterns" placeholder="自定义触发规则（每行一条正则，命中即加权 2 分）">${c.smartTriggerPatterns || ''}</textarea>
+                    <!-- [v3.487.0] 规则 DSL 的输入面：v4-panel-bridge 的 compileRules 读 config.lonshaRules，
+                         此前只有读点没有控件（「读得到、设不了」）。留空 = not-configured，与默认值同义。 -->
+                    <textarea class="ls-textarea" data-cfg-text="lonshaRules" placeholder="规则 DSL（每行一条规则；留空 = 未使用）">${c.lonshaRules || ''}</textarea>
                     <div class="ls-slider-label" style="margin-top:8px;"><span>抽取节奏档位</span><span class="ls-slider-val">${c.extractionProfile || 'balanced'}</span></div>
                     <select class="ls-input" data-cfg-text="extractionProfile">
                         <option value="quality" ${(c.extractionProfile || 'balanced') === 'quality' ? 'selected' : ''}>quality（每楼都抽，最贵）</option>
@@ -4910,7 +4913,21 @@
                             const chatId = this.engine.getCurrentChatId();
                             // [v3.142] CP 原子性：恢复前先只读取回原存档（preserveRuntime 不写运行时），供部分失败时紧急备份留退路
                             const _prev = chatId ? await this.engine.storage.load(chatId, { preserveRuntime: true }) : null;
-                            const _rn = this.engine.restoreFromPayload(data, { source: 'file-import', snapshot: true });   // [v3.146] 部分失败自动回滚
+                            /* [v3.487.0] 导入选项只有一个真源：串档被拦下后重试时只**多一个授权键**，
+                             *   不另抄一份 snapshot/source（抄一份就多一处会漂的开关面）。 */
+                            const _impOpts = () => ({ source: 'file-import', snapshot: true });
+                            let _rn = this.engine.restoreFromPayload(data, _impOpts());   // [v3.146] 部分失败自动回滚
+                            /* [v3.487.0] 串档闸的**人话分支**：被拦下时 count 也是 0，若直接落到下面那句
+                             *   「无可恢复内容」，用户会以为文件是空的 —— 而真相是这份存档属于**另一段聊天**。
+                             *   两种成因必须不同形（本仓老口径）；且拦下之后必须给一条真出路：
+                             *   问一次，答「确定」才以 allowCrossChat 重来。 */
+                            if (_rn && _rn.error === 'archive-origin-mismatch') {
+                                const okForce = (typeof window !== 'undefined' && typeof window.confirm === 'function')
+                                    ? window.confirm(String(_rn.reason || '存档来自另一个聊天。') + '\n\n继续导入会把那段聊天的记忆带进当前聊天。确定继续？')
+                                    : false;
+                                if (!okForce) { toast('已取消导入：这份存档不是当前聊天的（记忆未改动）', 'error'); return; }
+                                _rn = this.engine.restoreFromPayload(data, Object.assign(_impOpts(), { allowCrossChat: true }));
+                            }
                             if (!_rn.count) { toast('存档无可恢复内容，原记忆保持不变（未落盘）', 'error'); return; }   // [v3.142] 空恢复不得覆盖原存档
                             if (_rn.failed.length) {
                                 // [v3.142] 部分失败：运行时已半改，落盘前先把改前的完整存档送进紧急备份（面板可回滚）

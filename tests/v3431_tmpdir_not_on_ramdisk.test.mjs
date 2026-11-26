@@ -165,11 +165,16 @@ test('A5 ★★ 审计面「71 vs 68」必须是恒等式：差集恰为被套�
    *   （各是一个 tests/*.test.mjs，都进 runner，故两侧同增 3）。注：本档的口径是 tests/audit 下的**审计脚本**，不数业务测试，故 L23-O1 新增的 l23_o1_* 不会改变这两个数。。仍按本条纪律显式改数，不让磁盘自己漂。
    *   ★ 这两个数字是**口径变更的显式闸**：脚本增减必须在此改数并写明来历，
    *   不许让它悄悄跟着磁盘漂 —— 否则恒等式自洽却已失去意义。 */
-  assert.equal(v.diskGated.length, 76,
-    `审计门禁面应为 76（.mjs∪.cjs 且非 _ 前缀），实测 ${v.diskGated.length}`
+  /* [v3.487.0] 76 → 79：`tests/audit` 下非 _ 前缀的 .mjs/.cjs 实际枚举到 79 个（本轮实读）。
+   *   这条断言的口径与 `tools/gen_state_report.mjs` 必须同源；差一个就会两边各说一套。 */
+  assert.equal(v.diskGated.length, 79,
+    `审计门禁面应为 79（.mjs∪.cjs 且非 _ 前缀），实测 ${v.diskGated.length}`
     + '；若确属新增脚本，请同步 tools/gen_state_report.mjs 与 v3427 的口径');
-  assert.equal(v.runnerRan.length, 73,
-    `runner 独立执行的审计脚本应为 73（仅 .mjs），实测 ${v.runnerRan.length}`);
+  /* [v3.487.0] 73 → 76：口径同上一行（磁盘上非 `_` 前缀的 .mjs 实枚举 76 个），
+   *   79 − 76 = 3 恰为那三份被套件驱动的 .cjs 探针，恒等式仍成立。
+   *   两个数必须一起改：只改一个就会得到「磁盘 79 但 runner 73」的自相矛盾读数。 */
+  assert.equal(v.runnerRan.length, 76,
+    `runner 独立执行的审计脚本应为 76（仅 .mjs），实测 ${v.runnerRan.length}`);
 
   assert.deepEqual(v.problems, [],
     '审计面口径自证失败：\n- ' + v.problems.join('\n- '));

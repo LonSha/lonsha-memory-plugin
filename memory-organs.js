@@ -341,7 +341,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.486.0';
+let VERSION = '3.487.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -1277,19 +1277,61 @@ class CharacterMemoryBank {
         try { this.opLog?.log?.('char_mem', 'undo-pin', hit.item.id, hit.item.floor ?? null, `${String(char)} · 恢复置顶状态`); } catch (_) {}
         return { ok: true, reason: 'undone', changed: true, pinned: hit.item.pinned, item: JSON.parse(JSON.stringify(hit.item)) };
     }
+    /* ══════════════════════════════════════════════════════════════════════
+     * [v3.487.0] 按 id 写操作的**后置条件验收**
+     *   （缝合「色色灵感状态栏 V4.027」的「删除未命中唯一一行（实际 ${n}）」判据）
+     *
+     * 状态栏原文的处置是「命中行数 ≠ 1 就拒绝」——那是 SQL 语境（一行一次）。
+     * 本仓的存储是数组 + **确定性 id**（`_detId(char, text)` + 楼层），同一个 id 天然
+     * 可能在 `core` 与 `recent` 各存一份（同一条记忆被置顶/降级过、又重进过池子）。
+     * 照抄「拒绝」既拦不住真正的错，还会让用户删不掉东西。搬过来的纪律换成**后置条件**：
+     *
+     *   · 删除的验收不是「splice 执行过一次」，而是「这条 id 事后**零命中**」；
+     *   · 恢复的验收不是「push 过一条」，而是「这条 id 事后**恰好一份**」。
+     *
+     * 修前实测形状（可复算）：`deleteMemory` 在 `idxCore >= 0` 处就短路，
+     * 只 splice 掉 core 那一份，recent 里的同 id 副本原样留着 —— 调用方拿到 `true`
+     * （「删掉了」），回查却还在。同一文件的 `purgeTombstone` 用的是 `filter`（删全部），
+     * 于是**同一个 id 的两条删除路径语义相反**；这一版一并收敛成「删干净」。
+     *
+     * 读数落 `_lastUniqueHit`，四态不同形：`miss`（本来就没有）／`hit`（命中并清干净）／
+     * `postcondition-failed`（动过手但事后仍有残留 —— 这是真缺陷信号，必须喊出来）／
+     * `already-present`（恢复时发现已在池中，不再复制一份）。
+     * ══════════════════════════════════════════════════════════════════════ */
     // 删除单条：软删入 tombstones；默认 of() 仍只返回可召回的 core/recent。
     deleteMemory(char, id, opts = {}) {
         const c = this._c(char);
-        const idxCore = c.core.findIndex(m => m.id === id);
-        const idxRecent = idxCore < 0 ? c.recent.findIndex(m => m.id === id) : -1;
-        const bucket = idxCore >= 0 ? c.core : c.recent;
-        const index = idxCore >= 0 ? idxCore : idxRecent;
-        if (index < 0) return false;
-        const [item] = bucket.splice(index, 1);
-        const tomb = { item: JSON.parse(JSON.stringify(item)), deletedAt: Date.now(), deletedBy: String(opts.deletedBy || 'user'), reason: String(opts.reason || 'manual-delete') };
-        this._tombList(char).push(tomb);
-        this._logDelete(char, item, tomb.reason, tomb.deletedBy);
-        return true;
+        const key = String(id);
+        /* [v3.487.0] 命中数就地算：**刻意不做成模块函数、也不做成类方法** ——
+         *   · 模块函数：`tests/v316_three_core` 把类体抠出来单独 eval（`new Function(code)`），
+         *     模块作用域里的函数在那份代码里不存在，会 ReferenceError；
+         *   · 类方法：类成员面要与 index.js 的退路面逐名对账（v3264 A），为一个计数工具
+         *     去改退路、并因此抬高 index.js 行数天花板（那道 gate 的哲学是「只降不涨」）不划算。
+         *   两行的重复是这份隔离测试形状的代价，比上面两条都便宜。 */
+        const countIdInPools = (c, id) => {
+            const k = String(id);
+            return (c.core || []).filter(m => m && String(m.id) === k).length
+                + (c.recent || []).filter(m => m && String(m.id) === k).length;
+        };
+        const swept = [];
+        for (const bucket of [c.core, c.recent]) {
+            for (let i = bucket.length - 1; i >= 0; i--) {
+                if (bucket[i] && String(bucket[i].id) === key) { const [it] = bucket.splice(i, 1); swept.push(it); }
+            }
+        }
+        if (swept.length === 0) {
+            this._lastUniqueHit = { op: 'delete', id: key, char: String(char), hits: 0, remain: 0, verdict: 'miss', at: Date.now() };
+            return false;
+        }
+        for (const item of swept) {
+            const tomb = { item: JSON.parse(JSON.stringify(item)), deletedAt: Date.now(), deletedBy: String(opts.deletedBy || 'user'), reason: String(opts.reason || 'manual-delete') };
+            this._tombList(char).push(tomb);
+            this._logDelete(char, item, tomb.reason, tomb.deletedBy);
+        }
+        // 后置条件现场复核：不拿「执行过一次」当验收
+        const remain = countIdInPools(c, key);
+        this._lastUniqueHit = { op: 'delete', id: key, char: String(char), hits: swept.length, remain, verdict: remain === 0 ? 'hit' : 'postcondition-failed', at: Date.now() };
+        return remain === 0;
     }
     listTombstones(char) {
         if (char !== undefined && char !== null) return JSON.parse(JSON.stringify(this._tombList(char)));
@@ -1297,15 +1339,42 @@ class CharacterMemoryBank {
     }
     restoreMemory(char, id) {
         const list = this._tombList(char);
-        const idx = list.findIndex(x => x?.item?.id === id);
-        if (idx < 0) return false;
-        const [tomb] = list.splice(idx, 1);
+        const key = String(id);
+        const idx = list.findIndex(x => x && x.item && String(x.item.id) === key);
+        if (idx < 0) {
+            this._lastUniqueHit = { op: 'restore', id: key, char: String(char), hits: 0, remain: 0, verdict: 'miss', at: Date.now() };
+            return false;
+        }
         const c = this._c(char);
+        /* [v3.487.0] 命中数就地算：**刻意不做成模块函数、也不做成类方法** ——
+         *   · 模块函数：`tests/v316_three_core` 把类体抠出来单独 eval（`new Function(code)`），
+         *     模块作用域里的函数在那份代码里不存在，会 ReferenceError；
+         *   · 类方法：类成员面要与 index.js 的退路面逐名对账（v3264 A），为一个计数工具
+         *     去改退路、并因此抬高 index.js 行数天花板（那道 gate 的哲学是「只降不涨」）不划算。
+         *   两行的重复是这份隔离测试形状的代价，比上面两条都便宜。 */
+        const countIdInPools = (c, id) => {
+            const k = String(id);
+            return (c.core || []).filter(m => m && String(m.id) === k).length
+                + (c.recent || []).filter(m => m && String(m.id) === k).length;
+        };
+        /* [v3.487.0] 后置条件：恢复后这条 id **恰好一份**。
+         *   修前形状：先 splice 墓碑再无条件 push —— 若同 id 已在池中（这条记忆其实没被
+         *   真正移走、或删后又重新写入过），池里就多出一份同 id 副本，而调用方拿到 true
+         *   以为「恢复了一条」。现在改成：先看池里有没有，有就不再复制。 */
+        if (countIdInPools(c, key) > 0) {
+            list.splice(idx, 1);   // 墓碑留着没有意义（这条记忆本来就是活的）
+            this._lastUniqueHit = { op: 'restore', id: key, char: String(char), hits: 1, remain: 1, verdict: 'already-present', at: Date.now() };
+            try { this.opLog?.log?.('tombstone', 'restore-skip', key, null, String(char)); } catch (_) {}
+            return true;
+        }
+        const [tomb] = list.splice(idx, 1);
         const item = JSON.parse(JSON.stringify(tomb.item));
         const target = String(item.id || '').startsWith('cm_') ? c.core : c.recent;
         target.push(item);
+        const remain = countIdInPools(c, key);
+        this._lastUniqueHit = { op: 'restore', id: key, char: String(char), hits: 1, remain, verdict: remain === 1 ? 'hit' : 'postcondition-failed', at: Date.now() };
         try { this.opLog?.log?.('tombstone', 'restore', item.id, item.floor ?? null, String(char)); } catch (_) {}
-        return true;
+        return remain === 1;
     }
     purgeTombstone(char, id, opts = {}) {
         if (opts.confirm !== true) return false;

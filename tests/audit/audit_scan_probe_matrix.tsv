@@ -2,64 +2,73 @@
 # 由 tests/v3226_audit_sensitivity.test.mjs 常驻校验：表内每一行的期望码必须与实测一致，
 #   且「在役扫描器」与「表内登记项」必须双向齐全（新增扫描器不登记 => 该套件转红）。
 #
-# 列：scanner | H(正常树) | G(根.js全删) | T(tests/掏空) | 判读
+# 列：scanner | H(正常树) | G(根.js全删) | T(tests/掏空) | C(css全置空) | 判读
 #   H 必须为 0：扫描器在健康树上不得误红。
-#   G/T 至少一列非 0：否则该扫描器对两类输入面都不敏感 —— 恒绿探测器。
+#   G/T/C 至少一列非 0：否则该扫描器对三类输入面都不敏感 —— 恒绿探测器。
+#   C 是 v3.487.0 补的第三类输入面：**样式面**。补它的理由是实测出来的 ——
+#   `scan_undefined_css_tokens.mjs` 与 `scan_vendored_css_drift.mjs` 只读 css/，
+#   在 G/T 两档上恒为 0（真跑过：0/0/0），若没有 C 列它们会被判成恒绿探测器，
+#   而它们对 css 面**是敏感的**（置空后分别 exit 2 / exit 1）。
+#   不读 css 面的扫描器（源码里不出现 css 目录引用；实测只有上面那两份 + ui_ratio.mjs 引用），
+#   C 按构造恒 0。
 #   实测退出码：0=通过 1=判出真缺陷 2=结构漂移/不具证明力
 # 形态定义（可复现）：镜像整仓（排除 .git/node_modules），
 #   G = 删掉镜像根目录全部 .js；T = 镜像 tests/ 下（除 audit/ 与 _audit_lib.mjs）所有 .mjs 置为「// gutted」；
+#   C = 镜像 css/ 下所有 .css 置为空文件；
 #   H = 不改动。每个扫描器从**镜像内**路径执行，且带 LONSHA_AUDIT_ROOT=镜像。
-dead_code_budget.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-loading_surface_proof.mjs	0	1	0	读根 .js 面（manifest.extra_js 里的 365 个模块逐个找源码，S1 disk / S2 syntax / S3 umd-tail / S4 global-eval 都靠它）；G 档删根 .js ⇒ S1/S2 报 357 条「读不到源码」⇒ exit 1（真缺陷档，不是结构漂移档 —— 因为它不是「没得判」而是「判出了 357 个装不上的模块」）；T 档对它无影响（本探针只读根 .js 与三张台账，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。★ 本行是 v3.465.1 补登记的：该文件生于 v3.463.0（L21-O3），首版**故意不以 `_` 开头**（理由写在它自己头部：下划线在本仓的语义是「要真宿主/真浏览器才能跑」，而它恰恰是「没真机也有读数」的替代证据），于是被 v3226 的「在役扫描器」名单收进来，却一直没登记进本表 —— 那条判据因此从 v3.463.0 起就红着，而红的原因不是产品缺陷，是**新增扫描器漏登记**。三档实测（镜像树 + LONSHA_AUDIT_ROOT）H/G/T = 0/1/0
-scan_audit_lib_consolidation.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
-scan_break_kit.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
-scan_bridge_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_claim_truthfulness.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_config_liveness.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_cross_repo_binding.mjs	0	0	1	读 tests/ 面（测试面退化即阻断）
-scan_event_lifecycle.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_evidence_binding.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_exit_codes.mjs	0	0	2	读 tests/audit 面（审计面退化即阻断）
-scan_fixture_sync.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）；本版实测修掉「静态 import 唯一真源 ⇒ 崩在加载栈（exit 1）」⇒ 归因现在是如实 exit 2
-scan_index_split.mjs	0	2	0	读根 .js 面（入口不在场即阻断）；本行是 v3.474.0 L23 收口补登记的：该文件生于 L23-O1（index.js 拆解），此前一直未登记，J1 因此从出生起红着 —— 红的原因是**新增扫描器漏登记**，不是产品缺陷。三档实测（镜像树 + LONSHA_AUDIT_ROOT）：H=0 / G=2（「fail-closed：读不到 index.js、index-helpers.js」）/ T=0（本门只读入口与纯函数模块，不读 tests/ 测试体）
-scan_ledger_contract.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_module_wiring.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_live_wiring_dataflow.mjs	0	2	0	读根 .js 面；两道结构闸（四个管道文件逐个在场 + 全仓扫描面 >= 80 个）；T 档对它无影响（本门只看非 tests/tools 的源码树，把 tests/ 下的测试体掏空不改变它的输入面），故如实记 0 —— G 列已非 0，非恒绿探测器
-scan_module_disposition.mjs	0	2	0	读根 .js 面 + tests/audit 归档面（装载面模块的处置台账）；本行同属 v3.474.0 L23 收口补登记。三档实测：H=0 / G=2（「FAIL-CLOSED (exit 2): 归档面不自洽」——入口 .js 全删后装载面清单与归档台账对不上，属结构漂移档）/ T=0（不读 tests/ 测试体）
-scan_process_reaping.mjs	0	0	2	读 tests/ 面（测试面退化即阻断）
-scan_resilience.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_slider_coherence.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_syntax.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_ui_binding.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-snapshot_index_structure.mjs	0	2	0	读根 .js 面（入口顶层条目结构快照）；本行同属 v3.474.0 L23 收口补登记。三档实测：H=0 / G=2（「拒判：读不到 index.js」）/ T=0（只读入口本身）
-scan_v3180_three_faces.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3181_spatial_grounding.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3182_ledger_replay.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3183_branch_consistency.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3184_final_four.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3185_xref_consumer.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3186_emotion_recall.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3190_lifecycle_collapse.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3193_host_matrix.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3193_lexicon_drift.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3202_carryover_archive_diff.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_v3254_cache_identity.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_version_guard.mjs	0	2	1	两类输入面都敏感
-scan_wiring.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_world_clock_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_world_ledger_reader.mjs	0	2	0	读根 .js 面（入口不在场即阻断）
-scan_open_faces.mjs	0	1	0	读根 .js 面（入口不在场即阻断）
-scan_inbound_faces.mjs	0	1	0	读根 .js 面（消费点入口不在场即阻断）
-scan_fakegreen_hygiene.mjs	0	0	1	读 tests/audit 面（负控制族退化即阻断：本门禁量的是负控制自身的形状）
-scan_ui_runtime.mjs	0	2	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门禁不读 tests/ 面），故如实记 0 —— G 列已非 0，非恒绿探测器
-scan_cost_truthfulness.mjs	0	2	2	读数真源在场（★ 本行是「首版两档皆 0 ⇒ 恒绿探测器」的修复留痕）：G 档根 .js 全删 ⇒ 缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档 tests/ 下 .mjs 掏空 ⇒ run.mjs 里 slowest/scope 出口消失 ⇒ 「本门所核的读数无从产出」⇒ exit 2。两档实测（tools/_o8b_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/2
-scan_plan_currency.mjs	0	2	0	读 PLAN.md / plan_currency.tsv / index.js 三个面；G 档删根 .js ⇒ 缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档对它无影响（本门量的是「计划 ↔ 代码版本」与「计划 ↔ 登记」，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。两档实测（tools/_o8b_gt_probe.py）H/G/T = 0/2/0
-scan_ui_interaction.mjs	0	2	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「控件 ↔ 配置 ↔ 保存路径」的交互逻辑，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。两档实测（tools/_o2_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 O2 剩余面的**可做切片**：真浏览器 / 真 SillyTavern 面交付者环境无浏览器可选，如实登记未执行
-scan_ui_panel_drive.mjs	0	2	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「面板逐条驱动」：诊断面板真落 DOM + 内容面板每条的寻址口/控件真弹出 + 属性值与提示的诚实性，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_o2b_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 O2「真浏览器 / 真生成流」面的下一级切片：探针无法建立真实 Chromium 会话，故以「零依赖 DOM shim + 逐条真驱动」代替之，边界已在门首如实声明
-scan_ui_narrow_layout.mjs	0	2	0	读 settings-ui.js 的**注入样式块**（该文件不在场 / 被掏空 / 注入样式块不在即阻断）；T 档对它无影响（本门量的是「窄屏布局前提」：长文本载体断行在册 + flex 定宽行允许收缩，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_o2c_narrow_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 v3.318.0 M-O2 真浏览器切片当场抓到的**产品面真缺陷**（320px 下把 44px 的 checkbox 顶出视口 left=449 > 320）的在册判据。
-scan_module_consumption.mjs	0	1	0	读根 .js 面（生产代码面是消费判定的输入：模块被谁 require/import/glob 到的调用点在根 .js 里；G 档删根 .js ⇒ 全部 244 个模块消费点归零 ⇒ 211 个未登记零消费 ⇒ exit 1）。T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_gt_probe_consumption.py，镜像树 + LONSHA_AUDIT_ROOT，从镜像内路径执行）H/G/T = 0/1/0
-scan_extra_js_seam.mjs	0	2	0	读根 .js 面（★ 本行是「首版 G 档为 0 ⇒ 恒绿探测器」的修复留痕）：初版只比 manifest ↔ tsv ↔ consumption 三张表，三张表互相自洽 ⇒ 根目录 .js 全删也照样报「覆盖全部 244 个模块」。修法：把磁盘在场率接进判据 —— 缺件过半 ⇒ exit 2（面塌陷），缺件少数 ⇒ exit 1（账本残留）。T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测 H/G/T = 0/2/0
-scan_test_budget.mjs	0	2	1	读 index.js 面 + tests/ 面（★ 本行是「首版三档全 0 ⇒ 恒绿探测器」的修复留痕）：初版只判 JSON 自洽（schema / enforcement / top_20 类型 / limit_ms > ms），这些从磁盘上那份 JSON 里永远能读到，故对两类输入面都不敏感。修法：把三条输入面接进判据 —— 〇预算 version ↔ index.js VERSION（落后超 2 个次版本即红）；〇登记档必须是磁盘真实测试文件；〇登记档须像测试档（非空 + 含 test( 调用）。于是 G 档缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档测试体被掏空 ⇒ 15 个基准档全成空壳 ⇒ exit 1。三档实测 H/G/T = 0/2/1
-scan_ui_worldline_editor.mjs	0	2	0	读 settings-ui.js 面 + 根 .js 内核面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「世界线跳跃表编辑器」：解析单源（面板坏行清单与闸消费的行同出 parseJumpsText）、结构化编辑真操作、读数与内核 epochAt 逐字一致、前史三态不同形、保存闭环且预览不写配置；shim 从同族门 scan_ui_interaction.mjs 借用，而该文件在 audit/ 下、不在 T 档掏空范围，故如实记 0 —— G 列已非 0，非恒绿探测器）。三档实测（镜像树 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 边界：shim 上的交互逻辑门，不证明真浏览器排版观感、真机触摸命中与跨会话 localStorage 行为。
-scan_ui_view_reach.mjs	0	1	0	读 settings-ui.js 面（该文件不在场即阻断：G 档删根 .js ⇒ 缺 settings-ui.js ⇒ ENOENT ⇒ exit 1）；T 档对它无影响（本门量的是「视图 ↔ 导航入口」的可达性，只读 settings-ui.js 一个文件，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（最小镜像 + LONSHA_AUDIT_ROOT，从镜像内路径执行）H/G/T = 0/1/0；★ 边界：本门判的是「有没有入口」与「入口有没有绑到 showBrowser」，不证明真浏览器里点得开、也不证明窄屏下入口不被挤出视口（后两者由 scan_ui_narrow_layout / scan_ui_panel_drive 分头负责）。
-ui_ratio.mjs	0	2	0	读根 .js 面 + css/*.css 面（呈现层占比的分母就是这两面）；G 档删根 .js ⇒ 无可测量对象 ⇒ exit 2（本行落表时实测：--root=/tmp/probe_empty 退出码 2、--root=/tmp/probe_nocss（有 .js 无 css/）退出码 2，两次探针都是真跑，不是推断）；T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。★ 边界：本门只量「呈现层行数 / 全部源码行数」，不证明视觉质量、不证明面板在真机可用；它存在的理由是把「我觉得 UI 够多了」换成一条能跑出反例的读数（v3.478：11.4% → 12.7%，目标 20%）。另：--gate 的退出码 1 属于「读数未达标」，与结构漂移（2）严格分开。
+dead_code_budget.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+loading_surface_proof.mjs	0	1	0	0	读根 .js 面（manifest.extra_js 里的 365 个模块逐个找源码，S1 disk / S2 syntax / S3 umd-tail / S4 global-eval 都靠它）；G 档删根 .js ⇒ S1/S2 报 357 条「读不到源码」⇒ exit 1（真缺陷档，不是结构漂移档 —— 因为它不是「没得判」而是「判出了 357 个装不上的模块」）；T 档对它无影响（本探针只读根 .js 与三张台账，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。★ 本行是 v3.465.1 补登记的：该文件生于 v3.463.0（L21-O3），首版**故意不以 `_` 开头**（理由写在它自己头部：下划线在本仓的语义是「要真宿主/真浏览器才能跑」，而它恰恰是「没真机也有读数」的替代证据），于是被 v3226 的「在役扫描器」名单收进来，却一直没登记进本表 —— 那条判据因此从 v3.463.0 起就红着，而红的原因不是产品缺陷，是**新增扫描器漏登记**。三档实测（镜像树 + LONSHA_AUDIT_ROOT）H/G/T = 0/1/0
+scan_audit_lib_consolidation.mjs	0	0	2	0	读 tests/ 面（测试面退化即阻断）
+scan_break_kit.mjs	0	0	2	0	读 tests/ 面（测试面退化即阻断）
+scan_bridge_reader.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_claim_truthfulness.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_config_liveness.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_cross_repo_binding.mjs	0	0	1	0	读 tests/ 面（测试面退化即阻断）
+scan_event_lifecycle.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_evidence_binding.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_exit_codes.mjs	0	0	2	0	读 tests/audit 面（审计面退化即阻断）
+scan_fixture_sync.mjs	0	0	2	0	读 tests/ 面（测试面退化即阻断）；本版实测修掉「静态 import 唯一真源 ⇒ 崩在加载栈（exit 1）」⇒ 归因现在是如实 exit 2
+scan_index_split.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）；本行是 v3.474.0 L23 收口补登记的：该文件生于 L23-O1（index.js 拆解），此前一直未登记，J1 因此从出生起红着 —— 红的原因是**新增扫描器漏登记**，不是产品缺陷。三档实测（镜像树 + LONSHA_AUDIT_ROOT）：H=0 / G=2（「fail-closed：读不到 index.js、index-helpers.js」）/ T=0（本门只读入口与纯函数模块，不读 tests/ 测试体）
+scan_ledger_contract.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_module_wiring.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_live_wiring_dataflow.mjs	0	2	0	0	读根 .js 面；两道结构闸（四个管道文件逐个在场 + 全仓扫描面 >= 80 个）；T 档对它无影响（本门只看非 tests/tools 的源码树，把 tests/ 下的测试体掏空不改变它的输入面），故如实记 0 —— G 列已非 0，非恒绿探测器
+scan_module_disposition.mjs	0	2	0	0	读根 .js 面 + tests/audit 归档面（装载面模块的处置台账）；本行同属 v3.474.0 L23 收口补登记。三档实测：H=0 / G=2（「FAIL-CLOSED (exit 2): 归档面不自洽」——入口 .js 全删后装载面清单与归档台账对不上，属结构漂移档）/ T=0（不读 tests/ 测试体）
+scan_process_reaping.mjs	0	0	2	0	读 tests/ 面（测试面退化即阻断）
+scan_resilience.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_slider_coherence.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_syntax.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_ui_binding.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+snapshot_index_structure.mjs	0	2	0	0	读根 .js 面（入口顶层条目结构快照）；本行同属 v3.474.0 L23 收口补登记。三档实测：H=0 / G=2（「拒判：读不到 index.js」）/ T=0（只读入口本身）
+scan_v3180_three_faces.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3181_spatial_grounding.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3182_ledger_replay.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3183_branch_consistency.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3184_final_four.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3185_xref_consumer.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3186_emotion_recall.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3190_lifecycle_collapse.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3193_host_matrix.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3193_lexicon_drift.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3202_carryover_archive_diff.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_v3254_cache_identity.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_version_guard.mjs	0	2	1	0	两类输入面都敏感
+scan_wiring.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_world_clock_reader.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_world_ledger_reader.mjs	0	2	0	0	读根 .js 面（入口不在场即阻断）
+scan_open_faces.mjs	0	1	0	0	读根 .js 面（入口不在场即阻断）
+scan_inbound_faces.mjs	0	1	0	0	读根 .js 面（消费点入口不在场即阻断）
+scan_fakegreen_hygiene.mjs	0	0	1	0	读 tests/audit 面（负控制族退化即阻断：本门禁量的是负控制自身的形状）
+scan_ui_runtime.mjs	0	2	0	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门禁不读 tests/ 面），故如实记 0 —— G 列已非 0，非恒绿探测器
+scan_cost_truthfulness.mjs	0	2	2	0	读数真源在场（★ 本行是「首版两档皆 0 ⇒ 恒绿探测器」的修复留痕）：G 档根 .js 全删 ⇒ 缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档 tests/ 下 .mjs 掏空 ⇒ run.mjs 里 slowest/scope 出口消失 ⇒ 「本门所核的读数无从产出」⇒ exit 2。两档实测（tools/_o8b_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/2
+scan_plan_currency.mjs	0	2	0	0	读 PLAN.md / plan_currency.tsv / index.js 三个面；G 档删根 .js ⇒ 缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档对它无影响（本门量的是「计划 ↔ 代码版本」与「计划 ↔ 登记」，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。两档实测（tools/_o8b_gt_probe.py）H/G/T = 0/2/0
+scan_ui_interaction.mjs	0	2	0	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「控件 ↔ 配置 ↔ 保存路径」的交互逻辑，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。两档实测（tools/_o2_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 O2 剩余面的**可做切片**：真浏览器 / 真 SillyTavern 面交付者环境无浏览器可选，如实登记未执行
+scan_ui_panel_drive.mjs	0	2	0	0	读 settings-ui.js 面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「面板逐条驱动」：诊断面板真落 DOM + 内容面板每条的寻址口/控件真弹出 + 属性值与提示的诚实性，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_o2b_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 O2「真浏览器 / 真生成流」面的下一级切片：探针无法建立真实 Chromium 会话，故以「零依赖 DOM shim + 逐条真驱动」代替之，边界已在门首如实声明
+scan_ui_narrow_layout.mjs	0	2	0	0	读 settings-ui.js 的**注入样式块**（该文件不在场 / 被掏空 / 注入样式块不在即阻断）；T 档对它无影响（本门量的是「窄屏布局前提」：长文本载体断行在册 + flex 定宽行允许收缩，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_o2c_narrow_gt_probe.py，最小镜像 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 本门是 v3.318.0 M-O2 真浏览器切片当场抓到的**产品面真缺陷**（320px 下把 44px 的 checkbox 顶出视口 left=449 > 320）的在册判据。
+scan_module_consumption.mjs	0	1	0	0	读根 .js 面（生产代码面是消费判定的输入：模块被谁 require/import/glob 到的调用点在根 .js 里；G 档删根 .js ⇒ 全部 244 个模块消费点归零 ⇒ 211 个未登记零消费 ⇒ exit 1）。T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（tools/_gt_probe_consumption.py，镜像树 + LONSHA_AUDIT_ROOT，从镜像内路径执行）H/G/T = 0/1/0
+scan_extra_js_seam.mjs	0	2	0	0	读根 .js 面（★ 本行是「首版 G 档为 0 ⇒ 恒绿探测器」的修复留痕）：初版只比 manifest ↔ tsv ↔ consumption 三张表，三张表互相自洽 ⇒ 根目录 .js 全删也照样报「覆盖全部 244 个模块」。修法：把磁盘在场率接进判据 —— 缺件过半 ⇒ exit 2（面塌陷），缺件少数 ⇒ exit 1（账本残留）。T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测 H/G/T = 0/2/0
+scan_test_budget.mjs	0	2	1	0	读 index.js 面 + tests/ 面（★ 本行是「首版三档全 0 ⇒ 恒绿探测器」的修复留痕）：初版只判 JSON 自洽（schema / enforcement / top_20 类型 / limit_ms > ms），这些从磁盘上那份 JSON 里永远能读到，故对两类输入面都不敏感。修法：把三条输入面接进判据 —— 〇预算 version ↔ index.js VERSION（落后超 2 个次版本即红）；〇登记档必须是磁盘真实测试文件；〇登记档须像测试档（非空 + 含 test( 调用）。于是 G 档缺 index.js ⇒ 读不到 VERSION 真源 ⇒ exit 2；T 档测试体被掏空 ⇒ 15 个基准档全成空壳 ⇒ exit 1。三档实测 H/G/T = 0/2/1
+scan_ui_worldline_editor.mjs	0	2	0	0	读 settings-ui.js 面 + 根 .js 内核面（该文件不在场/被掏空即阻断）；T 档对它无影响（本门量的是「世界线跳跃表编辑器」：解析单源（面板坏行清单与闸消费的行同出 parseJumpsText）、结构化编辑真操作、读数与内核 epochAt 逐字一致、前史三态不同形、保存闭环且预览不写配置；shim 从同族门 scan_ui_interaction.mjs 借用，而该文件在 audit/ 下、不在 T 档掏空范围，故如实记 0 —— G 列已非 0，非恒绿探测器）。三档实测（镜像树 + LONSHA_AUDIT_ROOT）H/G/T = 0/2/0；★ 边界：shim 上的交互逻辑门，不证明真浏览器排版观感、真机触摸命中与跨会话 localStorage 行为。
+scan_ui_view_reach.mjs	0	1	0	0	读 settings-ui.js 面（该文件不在场即阻断：G 档删根 .js ⇒ 缺 settings-ui.js ⇒ ENOENT ⇒ exit 1）；T 档对它无影响（本门量的是「视图 ↔ 导航入口」的可达性，只读 settings-ui.js 一个文件，不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。三档实测（最小镜像 + LONSHA_AUDIT_ROOT，从镜像内路径执行）H/G/T = 0/1/0；★ 边界：本门判的是「有没有入口」与「入口有没有绑到 showBrowser」，不证明真浏览器里点得开、也不证明窄屏下入口不被挤出视口（后两者由 scan_ui_narrow_layout / scan_ui_panel_drive 分头负责）。
+ui_ratio.mjs	0	2	0	0	读根 .js 面 + css/*.css 面（呈现层占比的分母就是这两面）；G 档删根 .js ⇒ 无可测量对象 ⇒ exit 2（本行落表时实测：--root=/tmp/probe_empty 退出码 2、--root=/tmp/probe_nocss（有 .js 无 css/）退出码 2，两次探针都是真跑，不是推断）；T 档对它无影响（本门不读 tests/ 下的测试体），故如实记 0 —— G 列已非 0，非恒绿探测器。★ 边界：本门只量「呈现层行数 / 全部源码行数」，不证明视觉质量、不证明面板在真机可用；它存在的理由是把「我觉得 UI 够多了」换成一条能跑出反例的读数（v3.478：11.4% → 12.7%，目标 20%）。另：--gate 的退出码 1 属于「读数未达标」，与结构漂移（2）严格分开。
+scan_undefined_css_tokens.mjs	0	0	0	2	读 css 面（css/*.css 的定义与消费两头）；G/T 两档不碰它的输入面故恒 0，C 档（css 全置空）分母归零 ⇒ fail-closed exit 2。★ 登记当天实测它 H=1：`--v5-pill` 在两处被裸用且全仓无定义（开关滑块与 chip 回落成直角），已按第一修法在 v5 刻度表补上 `--v5-pill: 999px`，补后 H 归 0。
+scan_vendored_css_drift.mjs	0	0	0	1	读 css 面 + vendored 台账（md5 与 @import 命中两头）；C 档两份 vendored 副本全被置空 ⇒ md5 双漂移 exit 1（这正是它要守的「副本必须是副本」）。
