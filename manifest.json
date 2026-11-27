@@ -7,7 +7,7 @@
     "css": "css/style.css",
     "author": "LonSha",
     "license": "MIT",
-    "version": "3.487.0",
+    "version": "3.488.0",
     "homePage": "https://github.com/LonSha/lonsha-memory-plugin",
     "auto_update": false,
     "minimum_client_version": "1.12.0",
@@ -472,7 +472,11 @@
         "ui-table.js",
         "ui-form-controls.js",
         "ui-settings-panel.js",
-        "ui-mem-workbench.js"
+        "ui-mem-workbench.js",
+        "failure-class-cooldown.js",
+        "recall-final-score.js",
+        "frozen-archive-blocks.js",
+        "vector-backend-ladder.js"
     ],
     "extra_css": [
         "css/lonsha-design.css",

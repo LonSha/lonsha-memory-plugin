@@ -1,17 +1,17 @@
 {
   "schema": "state-report@1",
   "generated_by": "tools/gen_state_report.mjs",
-  "version": "3.487.0",
+  "version": "3.488.0",
   "version_sources": {
-    "manifest": "3.487.0",
-    "package": "3.487.0",
-    "index_const": "3.487.0"
+    "manifest": "3.488.0",
+    "package": "3.488.0",
+    "index_const": "3.488.0"
   },
   "version_same": true,
-  "human_index_version": "3.487.0",
+  "human_index_version": "3.488.0",
   "triple_consistent": true,
   "loading": {
-    "extra_js": 461,
+    "extra_js": 465,
     "extra_js_list": [
       "ledger-entity.js",
       "index-helpers.js",
@@ -473,13 +473,17 @@
       "ui-table.js",
       "ui-form-controls.js",
       "ui-settings-panel.js",
-      "ui-mem-workbench.js"
+      "ui-mem-workbench.js",
+      "failure-class-cooldown.js",
+      "recall-final-score.js",
+      "frozen-archive-blocks.js",
+      "vector-backend-ladder.js"
     ],
-    "root_js": 474,
+    "root_js": 478,
     "missing_in_manifest": []
   },
   "gates": {
-    "test_files": 638,
+    "test_files": 640,
     "test_files_list": [
       "chaos_resilience.test.mjs",
       "cse-engine.test.mjs",
@@ -1012,6 +1016,8 @@
       "v3485_recall_dryrun_panel.test.mjs",
       "v3486_wiring_surface_truth.test.mjs",
       "v3487_archive_identity_and_unique_hit.test.mjs",
+      "v3488_failure_ladder_final_score_frozen.test.mjs",
+      "v3488_vector_backend_ladder.test.mjs",
       "v3490_condition_patch.test.mjs",
       "v3500_m5_batch.test.mjs",
       "v350_backfill.test.mjs",
@@ -1155,12 +1161,12 @@
     }
   },
   "full_run": {
-    "status": "stale",
-    "registered_at": "3.475.0",
-    "tests_total": 624,
-    "assertions": 6361,
-    "audit": "73/73",
-    "reason": "登记版本 3.475.0 ≠ 当前 3.487.0 ⇒ 该读数**已陈旧**，必须重跑全量并重绑"
+    "status": "registered",
+    "registered_at": "3.488.0",
+    "tests_total": 640,
+    "assertions": 6536,
+    "audit": "76/76",
+    "reason": "登记版本与当前版本同源（登记的是**最近一次全量实跑**的读数，不是本次现跑）"
   },
   "host_run": {
     "status": "not-executed",
@@ -1179,19 +1185,17 @@
       "tests/audit/doc_readings.json"
     ],
     "per_file": {
-      "manifest.json": "d4da3c944081",
-      "package.json": "1b1a2baa0182",
-      "index.js": "2aad77cb2760",
+      "manifest.json": "55bfa1c6de84",
+      "package.json": "5484b3d30e6c",
+      "index.js": "128c0d9bdb69",
       "update-log.json": null,
-      "README.md": "177d18a5b1b5",
-      "PLAN.md": "3b0860b45e68",
-      "CHANGELOG.md": "c2863483ce2c",
-      "TODO.md": "3c61543bb94c",
-      "tests/audit/doc_readings.json": "c56fda0d81c3"
+      "README.md": "895092a7518b",
+      "PLAN.md": "7e130d93f135",
+      "CHANGELOG.md": "cf15963768a4",
+      "TODO.md": "b096e6f6b8e3",
+      "tests/audit/doc_readings.json": "989d417d0132"
     }
   },
-  "unknown": [
-    "全量实跑读数陈旧：doc_readings 登记 3.475.0，当前 3.487.0"
-  ],
-  "unknown_count": 1
+  "unknown": [],
+  "unknown_count": 0
 }

@@ -3,13 +3,13 @@
   "generator": "tools/gen_write_only_disposal.mjs（由它写，手改无效：判据 --check 会红）",
   "note": "L23-O6「写了不读」处置清单。口径 = 键级（engine./state. 前缀，全仓比对读取点，含字符串键与解构读）。每条只写可复验事实：write 站点数 / 产品侧非写入提及数 / 测试提及数；判据 l23_o6 的 C1/C2 会重新读盘复验，改过的理由会当场烂掉。无理由登记无效；已修掉的字段必须删条（豁免也双向）。",
   "scope_snapshot": {
-    "filesScanned": 486,
-    "bytesScanned": 10249759,
-    "writeSites": 529,
-    "distinctFields": 314,
-    "readSites": 3106,
-    "fieldsWithRead": 893,
-    "crossFileReads": 62,
+    "filesScanned": 490,
+    "bytesScanned": 10337924,
+    "writeSites": 532,
+    "distinctFields": 315,
+    "readSites": 3118,
+    "fieldsWithRead": 896,
+    "crossFileReads": 63,
     "sameFileReads": 179,
     "writeOnlyFields": 73,
     "proven": true,
@@ -53,15 +53,15 @@
     {
       "field": "_archiveShiftLog",
       "class": "mention-this-receiver",
-      "write": "1 处：index.js:12525",
-      "read": "engine-self-check.js:1382（this-receiver） / index.js:1723（this-receiver） / ledger-replay.js:556（same-name-local）",
+      "write": "1 处：index.js:12670",
+      "read": "engine-self-check.js:1382（this-receiver） / index.js:1761（this-receiver） / ledger-replay.js:556（same-name-local）",
       "reason": "产品侧有 3 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 3,
         "product_mention_sites": [
           "engine-self-check.js:1382",
-          "index.js:1723",
+          "index.js:1761",
           "ledger-replay.js:556"
         ],
         "test_mentions": 13
@@ -71,7 +71,7 @@
       "field": "_canonAdoption",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:1056",
-      "read": "engine-persistence-ops.js:306（this-receiver） / engine-persistence-ops.js:1373（same-name-local） / index.js:8756（same-name-local）",
+      "read": "engine-persistence-ops.js:306（this-receiver） / engine-persistence-ops.js:1373（same-name-local） / index.js:8799（same-name-local）",
       "reason": "产品侧有 11 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -79,7 +79,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:306",
           "engine-persistence-ops.js:1373",
-          "index.js:8756"
+          "index.js:8799"
         ],
         "test_mentions": 10
       }
@@ -102,7 +102,7 @@
     {
       "field": "_counterfactualAwakenings",
       "class": "dead-write",
-      "write": "1 处：engine-recall.js:1016",
+      "write": "1 处：engine-recall.js:1038",
       "read": "全仓无读取点（产品 0 处、测试 0 处）",
       "reason": "真死写：产品侧除 1 处写入点外 0 处提及，测试里也 0 处 ⇒ 写完从来没人读。不制造假读取点，也不用笼统措辞盖住它；处置口径见 class（欠账，留 R 线清理或直接删写入）。",
       "evidence": {
@@ -128,8 +128,8 @@
     {
       "field": "_diaryInjectFloor",
       "class": "mention-this-receiver",
-      "write": "2 处：engine-persistence-ops.js:1112, index.js:12519",
-      "read": "engine-persistence-ops.js:312（this-receiver） / engine-persistence-ops.js:1356（same-name-local） / index.js:1788（this-receiver）",
+      "write": "2 处：engine-persistence-ops.js:1112, index.js:12664",
+      "read": "engine-persistence-ops.js:312（this-receiver） / engine-persistence-ops.js:1356（same-name-local） / index.js:1826（this-receiver）",
       "reason": "产品侧有 13 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 2,
@@ -137,7 +137,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:312",
           "engine-persistence-ops.js:1356",
-          "index.js:1788"
+          "index.js:1826"
         ],
         "test_mentions": 12
       }
@@ -145,7 +145,7 @@
     {
       "field": "_emoOppositeMatched",
       "class": "mention-this-receiver",
-      "write": "2 处：engine-recall.js:885, engine-recall.js:921",
+      "write": "2 处：engine-recall.js:907, engine-recall.js:943",
       "read": "engine-injection-pipeline.js:2309（this-receiver）",
       "reason": "产品侧有 1 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -160,7 +160,7 @@
     {
       "field": "_emoOppositeSnippets",
       "class": "mention-this-receiver",
-      "write": "1 处：engine-recall.js:906",
+      "write": "1 处：engine-recall.js:928",
       "read": "engine-injection-pipeline.js:2310（this-receiver） / engine-injection-pipeline.js:2350（this-receiver）",
       "reason": "产品侧有 2 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -222,15 +222,15 @@
       "field": "_extractionDriverRead",
       "class": "mention-this-receiver",
       "write": "1 处：engine-diagnostic-lines-part-a.js:1505",
-      "read": "engine-self-check.js:724（this-receiver） / index.js:3328（this-receiver） / index.js:3334（this-receiver）",
+      "read": "engine-self-check.js:724（this-receiver） / index.js:3371（this-receiver） / index.js:3377（this-receiver）",
       "reason": "产品侧有 4 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 4,
         "product_mention_sites": [
           "engine-self-check.js:724",
-          "index.js:3328",
-          "index.js:3334"
+          "index.js:3371",
+          "index.js:3377"
         ],
         "test_mentions": 2
       }
@@ -251,16 +251,16 @@
     {
       "field": "_generationActive",
       "class": "mention-same-name-local",
-      "write": "2 处：index.js:12696, index.js:12723",
-      "read": "engine-injection-pipeline.js:2759（same-name-local） / index.js:1847（this-receiver） / index.js:3182（this-receiver）",
+      "write": "2 处：index.js:12841, index.js:12868",
+      "read": "engine-injection-pipeline.js:2759（same-name-local） / index.js:1885（this-receiver） / index.js:3225（this-receiver）",
       "reason": "产品侧有 6 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 2,
         "product_mentions": 6,
         "product_mention_sites": [
           "engine-injection-pipeline.js:2759",
-          "index.js:1847",
-          "index.js:3182"
+          "index.js:1885",
+          "index.js:3225"
         ],
         "test_mentions": 11
       }
@@ -324,7 +324,7 @@
     {
       "field": "_lastFactAdmissionRecall",
       "class": "mention-this-receiver",
-      "write": "1 处：engine-recall.js:734",
+      "write": "1 处：engine-recall.js:756",
       "read": "engine-self-check.js:472（this-receiver） / engine-self-check.js:488（this-receiver）",
       "reason": "产品侧有 2 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -341,14 +341,14 @@
       "field": "_lastItemOpsClaim",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:1104",
-      "read": "engine-self-check.js:1371（this-receiver） / index.js:1859（this-receiver） / settings-ui.js:1863（same-name-local）",
+      "read": "engine-self-check.js:1371（this-receiver） / index.js:1897（this-receiver） / settings-ui.js:1863（same-name-local）",
       "reason": "产品侧有 3 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 3,
         "product_mention_sites": [
           "engine-self-check.js:1371",
-          "index.js:1859",
+          "index.js:1897",
           "settings-ui.js:1863"
         ],
         "test_mentions": 5
@@ -370,7 +370,7 @@
     {
       "field": "_lastRecallHitExplanations",
       "class": "mention-same-name-local",
-      "write": "1 处：engine-recall.js:1003",
+      "write": "1 处：engine-recall.js:1025",
       "read": "settings-ui.js:520（same-name-local）",
       "reason": "产品侧有 1 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -411,7 +411,7 @@
     {
       "field": "_lastResonanceStats",
       "class": "mention-same-name-local",
-      "write": "4 处：engine-recall.js:1151, engine-recall.js:1177, engine-recall.js:1181",
+      "write": "4 处：engine-recall.js:1173, engine-recall.js:1199, engine-recall.js:1203",
       "read": "engine-diagnostic-lines-part-c.js:1846（same-name-local）",
       "reason": "产品侧有 1 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -426,16 +426,16 @@
     {
       "field": "_lastRollbackPreview",
       "class": "mention-this-receiver",
-      "write": "1 处：index.js:12665",
-      "read": "engine-self-check.js:120（this-receiver） / index.js:1860（this-receiver） / index.js:12664（same-name-local）",
+      "write": "1 处：index.js:12810",
+      "read": "engine-self-check.js:120（this-receiver） / index.js:1898（this-receiver） / index.js:12809（same-name-local）",
       "reason": "产品侧有 3 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 3,
         "product_mention_sites": [
           "engine-self-check.js:120",
-          "index.js:1860",
-          "index.js:12664"
+          "index.js:1898",
+          "index.js:12809"
         ],
         "test_mentions": 3
       }
@@ -482,7 +482,7 @@
     {
       "field": "_lastSymphonyDirectives",
       "class": "mention-this-receiver",
-      "write": "1 处：engine-recall.js:1199",
+      "write": "1 处：engine-recall.js:1221",
       "read": "engine-injection-pipeline.js:716（this-receiver） / engine-injection-pipeline.js:717（this-receiver）",
       "reason": "产品侧有 2 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -498,16 +498,16 @@
     {
       "field": "_lastSymphonyTrace",
       "class": "mention-same-name-local",
-      "write": "3 处：engine-recall.js:1200, engine-recall.js:1203, engine-recall.js:1207",
-      "read": "engine-diagnostic-lines-part-c.js:1882（same-name-local） / engine-recall.js:1403（same-name-local） / engine-recall.js:1404（same-name-local）",
+      "write": "3 处：engine-recall.js:1222, engine-recall.js:1225, engine-recall.js:1229",
+      "read": "engine-diagnostic-lines-part-c.js:1882（same-name-local） / engine-recall.js:1458（same-name-local） / engine-recall.js:1459（same-name-local）",
       "reason": "产品侧有 4 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 3,
         "product_mentions": 4,
         "product_mention_sites": [
           "engine-diagnostic-lines-part-c.js:1882",
-          "engine-recall.js:1403",
-          "engine-recall.js:1404"
+          "engine-recall.js:1458",
+          "engine-recall.js:1459"
         ],
         "test_mentions": 3
       }
@@ -530,8 +530,8 @@
     {
       "field": "_loadedChatId",
       "class": "mention-this-receiver",
-      "write": "1 处：memory-organs.js:3288",
-      "read": "engine-execution-pipeline.js:1426（this-receiver） / engine-execution-pipeline.js:1429（this-receiver） / index.js:1792（this-receiver）",
+      "write": "1 处：memory-organs.js:3329",
+      "read": "engine-execution-pipeline.js:1426（this-receiver） / engine-execution-pipeline.js:1429（this-receiver） / index.js:1830（this-receiver）",
       "reason": "产品侧有 5 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -539,7 +539,7 @@
         "product_mention_sites": [
           "engine-execution-pipeline.js:1426",
           "engine-execution-pipeline.js:1429",
-          "index.js:1792"
+          "index.js:1830"
         ],
         "test_mentions": 7
       }
@@ -602,7 +602,7 @@
       "field": "_migrateImportRecovery",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:1142",
-      "read": "engine-persistence-ops.js:332（this-receiver） / engine-persistence-ops.js:1388（same-name-local） / index.js:3013（this-receiver）",
+      "read": "engine-persistence-ops.js:332（this-receiver） / engine-persistence-ops.js:1388（same-name-local） / index.js:3056（this-receiver）",
       "reason": "产品侧有 6 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -610,7 +610,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:332",
           "engine-persistence-ops.js:1388",
-          "index.js:3013"
+          "index.js:3056"
         ],
         "test_mentions": 4
       }
@@ -663,7 +663,7 @@
     {
       "field": "_parallaxGuidance",
       "class": "dead-write",
-      "write": "1 处：engine-recall.js:1011",
+      "write": "1 处：engine-recall.js:1033",
       "read": "全仓无读取点（产品 0 处、测试 0 处）",
       "reason": "真死写：产品侧除 1 处写入点外 0 处提及，测试里也 0 处 ⇒ 写完从来没人读。不制造假读取点，也不用笼统措辞盖住它；处置口径见 class（欠账，留 R 线清理或直接删写入）。",
       "evidence": {
@@ -706,8 +706,8 @@
     {
       "field": "_recallCache",
       "class": "mention-same-name-local",
-      "write": "3 处：index.js:12507, index.js:12557, index.js:12638",
-      "read": "cache-identity.js:10（same-name-local） / engine-self-check.js:1585（this-receiver） / index.js:1519（same-name-local）",
+      "write": "3 处：index.js:12652, index.js:12702, index.js:12783",
+      "read": "cache-identity.js:10（same-name-local） / engine-self-check.js:1585（this-receiver） / index.js:1557（same-name-local）",
       "reason": "产品侧有 17 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 3,
@@ -715,7 +715,7 @@
         "product_mention_sites": [
           "cache-identity.js:10",
           "engine-self-check.js:1585",
-          "index.js:1519"
+          "index.js:1557"
         ],
         "test_mentions": 21
       }
@@ -724,7 +724,7 @@
       "field": "_recallSourceStats",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:1127",
-      "read": "engine-persistence-ops.js:321（this-receiver） / engine-persistence-ops.js:1361（same-name-local） / index.js:1746（this-receiver）",
+      "read": "engine-persistence-ops.js:321（this-receiver） / engine-persistence-ops.js:1361（same-name-local） / index.js:1784（this-receiver）",
       "reason": "产品侧有 15 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -732,7 +732,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:321",
           "engine-persistence-ops.js:1361",
-          "index.js:1746"
+          "index.js:1784"
         ],
         "test_mentions": 23
       }
@@ -772,7 +772,7 @@
     {
       "field": "_restoredKeyHistory",
       "class": "mention-this-receiver",
-      "write": "1 处：index.js:12517",
+      "write": "1 处：index.js:12662",
       "read": "engine-persistence-ops.js:1180（this-receiver） / engine-persistence-ops.js:1181（this-receiver） / engine-persistence-ops.js:1182（this-receiver）",
       "reason": "产品侧有 5 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -790,13 +790,13 @@
       "field": "_returnGateAdmit",
       "class": "mention-same-name-local",
       "write": "1 处：engine-diagnostic-lines-part-a.js:550",
-      "read": "index.js:4722（same-name-local）",
+      "read": "index.js:4765（same-name-local）",
       "reason": "产品侧有 1 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 1,
         "product_mention_sites": [
-          "index.js:4722"
+          "index.js:4765"
         ],
         "test_mentions": 1
       }
@@ -845,7 +845,7 @@
     {
       "field": "_sleepAwakenSt",
       "class": "test-only-read",
-      "write": "2 处：engine-recall.js:833, engine-recall.js:835",
+      "write": "2 处：engine-recall.js:855, engine-recall.js:857",
       "read": "产品侧无读取点；仅测试提及：tests/v3235_sleep_awaken.test.mjs:244",
       "reason": "只被测试读：产品侧 0 处提及，只有 1 处测试引用 ⇒ 产品路径上不读它，「测试绿」不等于「产品在用」。处置口径见 class。",
       "evidence": {
@@ -858,7 +858,7 @@
     {
       "field": "_snapshotAnchorChatId",
       "class": "mention-same-name-local",
-      "write": "1 处：index.js:12514",
+      "write": "1 处：index.js:12659",
       "read": "engine-persistence-ops.js:1178（same-name-local） / engine-persistence-ops.js:1459（this-receiver） / engine-persistence-ops.js:1460（this-receiver）",
       "reason": "产品侧有 7 处非写入提及（same-name-local），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -875,7 +875,7 @@
     {
       "field": "_snapshotAnchorFloor",
       "class": "mention-this-receiver",
-      "write": "1 处：index.js:12514",
+      "write": "1 处：index.js:12659",
       "read": "engine-execution-pipeline.js:1381（this-receiver） / engine-persistence-ops.js:1459（this-receiver） / engine-persistence-ops.js:1462（this-receiver）",
       "reason": "产品侧有 6 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
@@ -951,7 +951,7 @@
       "field": "_timeWentBack",
       "class": "mention-this-receiver",
       "write": "1 处：engine-persistence-ops.js:1152",
-      "read": "engine-persistence-ops.js:329（this-receiver） / engine-persistence-ops.js:1365（same-name-local） / index.js:4203（this-receiver）",
+      "read": "engine-persistence-ops.js:329（this-receiver） / engine-persistence-ops.js:1365（same-name-local） / index.js:4246（this-receiver）",
       "reason": "产品侧有 8 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
@@ -959,7 +959,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:329",
           "engine-persistence-ops.js:1365",
-          "index.js:4203"
+          "index.js:4246"
         ],
         "test_mentions": 3
       }
@@ -967,8 +967,8 @@
     {
       "field": "_timelineCursorChatId",
       "class": "mention-this-receiver",
-      "write": "2 处：engine-persistence-ops.js:1114, index.js:12519",
-      "read": "engine-persistence-ops.js:327（this-receiver） / engine-persistence-ops.js:1358（same-name-local） / index.js:1790（this-receiver）",
+      "write": "2 处：engine-persistence-ops.js:1114, index.js:12664",
+      "read": "engine-persistence-ops.js:327（this-receiver） / engine-persistence-ops.js:1358（same-name-local） / index.js:1828（this-receiver）",
       "reason": "产品侧有 6 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 2,
@@ -976,7 +976,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:327",
           "engine-persistence-ops.js:1358",
-          "index.js:1790"
+          "index.js:1828"
         ],
         "test_mentions": 3
       }
@@ -984,8 +984,8 @@
     {
       "field": "_timelineCursorFingerprint",
       "class": "mention-this-receiver",
-      "write": "2 处：engine-persistence-ops.js:1115, index.js:12519",
-      "read": "engine-persistence-ops.js:328（this-receiver） / engine-persistence-ops.js:1359（same-name-local） / index.js:1791（this-receiver）",
+      "write": "2 处：engine-persistence-ops.js:1115, index.js:12664",
+      "read": "engine-persistence-ops.js:328（this-receiver） / engine-persistence-ops.js:1359（same-name-local） / index.js:1829（this-receiver）",
       "reason": "产品侧有 7 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 2,
@@ -993,7 +993,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:328",
           "engine-persistence-ops.js:1359",
-          "index.js:1791"
+          "index.js:1829"
         ],
         "test_mentions": 1
       }
@@ -1001,8 +1001,8 @@
     {
       "field": "_timelineInjectFloor",
       "class": "mention-this-receiver",
-      "write": "2 处：engine-persistence-ops.js:1113, index.js:12519",
-      "read": "engine-persistence-ops.js:313（this-receiver） / engine-persistence-ops.js:1357（same-name-local） / index.js:1789（this-receiver）",
+      "write": "2 处：engine-persistence-ops.js:1113, index.js:12664",
+      "read": "engine-persistence-ops.js:313（this-receiver） / engine-persistence-ops.js:1357（same-name-local） / index.js:1827（this-receiver）",
       "reason": "产品侧有 13 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 2,
@@ -1010,7 +1010,7 @@
         "product_mention_sites": [
           "engine-persistence-ops.js:313",
           "engine-persistence-ops.js:1357",
-          "index.js:1789"
+          "index.js:1827"
         ],
         "test_mentions": 10
       }
@@ -1110,15 +1110,15 @@
     {
       "field": "stateProvider",
       "class": "mention-this-receiver",
-      "write": "1 处：index.js:11459",
-      "read": "engine-self-check.js:163（this-receiver） / index.js:1706（same-name-local）",
+      "write": "1 处：index.js:11604",
+      "read": "engine-self-check.js:163（this-receiver） / index.js:1744（same-name-local）",
       "reason": "产品侧有 2 处非写入提及（this-receiver），扫描器的 engine./state. 前缀视野看不见它们 ⇒ 不是死写，但读点不在统一前缀上；逐条站点已记录，判据会复验该站点仍存在且不是写入点。",
       "evidence": {
         "write_sites": 1,
         "product_mentions": 2,
         "product_mention_sites": [
           "engine-self-check.js:163",
-          "index.js:1706"
+          "index.js:1744"
         ],
         "test_mentions": 11
       }

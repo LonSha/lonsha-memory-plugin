@@ -240,6 +240,29 @@ let fetchWithTimeoutRetry = async function fetchWithTimeoutRetry(url, init, opts
                 _credCooldowns.delete(credKey);
             }
         }
+        /* [v3.488.0 · 缝合镜忆的降级阶梯] 失败分档冷却：**只在调用方显式传 `opts.failureLedger`
+         *   （一个 Map）时启用**；不传 ⇒ 与修前逐字一致（其余 23 处调用方一律不受影响）。
+         *   修前只有 401/403 落表（上一段），超时与传输异常在重试耗尽后直接 throw，
+         *   **一个字节都不记**：于是「API 地址填错 / 代理不通」的用户每条记忆都要把
+         *   timeoutSec 30 × maxAttempts 3 走满（90s），而每次降级在读数上与第一次同形。
+         *   分档与各档 TTL 都在 failure-class-cooldown.js（纯函数、可单测）；这里只做三件事：
+         *   查表（冷却中就立刻抛，不再撞网络）、成功清表、失败落表。 */
+        const _failLedger = (opts && opts.failureLedger && typeof opts.failureLedger.get === 'function')
+            ? opts.failureLedger : null;
+        const _failKey = _failLedger ? (credKey || String(url || '')) : '';
+        let _FC = null;
+        if (_failLedger) {
+            try {
+                if (typeof window !== 'undefined' && window.LonShaFailureClassCooldown) _FC = window.LonShaFailureClassCooldown;
+                else if (typeof require === 'function') _FC = require('./failure-class-cooldown.js');
+            } catch (_) { _FC = null; }
+        }
+        if (_failLedger && _FC && typeof _FC.verdict === 'function') {
+            const _v = _FC.verdict(_failLedger.get(_failKey), Date.now());
+            if (_v && _v.state === 'cooling') {
+                throw new Error(`${label} 处于失败冷却中（档 ${_v.cls}，剩余 ${Math.ceil(_v.remainMs / 1000)}s）`);
+            }
+        }
         const maxAttempts = Math.max(1, 1 + Math.max(0, retries));
         let lastErr = null;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -265,6 +288,7 @@ let fetchWithTimeoutRetry = async function fetchWithTimeoutRetry(url, init, opts
                     await new Promise(r => setTimeout(r, 800));
                     continue;
                 }
+                if (_failLedger) { try { _failLedger.delete(_failKey); } catch (_) {} }
                 return resp;
             } catch (err) {
                 clearTimeout(timer);
@@ -275,8 +299,22 @@ let fetchWithTimeoutRetry = async function fetchWithTimeoutRetry(url, init, opts
                     await new Promise(r => setTimeout(r, 800));
                     continue;
                 }
+                if (_failLedger && _FC && typeof _FC.record === 'function') {
+                    try {
+                        _failLedger.set(_failKey, _FC.record(_failLedger.get(_failKey),
+                            { timedOut: timedOut, name: err && err.name }, Date.now()));
+                    } catch (_) { /* 记账失败不得成为新的失败 */ }
+                }
                 throw (lastErr || err);
             }
+        }
+        /* 循环走完仍失败（5xx/429/超时重试用尽）：这一条**必须**落表，
+         *   否则「重试三次都超时」在所有读数上都与「一次就超时」同形。 */
+        if (_failLedger && _FC && typeof _FC.record === 'function') {
+            try {
+                _failLedger.set(_failKey, _FC.record(_failLedger.get(_failKey),
+                    { timedOut: true, name: (lastErr && lastErr.name) || 'RetryExhausted' }, Date.now()));
+            } catch (_) { /* 同上 */ }
         }
         throw (lastErr || new Error(`${label} 重试耗尽`));
     };
@@ -341,7 +379,7 @@ let _moduleLib = function _moduleLib(getGlobal, fileName) {
 
     /* ── 二、逐字副本：宿主常量与冷却族 ── */
 const PLUGIN_NAME = 'LonSha记忆引擎';
-let VERSION = '3.487.0';
+let VERSION = '3.488.0';
 const ARCHIVE_TOP_LEVEL_KEYS = Object.freeze([
 'version',
 'clock',
@@ -920,6 +958,9 @@ class VectorStore {
             const api_key = cfg.embeddingKey || cfg.apiKey || localStorage.getItem('api_key_openai') || '';
             const api_base = (cfg.embeddingUrl || 'https://api.openai.com').replace(/\/+$/, '');
             
+            /* [v3.488.0] 失败分档冷却表**惰性自建**（与 embedSourceByDoc 同一纪律：
+             *   本仓判据会把本方法体抠进 new Function 重放，沙箱里没有预置字段）。 */
+            this._embedFailures = this._embedFailures || new Map();
             if (!api_key) {
                 console.warn(`[${PLUGIN_NAME}] 无Embedding密钥，降级为本地确定性向量（可在设置中配置真嵌入）`);
                 this._embedDegrade.noKey++;
@@ -931,7 +972,7 @@ class VectorStore {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${api_key}`},
                 body: JSON.stringify({model: this.config.config.embeddingModel, input: str})
-            }, { label: 'Embedding', apiKey: api_key });
+            }, { label: 'Embedding', apiKey: api_key, failureLedger: this._embedFailures });
             
             const data = await res.json();
             if (data.error) {

@@ -1,7 +1,7 @@
 {
   "file": "index.js（+ 宿主面外提模块，合并面）",
   "note": "[v3.472.0] v3.472.0 抬版后基线未重绑（入口 13201→13524 行）+ 修两处真实缺陷：sanitizeJson 双副本与宿主失同步（v3.469.0 只改宿主）、OrganFallback 缺 _normalizeModelsPayload/_fetchModelsViaProxy 两个退路（v3.471.0 只改 memory-organs.js）。 入口 index.js 13119 → 13530 行（+411），成员 1345 → 1559，合并面 36386 行；全部读数由 tests/audit/host_beast_probe.cjs 直接落盘（零手抄）。本版只量不拆：未拆任何宿主巨兽成员。",
-  "measured_at": "v3.487.0",
+  "measured_at": "v3.488.0",
   "rebuilds": {
     "v3.233.0": {
       "reason": "F-2（跨平台事件来源构成）落在 event-completeness.js / evidence-workbench.js / index.js：index.js 新增 _eventPlatformsFace() ⇒ 成员 559→560、行数 16922→16980、前缀覆盖率 24.7%→24.9%",
@@ -3755,6 +3755,45 @@
         "top5_pct": -0.1,
         "top40_pct": -0.1
       }
+    },
+    "v3.488.0": {
+      "reason": "[v3.488.0] 缝合「光域·镜忆」五条增量：五条里两条（grain 双粒度 / 90-10 前缀分段）v3.484.0 已缝过，真缺口三条 + 一条改形 —— ① 失败分档冷却（修前 fetchWithTimeoutRetry 只在 401/403 落表，超时与传输异常重试耗尽后一字节不记，用户每条记忆都要把 30s×3 走满且每次降级在读数上同形）；② 终分合成（base × 时间 × 重要性 × 邻楼，只装配因子不定义衰减，时间口径楼层优先于天）；③ 冻结档按楼层分块（绝对楼层桶号，窗口推进不重算 blockId、rewrites 才有分辨力）；⑤ 五档向量后端降级链改形为「只判定与读数，不探活不发请求」，宿主没有的两档如实报缺席而不是写进 order 谎报优先级。自己抓到六处缺陷（冻结分块静默丢内容 / importance:1 口径重叠点把最不重要的判成最高加成 / 时间基数误用天 / 冻结桶号相对化 / composed 用间接证据判定导致空转被冒充成生效 / order 空数组静默回落）。引擎侧 +233 行，宿主零业务内联。",
+      "readings": {
+        "total_lines": 13498,
+        "surface_lines": 38417,
+        "member_count": 1414,
+        "duplicate_member_names": 221,
+        "top5_lines": 9489,
+        "top5_pct": 24.7,
+        "top40_lines": 20112,
+        "top40_pct": 52.4,
+        "prefix_rule_coverage_lines": 5391,
+        "prefix_rule_coverage_pct": 14,
+        "unclassified_lines": 31883,
+        "seam_distinct_modules": 233,
+        "seam_reference_sites": 591,
+        "seam_call_shape_sites": 786,
+        "members_over_80_lines": 54,
+        "low_coupling_members": 17,
+        "high_coupling_members": 20,
+        "entry_lines": 13498
+      },
+      "unchanged": [
+        "其余 23 处 fetchWithTimeoutRetry 调用方零影响：失败分档冷却只在调用方显式传 `opts.failureLedger`（Map）时启用，不传与修前逐字一致",
+        "未新增任何配置键：四个新模块的阈值全部是入参（缺省取 DEFAULTS），面板不读新键、宿主不注入新开关",
+        "真嵌入优先的语义不动：观测不到真向量时照旧落到本地 ngram，再落到 legacy，只是现在这条链在面板上有形状",
+        "本版只量不拆：未拆任何宿主巨兽成员（入口 +145 行全是库口 / 注入 / 只读读数方法）"
+      ],
+      "not_done": "本版交付四个纯函数模块 + 三处真路径接线（engine-recall 终分 / memory-organs 冷却 / 诊断行）+ 34 条判据；未实现 st_local 与 browser_onnx 两档（本宿主没有对应运行时，如实报缺席而不是假装有）；未做探活（探针结果由调用方给，模块只判定与回预算）；未拆宿主巨兽成员。",
+      "delta_from": "v3.487.0",
+      "delta": {
+        "total_lines": 145,
+        "surface_lines": 233,
+        "member_count": 13,
+        "top40_lines": 43,
+        "top5_pct": -0.2,
+        "top40_pct": -0.2
+      }
     }
   },
   "node_version": "v24.18.0",
@@ -3768,33 +3807,33 @@
     "外部引用数 = 该方法名在宿主面**之外**的全部 .js 里出现的次数（不含 tests/）。它只能当**上界**用：同名方法会混在一起（全文同名 160 组，见 corrections）。"
   ],
   "readings": {
-    "total_lines": 13353,
-    "surface_lines": 38184,
-    "member_count": 1401,
-    "duplicate_member_names": 218,
+    "total_lines": 13498,
+    "surface_lines": 38417,
+    "member_count": 1414,
+    "duplicate_member_names": 221,
     "top5_lines": 9489,
-    "top5_pct": 24.9,
-    "top40_lines": 20069,
-    "top40_pct": 52.6,
-    "prefix_rule_coverage_lines": 5339,
+    "top5_pct": 24.7,
+    "top40_lines": 20112,
+    "top40_pct": 52.4,
+    "prefix_rule_coverage_lines": 5391,
     "prefix_rule_coverage_pct": 14,
-    "unclassified_lines": 31702,
-    "seam_distinct_modules": 229,
-    "seam_reference_sites": 587,
-    "seam_call_shape_sites": 779,
-    "members_over_80_lines": 53,
+    "unclassified_lines": 31883,
+    "seam_distinct_modules": 233,
+    "seam_reference_sites": 591,
+    "seam_call_shape_sites": 786,
+    "members_over_80_lines": 54,
     "low_coupling_members": 17,
-    "high_coupling_members": 19,
-    "entry_lines": 13353
+    "high_coupling_members": 20,
+    "entry_lines": 13498
   },
   "domains": [
     {
       "domain": "（未归类）",
-      "members": 1309,
-      "lines": 31702,
+      "members": 1319,
+      "lines": 31883,
       "lines_pct": 83,
-      "outside_refs": 32486,
-      "internal_refs": 11102,
+      "outside_refs": 32635,
+      "internal_refs": 11157,
       "outside_ref_share_pct": 74.5
     },
     {
@@ -3808,12 +3847,12 @@
     },
     {
       "domain": "召回与注入",
-      "members": 37,
-      "lines": 1905,
-      "lines_pct": 5,
-      "outside_refs": 209,
-      "internal_refs": 105,
-      "outside_ref_share_pct": 66.6
+      "members": 40,
+      "lines": 1957,
+      "lines_pct": 5.1,
+      "outside_refs": 219,
+      "internal_refs": 109,
+      "outside_ref_share_pct": 66.8
     },
     {
       "domain": "宿主事件接线",
@@ -3828,7 +3867,7 @@
       "domain": "桥/快照出口",
       "members": 2,
       "lines": 211,
-      "lines_pct": 0.6,
+      "lines_pct": 0.5,
       "outside_refs": 16,
       "internal_refs": 3,
       "outside_ref_share_pct": 84.2
@@ -3928,8 +3967,8 @@
     {
       "name": "recallMemory",
       "file": "engine-self-check.js",
-      "lines": 1211,
-      "outside_refs": 43
+      "lines": 1244,
+      "outside_refs": 44
     },
     {
       "name": "restoreFromPayload",
@@ -3957,7 +3996,7 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 536,
+      "lines": 541,
       "outside_refs": 0
     },
     {
@@ -4104,6 +4143,12 @@
       "outside_refs": 0
     },
     {
+      "name": "fetchWithTimeoutRetry",
+      "file": "index.js",
+      "lines": 111,
+      "outside_refs": 23
+    },
+    {
       "name": "backfillFloors",
       "file": "index.js",
       "lines": 111,
@@ -4118,19 +4163,13 @@
       "name": "_o9Gate",
       "lines": 109,
       "outside_refs": 9
-    },
-    {
-      "name": "storyCanonAdoptConfirm",
-      "file": "index.js",
-      "lines": 106,
-      "outside_refs": 0
     }
   ],
   "split_candidates": {
     "threshold_lines": 80,
-    "total_over_threshold": 53,
+    "total_over_threshold": 54,
     "low_coupling_non_lifecycle": 17,
-    "high_coupling_non_lifecycle": 19,
+    "high_coupling_non_lifecycle": 20,
     "low_coupling_examples": [
       {
         "name": "loadModules",
@@ -4142,7 +4181,7 @@
       {
         "name": "_assembleComponents",
         "file": "index.js",
-        "lines": 536,
+        "lines": 541,
         "outside_refs": 0,
         "is_host_lifecycle": false
       },
@@ -4256,8 +4295,8 @@
       {
         "name": "recallMemory",
         "file": "engine-self-check.js",
-        "lines": 1211,
-        "outside_refs": 43,
+        "lines": 1244,
+        "outside_refs": 44,
         "is_host_lifecycle": false
       },
       {
@@ -4345,9 +4384,9 @@
   "line_budget": {
     "_doc": "宿主 index.js 的**行数与成员数**上界（A1 里程碑交棒后）。v3266 C 读行，v3261 C 读成员，两档都不再手锁当版字面量。",
     "_rule": "ceiling 必须能被最后一条 history 解释；抬升只走本脚本（三条读数自动同步），不许手改。",
-    "ceiling": 13392,
+    "ceiling": 13898,
     "maxSlack": 400,
-    "note": "[v3.487.0] 缝合更新版用户脚本两条写入侧纪律后的当版重绑：入口 index.js 13353 行（+0）、成员数 1401；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38184 行，TOP5 占 24.9%，TOP40 占 52.6%。入口零变化（只有版本串），增量全部来自引擎侧两处写入端：engine-persistence-ops.js 的存档来源身份闸（打戳/取戳/判定三个纯函数 + 导出末位盖戳 + 恢复侧闸门与剥戳）与 memory-organs.js 的按 id 写入后置条件（两个方法各持一份就地计数），不是死代码回流。",
+    "note": "[v3.488.0] 缝合「光域·镜忆」五条增量后的当版重绑：入口 index.js 13498 行（+145）、成员数 1414；行上界**上抬至 13898**（余量 400 <= slack 400）、成员上界**上抬至 1444**。合并面 38417 行，TOP5 占 24.7%，TOP40 占 52.4%。入口增量全部是**接线**（四个库口 + 四处 bindDeps 注入 + 四个只读读数方法），没有一行业务内联：判定与算法都住在新模块（failure-class-cooldown / recall-final-score / frozen-archive-blocks / vector-backend-ladder）；另把 fetchWithTimeoutRetry 的失败分档冷却三段同时补进宿主副本，与 memory-organs.js 的副本保持逐字同源（v3264 A 当场抓过漂移）。",
     "history": [
       {
         "ceiling": 15000,
@@ -4877,30 +4916,36 @@
         "member_ceiling": 1404,
         "milestone_version": "v3.487.0",
         "reason": "[v3.487.0] 缝合更新版用户脚本两条写入侧纪律后的当版重绑：入口 index.js 13353 行（+0）、成员数 1401；行上界**不抬，仍为 13392**（余量 39 <= slack 400）、成员上界**不抬，仍为 1404**。合并面 38184 行，TOP5 占 24.9%，TOP40 占 52.6%。入口零变化（只有版本串），增量全部来自引擎侧两处写入端：engine-persistence-ops.js 的存档来源身份闸（打戳/取戳/判定三个纯函数 + 导出末位盖戳 + 恢复侧闸门与剥戳）与 memory-organs.js 的按 id 写入后置条件（两个方法各持一份就地计数），不是死代码回流。"
+      },
+      {
+        "ceiling": 13898,
+        "member_ceiling": 1444,
+        "milestone_version": "v3.488.0",
+        "reason": "[v3.488.0] 缝合「光域·镜忆」五条增量后的当版重绑：入口 index.js 13498 行（+145）、成员数 1414；行上界**上抬至 13898**（余量 400 <= slack 400）、成员上界**上抬至 1444**。合并面 38417 行，TOP5 占 24.7%，TOP40 占 52.4%。入口增量全部是**接线**（四个库口 + 四处 bindDeps 注入 + 四个只读读数方法），没有一行业务内联：判定与算法都住在新模块（failure-class-cooldown / recall-final-score / frozen-archive-blocks / vector-backend-ladder）；另把 fetchWithTimeoutRetry 的失败分档冷却三段同时补进宿主副本，与 memory-organs.js 的副本保持逐字同源（v3264 A 当场抓过漂移）。"
       }
     ],
-    "member_ceiling": 1404,
+    "member_ceiling": 1444,
     "member_max_slack": 30,
     "member_note": "v3.315.0–v3.316.0 同上两刀的活跃接线成员（宿主成员 626 → 645），非死代码回流：抬到实测 645 + slack 30"
   },
-  "total_lines": 13353,
-  "member_count": 1401,
+  "total_lines": 13498,
+  "member_count": 1414,
   "index_total_lines": 13082,
   "index_line_ceiling": 12096,
-  "entry_lines": 13353,
-  "surface_lines": 38184,
+  "entry_lines": 13498,
+  "surface_lines": 38417,
   "members_by_file": {
-    "index.js": 903,
+    "index.js": 911,
     "engine-diagnostic-lines.js": 1,
     "engine-evidence-center.js": 1,
     "engine-execution-pipeline.js": 1,
-    "engine-injection-pipeline.js": 51,
+    "engine-injection-pipeline.js": 53,
     "engine-persistence-ops.js": 54,
     "engine-qa-tools.js": 26,
     "engine-recall.js": 20,
     "engine-repair-ops.js": 46,
     "engine-report.js": 49,
-    "engine-self-check.js": 30,
+    "engine-self-check.js": 33,
     "engine-story-annual.js": 28,
     "memory-core.js": 4,
     "index-helpers.js": 12,
@@ -4973,8 +5018,8 @@
     {
       "name": "recallMemory",
       "file": "engine-self-check.js",
-      "lines": 1211,
-      "outside_refs": 43
+      "lines": 1244,
+      "outside_refs": 44
     },
     {
       "name": "restoreFromPayload",
@@ -5002,7 +5047,7 @@
     {
       "name": "_assembleComponents",
       "file": "index.js",
-      "lines": 536,
+      "lines": 541,
       "outside_refs": 0
     },
     {
@@ -5149,6 +5194,12 @@
       "outside_refs": 0
     },
     {
+      "name": "fetchWithTimeoutRetry",
+      "file": "index.js",
+      "lines": 111,
+      "outside_refs": 23
+    },
+    {
       "name": "backfillFloors",
       "file": "index.js",
       "lines": 111,
@@ -5163,12 +5214,6 @@
       "name": "_o9Gate",
       "lines": 109,
       "outside_refs": 9
-    },
-    {
-      "name": "storyCanonAdoptConfirm",
-      "file": "index.js",
-      "lines": 106,
-      "outside_refs": 0
     }
   ],
   "surface_files": [

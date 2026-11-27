@@ -643,3 +643,5 @@ v3484_fused_attachments.test.mjs
 v3485_recall_dryrun_panel.test.mjs
 v3486_wiring_surface_truth.test.mjs
 v3487_archive_identity_and_unique_hit.test.mjs		v3.487.0 当版新增：缝合更新版用户脚本的两条写入侧纪律 —— 存档来源身份五态闸（blocked 只落 file-import、闸门在一切副作用之前、拒绝带 src/dst 事实、来源戳随存档走而在恢复侧主动剥除）+ 按 id 写入的后置条件验收（删除后零命中 / 恢复后恰好一份，顺带修 deleteMemory 只清 core 那份的缺陷）；11 条断言，含被拦下零副作用与两态文案互不同形。
+v3488_failure_ladder_final_score_frozen.test.mjs		v3.488.0 当版新增：缝合镜忆的失败分档冷却 / 终分合成 / 冻结档分块三条 —— 五档分类互不同形（auth/quota/timeout/transport/unknown，unknown TTL=0 不许装作会自愈）、sweep 不误伤新鲜条目、终分只装配因子不定义衰减（楼层口径优先于天，timeByFloor/timeByDays 分开计数）、importance:1 落在两套口径重叠点时的判定次序（显式 scale > 本仓主流 >=1⇒five > unit，给不出记 na 并留 assumed 痕）、冻结块用绝对楼层桶号（窗口推进不重算 id）、不丢内容恒等式（blocks 收走 + rest === 合法条目数）、composed 只用硬读数（终分 ≠ base 的条数）而不看选项给没给；18 条断言。
+v3488_vector_backend_ladder.test.mjs		v3.488.0 当版新增：缝合镜忆的五档向量后端降级链（改形为只判定与读数，不探活不发请求）—— absent（全无观测）/ unknown（没人声明过）/ cooling（可用但在冷却窗内）三态分三个数组给、宿主没有的 st_local / browser_onnx 不写进 order 谎报优先级而是如实报缺席、探针新鲜失败 ⇒ absent 而过期 ⇒ unknown（过期只表示该重探）、时钟回拨不冒充新鲜、预算缺省 3500/8000 且档位覆盖优先、order 空数组记 malformed 而不静默回落成镜忆链、不新增配置键（源码级断言不读 window/localStorage/Date.now）；16 条断言。

@@ -58,6 +58,7 @@
         ['HierarchicalPyramidEvolution', 'hierarchical-pyramid-evolution.js'],
         ['SubconsciousUndercurrentEngine', 'subconscious-undercurrent-engine.js'],
         ['RoundEntrySnapshot', 'round-entry-snapshot.js'],
+        ['VectorBackendLadder', 'vector-backend-ladder.js'],
         // [v18] 第十八期灵魂深潜主观认知失真引擎
         ['TemporalFlashbulbDilationEngine', 'temporal-flashbulb-dilation-engine.js'],
         ['DissociativePersonaMaskMatrix', 'dissociative-persona-mask-matrix.js'],

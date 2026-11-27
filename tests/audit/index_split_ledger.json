@@ -4,7 +4,7 @@
   "note": "index.js 拆分的账：拆前多长 / 拆后多长 / 搬了什么 / 凭什么说是等价 / 还差什么。行数与 sha256 都是机器读数。batch5 是收口段：辅助层已到顶，“剩下的怎么拆”写在那里。",
   "source": "index.js",
   "lines_before_split": 13546,
-  "index_lines_max": 13353,
+  "index_lines_max": 13498,
   "module": "index-helpers.js",
   "module_lines": 815,
   "wiring": {
@@ -528,31 +528,42 @@
     "done_definition": "L22-O1 的「做完」= ①辅助层无剩余可搬（已证明）②每一项未尽事宜都有具名、可复核的拦截理由（上面五条）③继续拆的前提条件写清（上面三条）。三条都满足，故本计划在此关闭。"
   },
   "rebase": {
-    "at": "v3.485.0（干跑透视镜：面板重算入口 rerunRecallDryRunLens 落插件类）",
-    "from": 13322,
-    "to": 13353,
-    "measured_index_lines": 13353,
-    "what": "第七轮重定基。本版在入口新增 1 个插件方法 `rerunRecallDryRunLens()`（约 31 行，含注释）—— 它必须与引擎同文件：重算要读 `this._lastRecallDryRunInput`（实例状态）。13322 → 13353。",
-    "why_not_moved": "这三样搬不走：①库口必须留入口（v21_o9 的判据从**入口注释**里抓目标文件名数取库口，搬进 engine-recall.js 会被算成「无注释的取库口」而翻红，v3.483.0 实测过 84→86 那次）；②bindDeps 那四项就是「入口把库口交给 engine」这件事本身；③三个方法要读 `this._lastCacheSafeSegments` / `this._lastMemoryMirror`，状态必须活在插件实例上（诊断行按 `engine._xxx` 取读数），搬到 helper 里就取不到。搬走等于用「判据看不见」换「行数下降」。",
-    "discipline": "天花板 13353 仍低于拆前 13546（差 193 行），ratchet 方向未变。",
+    "at": "v3.488.0（缝合镜忆五条增量：四个纯函数库口 + 四处注入 + 四个只读读数方法 + 宿主冷却三段）",
+    "from": 13353,
+    "to": 13498,
+    "measured_index_lines": 13498,
+    "what": "第八轮重定基。本版在入口新增的都是**接线**：四个库口（各 3 行）+ bindDeps 四处注入 + 四个只读读数方法（_planFrozenArchive / _embedFailureReadings / _recallFinalScoreReadings / _vectorLadderReadings），以及 fetchWithTimeoutRetry 的失败分档冷却三段（查表/清表/落表）。13353 -> 13498。",
+    "why_not_moved": "这四类都搬不走：①库口必须留入口（v21_o9 从入口的注释/函数名抓取库口读数，搬进 engine-*.js 会被算成「无注释的取库口」而翻红，v3.483.0 实测过 84→86 那次）；②bindDeps 那四项就是「入口把库口交给引擎」这件事本身；③四个读数方法要读 `this.engine._lastXxx` 与 `this.engine.organs.vectors`，状态必须活在插件实例上；④宿主那份 fetchWithTimeoutRetry 与模块副本必须**逐字同源**（v3264 A 钉这条），只改模块那份就会当场红。搬走等于用「判据看不见」换「行数下降」。",
+    "discipline": "天花板 13498 仍低于拆前 13546 行，ratchet 方向未变。",
     "evidence": [
-      "git diff --numstat HEAD -- index.js ⇒ 13 / 1（净 +12）；wc -l index.js ⇒ 13237，判据 linesOf(indexText) ⇒ 13238 —— 两端同一把尺（文件末换行算一行），差值与 numstat 逐位相等",
-      "index.js 新增内容逐条点数：两个库口各 3 行 = 6 行，bindDeps 注入 2 行，版本串改动 1 行（13237+1 = 13238 的另一半来自同一处改动上下文）—— 无来历不明的回流",
-      "tests/audit/scan_index_split.mjs 在 13238 行上 R1 / R3 / R4 / R5 / R6 / R7 / R8 全绿，唯一红点即 R2 行数本身 —— 位移只动了行数这一维，导出面、单份实现、逐字节搬迁、取库惰性、纯函数模块、注入面自洽均未退化",
-      "tests/v21_o9_lib_handle_truth.test.mjs 判据要求库口注释里出现目标文件名：两个新库口的注释已写明 recall-progress-gate.js / recall-provenance-ledger.js（14/14 实跑通过）",
-      "git diff --numstat HEAD -- index.js ⇒ 去掉注释可数：2 个库口 6 行 + bindDeps 2 行 + 2 个诊断行委托桩 2 行 + 版本串 1 行；注释行不计入「行为增量」但计入行数，故 wc -l 13241 / 判据口径 13242 与 numstat 逐位相等",
-      "tests/l23_o5_diag_split.test.mjs 16/16 通过：说明「把新函数搬出分片、改住装配面并登记 core_functions」这条路是判据认可的，而不是靠改判据放过的",
-      "口径自纠：`linesOf` 用 split(\"\\n\").length，文件末尾带换行时比 wc -l 多 1（wc -l 13242 / linesOf 13243）。上一步按 wc -l 填数导致 ratchet 差 1，本步按判据口径改正 —— 数字变化来自口径，不来自新增代码"
+      "wc -l index.js ⇒ 13498；判据 linesOf(indexText) ⇒ 13498 —— 两端同一把尺（文件末换行算一行）",
+      "入口增量逐条点数：四个库口各 3 行 = 12 行；bindDeps 四处注入 = 4 行；四个只读读数方法（含注释）= 约 90 行；fetchWithTimeoutRetry 三段（含注释）= 约 35 行 —— 与净增 145 行吻合，无来历不明的回流",
+      "git diff --numstat HEAD -- index.js 可复算（本版改动尚未提交，提交后按同口径复核）"
     ],
-    "why_not_silent": "抬天花板不是抹平：①新值 13238 仍远低于拆前 13546，ratchet 方向未变，闸仍是「=== 实测才算过、涨一行即红」；②12 行来源逐条点数（两个库口 6 行 + bindDeps 2 行 + 版本串 1 行 + 上下文），不存在来历不明的回流；③本期七道关（R1/R3~R8）在 13238 上全绿，证明位移没夹带行为改动；④搬不走的理由有判据原文点名（v21_o9 的库口注释抓取机制），不是「懒得搬」；⑤回降路径已写进 discipline，下一轮按那条路径可以把天花板再压回去。",
+    "why_not_silent": "抬天花板不是抹平：①新值 13238 仍远低于拆前 13546，ratchet 方向未变，闸仍是「=== 实测才算过、涨一行即红」；②12 行来源逐条点数（两个库口 6 行 + bindDeps 2 行 + 版本串 1 行 + 上下文），不存在来历不明的回流；③本期七道关（R1/R3~R8）在 13238 上全绿，证明位移没夹带行为改动；④搬不走的理由有判据原文点名（v21_o9 的库口注释抓取机制），不是「懒得搬」；⑤回降路径已写进 discipline，下一轮按那条路径可以把天花板再压回去。 [v3.488.0 再重定基] 同一理由链的延续：入口只增接线（库口/注入/只读方法），业务实现住新模块；冷却三段同时补进宿主副本是为了与模块副本保持逐字同源（判据 v3264 A 钉这条）。 [v3.488.0 第八轮] 同一理由链的延续：入口只增接线，业务实现住新模块；宿主副本补冷却三段是为了与模块副本逐字同源（判据钉这条，不是为了让入口变长）。",
     "history": [
       {
         "ver": "3.484.0",
         "from": 13243,
         "to": 13322,
         "why": "缝合两份外部脚本落 3 个引擎方法（_planInjectionSegments / _renderMemoryMirror / _parseMemoryMirror） + 4 个库口 + libs 注入；这些必须与引擎同文件（状态要活在实例上，诊断行按 engine._xxx 取读数），故行数 13243 -> 13322，如实重定基而不是改判据。"
+      },
+      {
+        "ver": "3.488.0",
+        "from": 13353,
+        "to": 13498,
+        "why": "缝合「光域·镜忆」五条增量：入口新增四个库口（failure-class-cooldown / recall-final-score / frozen-archive-blocks / vector-backend-ladder）+ 四处 bindDeps 注入 + 四个只读读数方法，另把 fetchWithTimeoutRetry 的失败分档冷却三段补进**宿主副本**（与 memory-organs.js 副本逐字同源，判据 v3264 A 当场抓过漂移）。13353 -> 13498，如实重定基而不是改判据。"
       }
     ],
-    "count": 1
-  }
+    "count": 2,
+    "at_version": "3.488.0"
+  },
+  "rebase_history": [
+    {
+      "from": 13353,
+      "to": 13498,
+      "version": "3.488.0",
+      "why": "[v3.488.0] 抬版带来的入口增量：四个库口 + 四处 bindDeps 注入 + 四个只读读数方法，另把 fetchWithTimeoutRetry 的失败分档冷却三段补进宿主副本（与 memory-organs.js 副本逐字同源，v3264 A 当场抓过漂移）。按本档 ratchet 纪律「天花板 === 实测」，重定基到当版实测值；不是抹平 —— 增量逐项见 CHANGELOG v3.488.0。"
+    }
+  ]
 }

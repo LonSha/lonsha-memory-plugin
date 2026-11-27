@@ -359,6 +359,16 @@ const LEDGER = [
      *   台账长期没跟上（B1 一直在报）。体 md5 与成员集合全部由盘上实测枚举得出。
      *   共同理由与既有各条同族：零依赖 IIFE 自持通用原语，收拢即让「本模块自足」
      *   变成「依赖兄弟模块先挂载」—— 那正是本仓反过的跨模块静默读旧值形态。 */
+    /* ── [v3.488.0] 补登一簇：本版新模块 `frozen-archive-blocks.js` 与 `cache-safe-injection-segments.js` 逐字同源。
+     *   ★ 判据**真抓到东西**（不是为过门禁而补登记）：落盘当版 B1 立刻报
+     *   「新增未登记的模块↔模块逐字副本：fnv1a#f112a31e（成员 cache-safe-injection-segments.js,frozen-archive-blocks.js）」。
+     *   为什么留两份：与既有 fnv1a#3b85b86c 同族 —— 同一族 B「哈希原语」。两模块都是零依赖 IIFE
+     *   （前缀缓存分段要算 orderHash、冻结分块要算 blockId，各自要一份定序指纹），
+     *   收拢会把「本模块自足」换成「依赖兄弟模块先挂载」，即本仓反过的跨模块静默读旧值形态。 */
+    ['fnv1a', ['cache-safe-injection-segments.js', 'frozen-archive-blocks.js'], 'f112a31e',
+        'FNV-1a 32 位定序指纹原语：前缀缓存分段的 orderHash 与冻结分块的 blockId 各自要一份。\n'
+        + '**为什么留两份**：零依赖 IIFE 自持通用哈希原语，装载时机互不包含（注入分段层可缺席而冻结档在，反之亦然）。\n'
+        + '★ 本行是补登：该簇由 v3.488.0 的 frozen-archive-blocks.js 引入，落盘当版 v3281 B1 当场报出。'],
     ['_clone', ['conditional-consequence.js', 'continuous-research.js', 'institutional-memory.js'], '66b1b557', '深拷贝原语（JSON 往返 + 类型兜底）。三人格剧场面各自零依赖自持一份。'],
     ['_evidenceQueryLib', ['engine-qa-tools.js', 'engine-repair-ops.js'], '808771e0', '取库口（证据查询面）。与 engine-repair-ops 同批外提，各自自持一份取库口。'],
     ['_moduleLib', ['engine-qa-tools.js', 'engine-repair-ops.js'], '7d15b80f', '**外提批次的基础设施桩**：同批被拆出的 engine-*.js 各自要一份 `_moduleLib` 才能取库，而模块面拿不到宿主闭包 ⇒ 按先例自持。收拢会让每个 engine 模块都依赖某个兄弟模块先挂载。'],

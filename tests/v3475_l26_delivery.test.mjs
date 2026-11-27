@@ -80,7 +80,10 @@ test('A2 登记：可选引擎注册表 18 条全在，且 status() 逐条 loade
         assert.equal(row.name, g, f + ' 的登记名应为 ' + g);
         assert.equal(row.loaded, true, f + ' 登记了但 loadOne 拿不到（全局名对不上？）');
     }
-    assert.equal(reg.entries.length, 129, '注册表应为 129 条（111 + 18），实为 ' + reg.entries.length);
+    /* [v3.488.0] 注册表 129 → 130：本版把 `VectorBackendLadder`（vector-backend-ladder.js）
+     *   登记进 optional-engine-registry —— 不登记 = 宿主装不上，五档降级链等于没交付。
+     *   本条钉的是「登记表条数没被顺手清空/膨胀」的读数，按当版实测抬。 */
+    assert.equal(reg.entries.length, 130, '注册表应为 130 条（111 + 18 + 1），实为 ' + reg.entries.length);
 });
 
 test('A3 登记：loadAll() 真能取到十八个工厂对象（不是只登记不装载）', () => {

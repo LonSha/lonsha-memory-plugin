@@ -1,7 +1,7 @@
 (function() {
     'use strict';
     const PLUGIN_NAME = 'LonSha记忆引擎';
-    const VERSION = '3.487.0';
+    const VERSION = '3.488.0';
     // [v3.165] 事件接线的注册点总数（单一真源）。
     //   此前这个数字在两处独立硬编码（失败哨兵 expected=7 与 selfCheck 文案），
     //   加一个注册点必须记得同时改两处；漏一处就出现「哨兵以为该有 7 个、实际注册了 8 个」
@@ -397,6 +397,29 @@
                 _credCooldowns.delete(credKey);
             }
         }
+        /* [v3.488.0 · 缝合镜忆的降级阶梯] 失败分档冷却：**只在调用方显式传 `opts.failureLedger`
+         *   （一个 Map）时启用**；不传 ⇒ 与修前逐字一致（其余 23 处调用方一律不受影响）。
+         *   修前只有 401/403 落表（上一段），超时与传输异常在重试耗尽后直接 throw，
+         *   **一个字节都不记**：于是「API 地址填错 / 代理不通」的用户每条记忆都要把
+         *   timeoutSec 30 × maxAttempts 3 走满（90s），而每次降级在读数上与第一次同形。
+         *   分档与各档 TTL 都在 failure-class-cooldown.js（纯函数、可单测）；这里只做三件事：
+         *   查表（冷却中就立刻抛，不再撞网络）、成功清表、失败落表。 */
+        const _failLedger = (opts && opts.failureLedger && typeof opts.failureLedger.get === 'function')
+            ? opts.failureLedger : null;
+        const _failKey = _failLedger ? (credKey || String(url || '')) : '';
+        let _FC = null;
+        if (_failLedger) {
+            try {
+                if (typeof window !== 'undefined' && window.LonShaFailureClassCooldown) _FC = window.LonShaFailureClassCooldown;
+                else if (typeof require === 'function') _FC = require('./failure-class-cooldown.js');
+            } catch (_) { _FC = null; }
+        }
+        if (_failLedger && _FC && typeof _FC.verdict === 'function') {
+            const _v = _FC.verdict(_failLedger.get(_failKey), Date.now());
+            if (_v && _v.state === 'cooling') {
+                throw new Error(`${label} 处于失败冷却中（档 ${_v.cls}，剩余 ${Math.ceil(_v.remainMs / 1000)}s）`);
+            }
+        }
         const maxAttempts = Math.max(1, 1 + Math.max(0, retries));
         let lastErr = null;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -422,6 +445,7 @@
                     await new Promise(r => setTimeout(r, 800));
                     continue;
                 }
+                if (_failLedger) { try { _failLedger.delete(_failKey); } catch (_) {} }
                 return resp;
             } catch (err) {
                 clearTimeout(timer);
@@ -432,8 +456,22 @@
                     await new Promise(r => setTimeout(r, 800));
                     continue;
                 }
+                if (_failLedger && _FC && typeof _FC.record === 'function') {
+                    try {
+                        _failLedger.set(_failKey, _FC.record(_failLedger.get(_failKey),
+                            { timedOut: timedOut, name: err && err.name }, Date.now()));
+                    } catch (_) { /* 记账失败不得成为新的失败 */ }
+                }
                 throw (lastErr || err);
             }
+        }
+        /* 循环走完仍失败（5xx/429/超时重试用尽）：这一条**必须**落表，
+         *   否则「重试三次都超时」在所有读数上都与「一次就超时」同形。 */
+        if (_failLedger && _FC && typeof _FC.record === 'function') {
+            try {
+                _failLedger.set(_failKey, _FC.record(_failLedger.get(_failKey),
+                    { timedOut: true, name: (lastErr && lastErr.name) || 'RetryExhausted' }, Date.now()));
+            } catch (_) { /* 同上 */ }
         }
         throw (lastErr || new Error(`${label} 重试耗尽`));
     }
@@ -2231,6 +2269,11 @@ function relativeTimeLabel(eventTime, nowTime) {
                         _recallDryRunLensLib: _recallDryRunLensLib,
                         _recallGrainMergeLib: _recallGrainMergeLib,
                         _memoryTextMirrorLib: _memoryTextMirrorLib,
+                        /* [v3.488.0] 三个新库口（失败分档 / 终分 / 冻结档）。 */
+                        _failureClassCooldownLib: _failureClassCooldownLib,
+                        _recallFinalScoreLib: _recallFinalScoreLib,
+                        _frozenArchiveBlocksLib: _frozenArchiveBlocksLib,
+                        _vectorBackendLadderLib: _vectorBackendLadderLib,
 
                         _recallProvenanceLedgerLib: _recallProvenanceLedgerLib,
                         _psychologicalDefenseLib: _psychologicalDefenseLib,
@@ -10316,6 +10359,22 @@ try { if (Number.isFinite(Number(this._timelineInjectFloor)) && Number(this._tim
     function _memoryTextMirrorLib() {
         return _moduleLib(() => window.LonShaMemoryTextMirror, 'memory-text-mirror.js');
     }
+    /* [v3.488.0 · 缝合镜忆的降级阶梯 / 终分 / 冻结档] 三个纯函数库口。
+     *   与 v3.484.0 的四个库口同规格：先取全局（extra_js 装载后挂 window.LonSha*），
+     *   再回落 require（Node 单测）；取不到返回 null，由调用方写 reason='module-missing'。 */
+    function _failureClassCooldownLib() {
+        return _moduleLib(() => window.LonShaFailureClassCooldown, 'failure-class-cooldown.js');
+    }
+    function _recallFinalScoreLib() {
+        return _moduleLib(() => window.LonShaRecallFinalScore, 'recall-final-score.js');
+    }
+    function _frozenArchiveBlocksLib() {
+        return _moduleLib(() => window.LonShaFrozenArchiveBlocks, 'frozen-archive-blocks.js');
+    }
+    /* [v3.488.0 · 五档向量后端降级链] 第四个库口（同批：降级阶梯 / 终分 / 冻结档 / 档位台账）。 */
+    function _vectorBackendLadderLib() {
+        return _moduleLib(() => window.LonShaVectorBackendLadder, 'vector-backend-ladder.js');
+    }
     function _summaryProvenanceLib() {
         return _moduleLib(() => window.LonShaSummaryProvenance, 'summary-provenance.js');
     }
@@ -11440,6 +11499,92 @@ function _collectNewFace() {
             return lib.parse(text);
         } catch (e) {
             return { state: 'malformed', reason: 'threw:' + String((e && e.message) || e), notes: [], attitude: '' };
+        }
+    }
+
+    /* [v3.488.0 · 缝合镜忆 frozenArchive] 冻结档计划：把旧楼层切成按块对齐的不变文本。
+     *   为什么要有**跨轮记忆**：`rewrites` 是这一面唯一硬读数，它只能与上一轮的块比出来，
+     *   故上一轮的 blocks 存在插件实例上（`_lastFrozenArchiveBlocks`），不落盘 ——
+     *   它是**观测状态**，跨重启丢失只影响一轮读数，不影响任何内容。
+     *   位置：调用方（注入串组装）取 blocks 与 rest；rest 原样交回召回侧照常处理。 */
+    _planFrozenArchive(items, opts) {
+        const lib = _frozenArchiveBlocksLib();
+        if (!lib || typeof lib.plan !== 'function') {
+            this._lastFrozenArchive = { active: false, reason: 'module-missing' };
+            return null;
+        }
+        try {
+            const o = Object.assign({}, opts || {});
+            /* prevBlocks 只由本方法自己接上一轮的（不许调用方伪造，否则 rewrites 可以被抹平）。 */
+            if (!o.prevBlocks && Array.isArray(this._lastFrozenArchiveBlocks)) {
+                o.prevBlocks = this._lastFrozenArchiveBlocks;
+            }
+            const planned = lib.plan(items, o);
+            this._lastFrozenArchiveBlocks = planned.blocks;
+            this._lastFrozenArchive = {
+                active: true,
+                state: planned.state,
+                counts: planned.counts,
+                readings: lib.summary(planned),
+                text: lib.join(planned.blocks)
+            };
+            return planned;
+        } catch (e) {
+            this._lastFrozenArchive = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+            return null;
+        }
+    }
+    /* [v3.488.0] 失败分档冷却的只读读数（面板取）。表由 memory-organs 持有，这里只读不写。 */
+    _embedFailureReadings() {
+        const lib = _failureClassCooldownLib();
+        if (!lib || typeof lib.summary !== 'function') return { active: false, reason: 'module-missing' };
+        try {
+            const map = this.engine && this.engine.organs && this.engine.organs.vectors
+                ? this.engine.organs.vectors._embedFailures : null;
+            const entries = [];
+            if (map && typeof map.forEach === 'function') map.forEach((v) => entries.push(v));
+            return {
+                active: true,
+                n: entries.length,
+                cooling: entries.filter((e) => lib.verdict(e, Date.now()).state === 'cooling').length,
+                summary: lib.summary(entries, Date.now())
+            };
+        } catch (e) {
+            return { active: false, reason: 'threw:' + String((e && e.message) || e) };
+        }
+    }
+    /* [v3.488.0] 终分合成的只读读数（真路径在 engine-recall 里跑，这里只搬读数）。 */
+    _recallFinalScoreReadings() {
+        const r = this.engine && this.engine._lastRecallFinalScore;
+        if (!r) return { active: false, reason: 'never-ran' };
+        return r;
+    }
+    /* [v3.488.0] 五档向量后端降级链的只读读数。
+     *   观测来源只有一个：`organs.vectors.embedSourceByDoc`（哪条文档由哪一档产出）。
+     *   装配与判定全在 vector-backend-ladder.js（`fromSources` 是唯一入口），
+     *   本方法**不许**自己写 order / 自己数来源 —— 那会变成第二份口径。
+     *   ★ 不传 cooldown：本仓失败账（`_embedFailures`）的键是**凭据**不是档位，
+     *     硬映射就得在这里重写一遍密钥解析，那就成了第二份真源。
+     *     分不出来就说分不出来：本方法如实报「无按档冷却源」，不猜。 */
+    _vectorLadderReadings() {
+        const lib = _vectorBackendLadderLib();
+        if (!lib || typeof lib.fromSources !== 'function') return { active: false, reason: 'module-missing' };
+        try {
+            const vec = this.engine && this.engine.organs && this.engine.organs.vectors;
+            const sources = vec && vec.embedSourceByDoc ? vec.embedSourceByDoc : null;
+            if (!sources) return { active: false, reason: 'no-source-ledger' };
+            const plan = lib.fromSources(sources, { now: Date.now(), cooldown: null });
+            this._lastVectorLadder = {
+                active: true,
+                state: plan.state,
+                current: plan.current,
+                counts: plan.counts,
+                readings: plan.readings,
+                summary: lib.summary(plan)
+            };
+            return this._lastVectorLadder;
+        } catch (e) {
+            return { active: false, reason: 'threw:' + String((e && e.message) || e) };
         }
     }
 

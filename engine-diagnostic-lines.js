@@ -115,6 +115,12 @@
     function _meaningMapLib() { return _libs._meaningMapLib ? _libs._meaningMapLib.apply(null, arguments) : null; }
     function _symbiosisBridgeLib() { return _libs._symbiosisBridgeLib ? _libs._symbiosisBridgeLib.apply(null, arguments) : null; }
     function _memoryLineageLib() { return _libs._memoryLineageLib ? _libs._memoryLineageLib.apply(null, arguments) : _moduleLib(() => window.LonShaMemoryLineageReplay, 'memory-lineage-replay.js'); }
+    /* [v3.488.0 · 五档向量后端降级链] 库口。判定与装配全在模块的 `fromSources` 里，
+     *   这里只负责「把 organs 的来源账递过去」—— 诊断行不许自己数来源、不许自己写档序。 */
+    function _vectorBackendLadderLib() {
+        if (_libs._vectorBackendLadderLib) return _libs._vectorBackendLadderLib();
+        return _moduleLib(function () { return (typeof window !== 'undefined' ? window.LonShaVectorBackendLadder : null); }, 'vector-backend-ladder.js');
+    }
     /* [v3.433.0 · L13-X2] 反事实推演面取库口：bench 模块是 UMD，挂 globalThis.CounterfactualExperimentBench
      *   （不是 LonSha 前缀独占名，_moduleLib 的「路径字面量/_moduleLib 调用」两类命中都能登记）。
      *   _libs 注入优先、globalThis 回落，与 _memoryLineageLib 同形。 */
@@ -234,6 +240,9 @@
             /* [v3.487.0] 两条新诊断行（装配面自有，不在分片里；台账 core_functions 已登记）。 */
             _archiveOriginLine: _archiveOriginLine,
             _uniqueHitLine: _uniqueHitLine,
+            /* [v3.488.0] 五档向量后端降级链诊断行（装配面自有，不在分片里）。 */
+            _vectorBackendLadderLib: _vectorBackendLadderLib,
+            _vectorLadderLine: _vectorLadderLine,
             errLog: errLog
         };
     }
@@ -397,6 +406,30 @@
      * 命中 0 与命中 N>1 必须可分：前者是「这条记忆本来就没有」，后者是
      * 「同 id 在 core/recent 各存了一份」——处置完全不同（一个该报错，一个该清干净）。
      */
+    /* [v3.488.0 · 五档向量后端降级链] 「现在到底走在第几档」。
+     *   四态措辞**必须分得开**（本仓 R2-A 同族账）：
+     *     模块缺席 / 没有来源账 / 这一轮没产出向量（absent）/ 走到第 N 档（degraded）。
+     *   前三者的数字读数都是 0，混同就分不清「机制没接上」与「这轮本来没向量」。 */
+    function _vectorLadderLine(engine) {
+        try {
+            var L = _vectorBackendLadderLib();
+            if (!L || typeof L.fromSources !== 'function') return '【向量档位】模块缺席（档位台账不可用）';
+            var vec = engine && engine.organs && engine.organs.vectors;
+            var sources = vec && vec.embedSourceByDoc ? vec.embedSourceByDoc : null;
+            if (!sources) return '【向量档位】未激活（本引擎没有向量来源账）';
+            var plan = L.fromSources(sources, { now: Date.now() });
+            var r = plan.readings || {};
+            var out = L.summary(plan);
+            /* 探针读数只在真有时印（本仓不探活，无条件印 3500ms 会让人以为在探） */
+            if (r.probeCacheHits) out += ' · 探针缓存命中 ' + r.probeCacheHits + ' 档';
+            if (r.currentProbe && r.currentProbe !== 'none') out += ' · 当前档探针 ' + r.currentProbe;
+            return out;
+        } catch (e) {
+            errLog(e, 'engine._vectorLadderLine');
+            return '—（向量档位诊断异常）';
+        }
+    }
+
     function _uniqueHitLine(engine) {
         try {
             var st = engine ? engine._lastUniqueHit : null;

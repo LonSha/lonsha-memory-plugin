@@ -239,6 +239,8 @@
     "_testimonyBoardLib",
     "_uniqueHitLine",
     "_worldlineMemoryLib",
+    "_vectorBackendLadderLib",
+    "_vectorLadderLine",
     "bindDeps",
     "errLog"
   ],

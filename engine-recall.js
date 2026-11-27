@@ -102,6 +102,28 @@
     function _memoryTextMirrorLib() {
         return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaMemoryTextMirror : null), 'memory-text-mirror.js');
     }
+    /* [v3.488.0 · 缝合镜忆的终分/冻结档] 两个取库口。模块缺席回 null，
+     *   由调用方写 reason='module-missing'（不伪装成「跑了但没结果」）。 */
+    function _recallFinalScoreLib() {
+        if (_libs._recallFinalScoreLib) return _libs._recallFinalScoreLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaRecallFinalScore : null), 'recall-final-score.js');
+    }
+    function _frozenArchiveBlocksLib() {
+        if (_libs._frozenArchiveBlocksLib) return _libs._frozenArchiveBlocksLib();
+        return _moduleLib(() => (typeof window !== 'undefined' ? window.LonShaFrozenArchiveBlocks : null), 'frozen-archive-blocks.js');
+    }
+    /* [v3.488.0] 楼层口径的衰减曲线（60 楼 e 折 ≈ 42 楼半衰）。
+     *   ★ 为什么**不**复用 decayScore 的天口径：本仓 v3.483.0 已判定「叙事日期会随剧情钟回拨、
+     *     随 dual-time 漂移、同一日可横跨几十楼」，召回进度门因此改用楼层。这里沿用同一判断。
+     *     两条曲线**不同源**，故读数里 `timeByFloor` / `timeByDays` 分开计数 ——
+     *     混成一张表就分不清「换了口径」与「同一口径变了」。
+     *   ★ 这是本版新引入的一条曲线：调 60 这个数就得重算「前三位换几条」，且不许在别处再写第二份。 */
+    var FLOOR_DECAY_E_FOLD = 60;
+    function _floorDecay(ageFloors) {
+        var a = Number(ageFloors);
+        if (!isFinite(a) || a < 0) return null;
+        return Math.exp(-a / FLOOR_DECAY_E_FOLD);
+    }
 
     function _recallProgressGateLib() {
         if (_libs._recallProgressGateLib) return _libs._recallProgressGateLib();
@@ -1278,6 +1300,39 @@
                 } catch (e) {
                     errLog(e, 'recallMemory.grainMerge');
                     engine._lastRecallGrainMerge = { active: false, reason: 'threw:' + String((e && e.message) || e) };
+                }
+
+                /* [v3.488.0 · 缝合镜忆的终分] base × 时间 × 重要性 × 邻楼，逐项留分解。
+                 *   位置纪律：**grain 之后、干跑透镜与进度门之前** —— 干跑要看到的就是最终顺序，
+                 *   进度门要判的也是最终会注入的那一份；放在它们后面，两处都会看到旧序。
+                 *   曲线由本模块的 `_floorDecay` 给（楼层口径），本模块**不**再算第二份衰减。 */
+                try {
+                    const FSL = _recallFinalScoreLib();
+                    if (FSL && typeof FSL.compose === 'function') {
+                        const _fsCfg = (engine.config && engine.config.config) || {};
+                        const _fs = FSL.compose(finalMerged, {
+                            nowFloor: _progress,
+                            decayFloor: _floorDecay,
+                            neighborEnabled: _fsCfg.recallNeighborBonus !== false,
+                            neighborBonus: Number(_fsCfg.recallNeighborBonus) || undefined,
+                            timeFloor: Number(_fsCfg.recallTimeFactorFloor) || undefined
+                        });
+                        if (_fs && Array.isArray(_fs.items) && _fs.items.length) {
+                            finalMerged.splice(0, finalMerged.length, ..._fs.items);
+                        }
+                        engine._lastRecallFinalScore = {
+                            active: true,
+                            state: _fs.state,
+                            readings: _fs.readings,
+                            counts: _fs.counts,
+                            progressFloor: _progress
+                        };
+                    } else {
+                        engine._lastRecallFinalScore = { active: false, reason: 'module-missing' };
+                    }
+                } catch (e) {
+                    errLog(e, 'recallMemory.finalScore');
+                    engine._lastRecallFinalScore = { active: false, reason: 'threw:' + String((e && e.message) || e) };
                 }
 
                 /* [v3.484.0 · 缝合镜忆干跑透视] 只吃**已有分数**（不重算，否则就是第二个真源），

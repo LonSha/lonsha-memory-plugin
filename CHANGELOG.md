@@ -1,3 +1,75 @@
+## v3.488.0
+**缝合「光域·镜忆」的五条增量（先逐条实测本仓现状，只做真缺口）。**
+
+### 对账结果：五条里两条 v3.484.0 已经缝过，只做三条 + 一条改形
+| # | 增量 | 本仓现状（实测） | 处置 |
+|---|---|---|---|
+| 1 | 失败分档冷却 | `fetchWithTimeoutRetry` **只在 401/403 落表**；超时与传输异常重试耗尽后直接 throw、一字节不记（用户默认 30s×3 = 90s/条，次次重撞） | 新写 `failure-class-cooldown.js`（五档 + 三态） |
+| 2 | grain 双粒度 | v3.484.0 已缝 `recall-grain-merge.js`（raw/card 双粒度、三态） | **不重复造**，留证 |
+| 3 | 终分合成 | 本仓只有各单因子，召回侧没有「base × 时间 × 重要性 × 邻楼」的装配面，也没有分解读数 | 新写 `recall-final-score.js` |
+| 4 | 冻结档分段 | 90-10 前缀分段 v3.484.0 已有，但「冻结区按楼层分块、块 id 稳定、rewrites 可数」没有 | 新写 `frozen-archive-blocks.js` |
+| 5 | 五档向量后端降级链 | 本仓只有一个向量出口（`local-ngram-vectorizer.js`），「现在走在第几档」在面板上没有形状 | 新写 `vector-backend-ladder.js`（改形：只做判定与读数，不探活不发请求） |
+
+### 四个新模块（全部 UMD 双导出、纯函数优先、不新增配置键）
+- **`failure-class-cooldown.js`**：`auth 1800s / quota 300s / timeout 120s / transport 120s / unknown 0` 五档，
+  `cooling / open / absent` 三态，`record / sweep / verdict / summary` 全纯函数。
+  `unknown` 档 TTL 为 0 是刻意的：认不出的失败**不许**装作会自愈。
+- **`recall-final-score.js`**：只装配因子，**不定义衰减**（曲线由调用方 `ctx.decayFloor(楼层)` 注入）。
+  时间口径**楼层优先于天**（本仓 v3.483.0 已判「叙事日期会随剧情钟回拨」，进度门也因此改楼层），
+  `timeByFloor / timeByDays` 分开计数，`factors.timeBasis` 标口径。
+- **`frozen-archive-blocks.js`**：`frozen / partial / none / malformed` 四态，`rewrites` 作唯一硬读数。
+  块号用**绝对楼层桶号**（`Math.floor(floor / blockSize)`），窗口一推进旧块 id 不变。
+- **`vector-backend-ladder.js`**：镜忆原链五档（`st_local / local_hybrid / browser_onnx / external_api / legacy_simple`）。
+  本宿主**没有** `st_local` / `browser_onnx` —— 不写进 `order` 谎报优先级，只在声明里记缺席并在读数上现形；
+  本仓真实序是 `external_api → local_hybrid → legacy_simple`。
+  `absent`（全无观测）/ `unknown`（没人声明过）/ `cooling`（可用但在冷却窗内）三态分三个数组给。
+
+### 自己抓到的六处缺陷（每处都是先写判据、冒烟当场翻红）
+1. **冻结分块静默丢内容**：13 条 / 块 12 时首稿 `rest` 返回 0，那 1 条**既不在块里也不在 rest 里**。
+   改成登记式（存 `{item, i, floor}` 包装 + `taken` 记原下标 + 末尾按原序归还），并钉恒等式
+   `blocks 收走 + rest.length === 输入合法条目数`；n=12/13/24/25/36 全绿，n=13 时 `rest=1`。
+2. **重要性口径重叠点**：`importance: 1` 落在「five 档 1..5」与「unit 档 0..1」两套口径的重叠点上，
+   首稿判成 unit 最大值 ⇒ **最不重要的那条拿到最高加成 1.4**。改成「显式 `importanceScale` 优先 →
+   否则按本仓写入侧主流口径 `>=1 ⇒ five` → `0<=x<1 ⇒ unit` → 给不出 ⇒ na」，并留 `assumed` 痕。
+3. **时间基数用错**：首稿用天，而本仓已判定叙事日期会回拨。改 `decayFloor(楼层)` 优先、`decay(ageDays)` 兜底。
+4. **冻结桶号相对化**：首稿用 `floor((untilFloor-1-floor)/blockSize)`，窗口一推进全部 blockId 重算、
+   `rewrites` 直接失效。改绝对桶号，并把「遇到不满桶就整体停」改成「每桶各自判断」——
+   否则一个新来的半截桶会让全部旧块一起消失、前缀命中从「若干块」掉到「0 块」。
+   实测：窗口 24→36 同桶 id 不变、`pushed.rewrites=0`、加半截桶后旧块不消失、恒等式 29===29。
+5. **`composed` 用间接证据判定**（终分这一面）：首稿按「某个选项给了没有」判生效，于是
+   `decayFloor` 正好返回 1、`neighborBonus` 被配成 1 时，分数没动、序没动，却报 `composed` ——
+   **空转被冒充成生效**。改成硬读数：`counts.changed`（终分 ≠ base 的条数）> 0 才算 composed。
+   同时删掉 `importanceFactor` 侧一段**永远不触发的 clamp**（会进死代码预算审计）。
+6. **`order` 空数组被静默回落成镜忆链**：那会让「调用方明确给了个空档序」与「根本没给」两态同形，
+   而且静默换成一份调用方没写的优先级。改成 malformed（`order-empty`）；
+   `plan(null)` 同理记 `input-not-object`，不许当成「给了但没观测」（那是 `absent`）。
+
+### 接线（三库口 → 四库口，全部真路径消费，不是只挂面板）
+- `index.js`：四个库口 + `bindDeps` 四处注入 + `_planFrozenArchive` / `_embedFailureReadings` /
+  `_recallFinalScoreReadings` / `_vectorLadderReadings` 四个方法。冻结档的 `prevBlocks` **只由本方法自己接**上一轮的，
+  不许调用方伪造（否则 `rewrites` 可以被抹平）。
+- `engine-recall.js`：`FLOOR_DECAY_E_FOLD = 60` + `_floorDecay()` + 终分真路径。
+  **位置纪律**：grain 之后、干跑透镜与进度门之前 —— 放在后面两处，它们看到的都是旧序。
+- `memory-organs.js`：`fetchWithTimeoutRetry` 里加「只在调用方显式传 `opts.failureLedger` Map 时启用」的
+  查表 / 清表 / 落表三段，`getEmbedding` 惰性建 `this._embedFailures` 并传入。
+  **不传则与修前逐字一致**，其余 23 处调用方零影响。
+- `engine-diagnostic-lines.js`：`_vectorLadderLine` 一条诊断行（住装配面，登记 `core_functions` 52→54）。
+- `optional-engine-registry.js`：登记 `VectorBackendLadder`（不登记 = 宿主装不上）。
+- `manifest.extra_js` 461 → 465。
+
+### 判据
+`tests/v3488_failure_ladder_final_score_frozen.test.mjs` 18 条 +
+`tests/v3488_vector_backend_ladder.test.mjs` 16 条 = **34 条全绿**。
+含负控制：五档分类互不同形、`sweep` 不误伤新鲜条目、各档 TTL 序关系、楼层口径优先、`importance=1` 回归、
+显式 scale 覆盖推断、缺因子记 `null` 不冒充 1.0、邻楼只加权不合并、`neutral ≠ composed`、
+块 id 与入参顺序无关、不丢内容恒等式、窗口推进不制造 rewrite、探针过期不冒充失败、时钟回拨不冒充新鲜、
+`observe` 吃四种容器形态、不新增配置键（源码级断言不读 `window` / `localStorage` / `Date.now`）。
+
+### 许可证口径（为什么是重写而不是搬）
+镜忆内层 239KB 运行时**无 license 字段、无版权头**（`grep -i license` 命中的 23 次 `mit` 全是
+`submit/commit/limit` 的子串），默认保留所有权利；本仓 README 自称 MIT，两者不兼容。
+故五条增量一律「只搬纪律、独立重写实现」，一行代码没抄。
+
 ## v3.487.0
 **缝合两份更新版用户脚本里的两条写入侧纪律（改形搬迁，不是搬实现）。**
 

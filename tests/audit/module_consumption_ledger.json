@@ -1,13 +1,13 @@
 {
   "schema": "module-consumption-ledger@2",
-  "generated_at": "2026-11-26T14:54:39.266Z",
-  "extra_js_count": 461,
-  "host_injected_count": 258,
-  "total_modules": 462,
+  "generated_at": "2026-11-27T05:40:49.823Z",
+  "extra_js_count": 465,
+  "host_injected_count": 262,
+  "total_modules": 466,
   "zero_consumption_count": 0,
   "load_surface_only_count": 0,
   "docs_probe_only_count": 0,
-  "active_count": 462,
+  "active_count": 466,
   "modules": {
     "active-reminiscence-epiphany-engine.js": {
       "module": "active-reminiscence-epiphany-engine.js",
@@ -3816,6 +3816,30 @@
       ],
       "load_surface_callers": []
     },
+    "failure-class-cooldown.js": {
+      "module": "failure-class-cooldown.js",
+      "surface": [
+        "failure-class-cooldown"
+      ],
+      "prod_call_sites": 3,
+      "business_call_sites": 3,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "index.js",
+          "count": 2,
+          "type": "file_binding"
+        },
+        {
+          "file": "memory-organs.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "fate-convergence-climax-loom.js": {
       "module": "fate-convergence-climax-loom.js",
       "surface": [
@@ -3996,6 +4020,30 @@
           "file": "memory-trace-surface.js",
           "count": 2,
           "type": "file_binding+exclusive_global"
+        }
+      ],
+      "load_surface_callers": []
+    },
+    "frozen-archive-blocks.js": {
+      "module": "frozen-archive-blocks.js",
+      "surface": [
+        "frozen-archive-blocks"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
         }
       ],
       "load_surface_callers": []
@@ -8414,6 +8462,30 @@
         }
       ]
     },
+    "recall-final-score.js": {
+      "module": "recall-final-score.js",
+      "surface": [
+        "recall-final-score"
+      ],
+      "prod_call_sites": 2,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-recall.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": []
+    },
     "recall-grain-merge.js": {
       "module": "recall-grain-merge.js",
       "surface": [
@@ -11038,6 +11110,36 @@
         }
       ],
       "load_surface_callers": []
+    },
+    "vector-backend-ladder.js": {
+      "module": "vector-backend-ladder.js",
+      "surface": [
+        "VectorBackendLadder"
+      ],
+      "prod_call_sites": 4,
+      "business_call_sites": 2,
+      "load_surface_only": false,
+      "allowed": 1,
+      "why": "active",
+      "callers": [
+        {
+          "file": "engine-diagnostic-lines.js",
+          "count": 1,
+          "type": "file_binding"
+        },
+        {
+          "file": "index.js",
+          "count": 1,
+          "type": "file_binding"
+        }
+      ],
+      "load_surface_callers": [
+        {
+          "file": "optional-engine-registry.js",
+          "count": 2,
+          "type": "file_binding+exclusive_global"
+        }
+      ]
     },
     "vector-semantic-sparse-hybrid-retrieval.js": {
       "module": "vector-semantic-sparse-hybrid-retrieval.js",

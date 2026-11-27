@@ -222,20 +222,26 @@ test('B2 非 _moduleLib 形态必须与四档缺口分开报（取库原语不�
         '真仓应无「形态不是 _moduleLib」的取库口；若有，本档单列而不混入四档缺口');
 });
 
-test('B3 真仓读数与实测一致：177 声明 / 0 同名 / 0 缺文件 / 0 挂载名不符', () => {
+test('B3 真仓读数与实测一致：181 声明 / 0 同名 / 0 缺文件 / 0 挂载名不符', () => {
     /* [v3.487.0 重绑 173→177·存量] 自 v3.465.0 立档时的 173 起，中间几刀又加了 4 个取库口；
      *   本档 B3 写死的是**绝对值**，于是每加一个取库口它就红一次（而 A3「总数==唯一名数」一直绿，
      *   说明并非同名覆盖）。按本仓口径把读数如实抬到当版实测值：
      *   它钉的仍是「声明总数 == 唯一变量名数」这条**结构不变量**，绝对值只作辅助读数。 */
-    assert.equal(REAL.total, 177, '取库口声明总数应为 177（v3.487.0 实测），实际 ' + REAL.total);
-    assert.equal(REAL.uniqueNames, 177);
+    /* [v3.488.0 重绑 177→181] 本版新增四个库口（失败分档冷却 / 终分合成 / 冻结档分块 / 五档向量降级链）。
+     *   同 v3.487.0 那条留痕：B3 钉的是「声明总数 == 唯一变量名数」的结构不变量，
+     *   绝对值只是辅助读数，按当版实测如实抬。 */
+    assert.equal(REAL.total, 181, '取库口声明总数应为 181（v3.488.0 实测），实际 ' + REAL.total);
+    assert.equal(REAL.uniqueNames, 181);
     assert.equal(REAL.duplicate.length, 0);
     assert.equal(REAL.missingFile.length, 0);
     assert.equal(REAL.globalNotMounted.length, 0);
     assert.equal(REAL.commentMismatch.length, 0);
     /* 同源读数：新增的 4 个取库口都是「靠函数名自解释、无注释」那类（+4 ⇒ 88），
      *   与本档 B1「注释未声称文件名 ⇒ 单列 commentAbsent，不判红」的处置一致。 */
-    assert.equal(REAL.commentAbsent.length, 88, '无注释的取库口应为 88，实际 ' + REAL.commentAbsent.length);
+    /* [v3.488.0 重绑 88→92] 四个新取库口同样是「靠函数名自解释、无注释」那类，
+     *   与上面 B3 的 177→181 是同一次抬版：两个读数必须同步抬，
+     *   只抬一个就会让「总数」与「其中无注释的」两条读数互相矛盾。 */
+    assert.equal(REAL.commentAbsent.length, 92, '无注释的取库口应为 88，实际 ' + REAL.commentAbsent.length);
 });
 
 /* ---------- C. 措辞与边界 ---------- */
